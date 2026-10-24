@@ -2,31 +2,29 @@
 
 Install the plugin once, review its hooks, and connect a project through a normal Codex chat. The plugin includes its Linux x86-64 runtime, MCP server, companion, setup skill and continuity skill. A separate Node/Bun or SpoolDB terminal installation is not required. The shared relay remains independent and can run on Cloudflare or a self-hosted server.
 
-## Install on this computer
+## Install in Codex
 
-If SpoolDB is already installed:
+1. Open **Plugins → Add marketplace** in Codex.
+2. Enter **`ywnzo/spooldb`** and add it.
+3. Select **SpoolDB → Install**.
 
-```sh
-spool plugin install
-```
+The plugin prepares its bundled runtime automatically on first use. No download/extraction steps, separate SpoolDB installation, Node/Bun installation, or JSON editing are needed. Linux x86-64 with glibc is currently supported; Git, curl and tar must be available.
 
-This registers a local SpoolDB marketplace, installs `spooldb@spooldb` in Codex, and remembers the current SpoolDB state directory. It leaves the existing relay, project connections and capture data in place. It does not trust hooks on the user's behalf.
+Review the four named hooks in Codex, then start a new chat and say **“Connect SpoolDB”**. Paste your workspace invitation there. Project sharing still requires your approval. Installation itself does not connect a workspace or upload conversations.
 
-Open the SpoolDB plugin in Codex and run its setup workflow (or ask “Set up SpoolDB for this project”). The four hooks are labeled “SpoolDB: Load project context”, “SpoolDB: Retrieve relevant memory”, “SpoolDB: Save handoff” and “SpoolDB: Save interrupted checkpoint”. Codex uses their `statusMessage` values as display names. Review and trust them in Codex's hook manager (`/hooks` in the CLI). If old managed configuration is detected, setup migrates it only after the plugin hooks are trusted and the user approves. Backups are kept under the private state directory's `integration-backups`. Restart the Codex session after migration so old running MCP processes and hooks are unloaded.
-
-## Install on a new Linux machine
-
-Download the [plugin marketplace bundle](https://github.com/ywnzo/spooldb/releases/latest/download/spooldb-codex-linux-x64.tar.gz), extract it into a permanent folder, and add that marketplace in Codex. With the Codex CLI:
+### Terminal alternative
 
 ```sh
-mkdir -p ~/.local/share/spooldb-plugin
-curl -fL https://github.com/ywnzo/spooldb/releases/latest/download/spooldb-codex-linux-x64.tar.gz -o /tmp/spooldb-plugin.tar.gz
-tar -xzf /tmp/spooldb-plugin.tar.gz -C ~/.local/share/spooldb-plugin
-codex plugin marketplace add ~/.local/share/spooldb-plugin
-codex plugin add spooldb@spooldb
+codex plugin marketplace add ywnzo/spooldb && codex plugin add spooldb@spooldb
 ```
 
-These are standard Codex installation commands; there is no `spool init` or JSON configuration step afterward. Use the plugin's setup workflow to paste a project or workspace invitation, choose an existing project or create one, and approve sharing. A workspace invitation connects the machine to the workspace only; project sharing requires a separate approval. Opening an unconnected Git folder prompts for a choice before capture starts. Declining records that choice.
+If SpoolDB is already installed, `spool plugin install` remains available. If legacy configuration exists, setup migrates only SpoolDB-managed entries after approval, preserves backups, and never trusts hooks for you.
+
+### How the download works
+
+The Git marketplace contains a small plugin launcher. Its release URL, archive checksum, hook definitions and hook fingerprint are pinned in the marketplace commit. On first launch, it downloads the matching release, checks the checksum and hook definitions, then installs the runtime into the plugin cache. Subsequent launches reuse it. Updates never switch to an unpinned latest payload or silently change reviewed hook definitions.
+
+Manual [bundle downloads](https://github.com/ywnzo/spooldb/releases/latest/download/spooldb-codex-linux-x64.tar.gz) remain available for offline distribution.
 
 ## What runs automatically
 
@@ -44,7 +42,7 @@ A fresh installation starts a private companion when the plugin runs. Concurrent
 
 The package uses `.codex-plugin/plugin.json`, root `mcp.json`, two skills, and `hooks/hooks.json`. This compatibility manifest is tested with Codex 0.163.0. The portable manifest's hooks/MCP extension fields were not honored by that installed build, so the distributed package uses the format that actually loads all components. Its MCP launcher also handles the installed build passing plugin-root placeholders literally: it locates the versioned Codex plugin cache while preserving the project working directory. The MCP server is named `spooldb` to avoid colliding with an older `spool` server during migration.
 
-Hook-containing plugins currently require manual/private distribution rather than the public plugin directory. The bundle can be shared through a company marketplace. This is a local Codex plugin; installing it in ChatGPT cloud does not deploy command hooks. IDE integrations, including Codex in Zed, need their runtime's plugin support verified separately; the existing companion integration remains available.
+The Git marketplace is separate from OpenAI’s universal public plugin directory; adding `ywnzo/spooldb` makes SpoolDB available in your own plugin browser. This is a local Codex plugin; installing it in ChatGPT cloud does not deploy command hooks. IDE integrations, including Codex in Zed, need their runtime's plugin support verified separately; the existing companion integration remains available.
 
 Build from source:
 

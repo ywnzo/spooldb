@@ -5,6 +5,7 @@ if [ "$(uname -sm)" != 'Linux x86_64' ]; then
   echo 'This SpoolDB plugin bundle supports Linux x86-64.' >&2
   exit 1
 fi
+sh "$plugin_root/scripts/bootstrap.sh" "$plugin_root"
 if [ -x "$plugin_root/app/runtime/bun" ]; then
   runtime="$plugin_root/app/runtime/bun"
 elif [ -x "$plugin_root/app/runtime/node" ]; then

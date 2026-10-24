@@ -1,0 +1,12 @@
+import {cpSync,mkdirSync,rmSync,readFileSync,writeFileSync} from 'node:fs';
+import {join,resolve} from 'node:path';
+import {fileURLToPath} from 'node:url';
+import {createHash} from 'node:crypto';
+const root=fileURLToPath(new URL('../',import.meta.url)),source=join(root,'work/plugin-marketplace'),out=join(root,'work/codex-marketplace'),plugin=join(out,'plugins/spooldb');
+rmSync(out,{recursive:true,force:true});mkdirSync(plugin,{recursive:true});
+for(const name of ['.codex-plugin','mcp.json','scripts','hooks','skills','assets'])cpSync(join(source,'plugins/spooldb',name),join(plugin,name),{recursive:true});
+mkdirSync(join(out,'.agents/plugins'),{recursive:true});cpSync(join(source,'.agents/plugins/marketplace.json'),join(out,'.agents/plugins/marketplace.json'));
+const version=JSON.parse(readFileSync(join(plugin,'.codex-plugin/plugin.json'))).version,archive=readFileSync(join(root,'installers/spooldb-codex-linux-x64.tar.gz')),sha=createHash('sha256').update(archive).digest('hex');
+writeFileSync(join(plugin,'payload.sha256'),sha+'  spooldb-codex-linux-x64.tar.gz\n');writeFileSync(join(plugin,'payload.url'),`https://github.com/ywnzo/spooldb/releases/download/v${version}/spooldb-codex-linux-x64.tar.gz\n`);
+writeFileSync(join(out,'README.md'),'# SpoolDB Codex marketplace\n\nAdd `ywnzo/spooldb` in Codex’s plugin marketplace settings, then install SpoolDB. This branch contains the plugin catalog and a checksum-pinned release launcher. The bundled runtime is prepared automatically on first launch.\n');
+console.log(JSON.stringify({marketplace:resolve(out),version,sha256:sha}));

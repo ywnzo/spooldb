@@ -30,7 +30,7 @@ curl -fsSL https://github.com/ywnzo/spooldb/releases/latest/download/install.sh 
 
 Paste the owner invitation when prompted. No Git clone, separate runtime or JSON editing is required. Git is needed for project integration.
 
-Or install the [Codex plugin](docs/codex-plugin.md), review its hooks, and connect using the invitation in chat. It includes the client.
+Or use **Codex → Plugins → Add marketplace → `ywnzo/spooldb`**, then install **SpoolDB**. Review its hooks and connect using the invitation in chat. The plugin includes the client; [setup details](docs/codex-plugin.md).
 
 ### 3. Create or join a project
 

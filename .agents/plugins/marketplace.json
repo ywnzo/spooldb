@@ -1,0 +1,10 @@
+{
+  "name": "spooldb",
+  "interface": {"displayName": "SpoolDB"},
+  "plugins": [{
+    "name": "spooldb",
+    "source": {"source": "git-subdir", "url": "https://github.com/ywnzo/spooldb.git", "ref": "codex-marketplace", "path": "./plugins/spooldb"},
+    "policy": {"installation": "AVAILABLE", "authentication": "ON_USE"},
+    "category": "Productivity"
+  }]
+}

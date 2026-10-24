@@ -17,6 +17,7 @@ jobs:
       - run: npm test
       - run: npm run typecheck
       - run: node scripts/build-codex-plugin.js
+      - run: node scripts/build-codex-marketplace.js
       - run: node scripts/build-linux-installer.js
       - run: SPOOL_BUILD_RUNTIME=node node scripts/build-linux-installer.js
       - name: Prepare downloads
@@ -38,3 +39,16 @@ jobs:
             installers/spooldb-codex-linux-x64.tar.gz \
             installers/install.sh installers/SHA256SUMS \
             --verify-tag "${notes[@]}" --title "SpoolDB $GITHUB_REF_NAME"
+          cd work/codex-marketplace
+          git init -b codex-marketplace
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git config credential.helper '!gh auth git-credential'
+          git remote add origin "https://github.com/$GITHUB_REPOSITORY.git"
+          if git ls-remote --exit-code --heads origin codex-marketplace >/dev/null 2>&1; then
+            git fetch --depth=1 origin codex-marketplace
+            git reset --soft FETCH_HEAD
+          fi
+          git add -A
+          git commit -m "Publish Codex marketplace $GITHUB_REF_NAME"
+          git push origin HEAD:codex-marketplace
