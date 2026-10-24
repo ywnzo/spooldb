@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:spool:adapter-event:1",
+  "title": "SpoolDB normalized adapter event v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["protocol", "harness", "eventId", "streamId", "sequence", "part", "sessionId", "sessionIdSource", "kind", "sourceType", "evidence", "payload"],
+  "properties": {
+    "protocol": { "const": "spool-adapter/1" },
+    "harness": { "type": "string", "pattern": "^[a-z][a-z0-9._-]{0,63}$" },
+    "eventId": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "streamId": { "type": "string", "minLength": 1, "maxLength": 80 },
+    "sequence": { "type": "integer", "minimum": 0 },
+    "part": { "type": "integer", "minimum": 0 },
+    "sessionId": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "sessionIdSource": { "enum": ["native", "adapter"] },
+    "turnId": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "kind": { "enum": ["session.started", "turn.started", "message", "tool.started", "tool.completed", "turn.completed", "turn.failed", "notice", "run.closed"] },
+    "sourceType": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "evidence": { "enum": ["native-event", "adapter-process"] },
+    "payload": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "role": { "enum": ["user", "assistant"] }, "text": { "type": "string" },
+        "nativeId": { "type": "string", "minLength": 1, "maxLength": 200 }, "toolCallId": { "type": "string", "minLength": 1, "maxLength": 200 }, "name": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "status": { "type": "string" }, "input": { "type": "string" }, "output": { "type": "string" },
+        "paths": { "type": "array", "items": { "type": "string" } }, "tool": { "type": "string" }, "server": { "type": "string" },
+        "reason": { "type": "string" }, "exitCode": { "type": ["integer", "null"] }, "signal": { "type": ["string", "null"] }
+      }
+    }
+  },
+  "allOf": [
+    { "if": { "properties": { "kind": { "const": "message" } } }, "then": { "properties": { "payload": { "required": ["role", "text", "nativeId"] } } } },
+    { "if": { "properties": { "kind": { "enum": ["tool.started", "tool.completed"] } } }, "then": { "properties": { "payload": { "required": ["toolCallId", "name"] } } } },
+    { "if": { "properties": { "kind": { "const": "run.closed" } } },
+      "then": { "properties": { "evidence": { "const": "adapter-process" }, "sourceType": { "const": "adapter.process.exit" },
+        "payload": { "required": ["status", "exitCode", "signal"], "properties": { "status": { "enum": ["completed", "failed", "incomplete"] } } } } },
+      "else": { "properties": { "evidence": { "const": "native-event" } } } }
+  ]
+}

@@ -1,0 +1,32 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {mkdtempSync,mkdirSync,writeFileSync,rmSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {execFileSync} from 'node:child_process';
+import {startTeamHost} from '../src/team/host.js';
+import {initializeProject,startProject} from '../src/project.js';
+import {migrateMemoryOnly} from '../src/team/migrate-memory-only.js';
+import {MemoryStore} from '../src/memory/store.js';
+const history=()=>({close(){},async read(){return {threads:0,messages:0};}});
+test('shared notes cite sanitized repository/commit/path and hashes; all source upload routes reject code',async t=>{
+ const root=mkdtempSync(join(tmpdir(),'tw-git-')),host=await startTeamHost(join(root,'host'),{port:0});let app;t.after(async()=>{await app?.close();await host.close();rmSync(root,{recursive:true,force:true});});
+ const repo=join(root,'repo');mkdirSync(repo);execFileSync('git',['init','-q',repo]);writeFileSync(join(repo,'code.ts'),'UNIQUE-PRIVATE-SOURCE-MARKER');execFileSync('git',['-C',repo,'add','.']);execFileSync('git',['-C',repo,'-c','user.name=Test','-c','user.email=test@example.test','commit','-qm','initial']);const commit=execFileSync('git',['-C',repo,'rev-parse','HEAD'],{encoding:'utf8'}).trim();execFileSync('git',['-C',repo,'remote','add','origin','https://secret-user:secret-token@example.test/company/repo.git?token=secret-query']);
+ initializeProject(join(root,'s'),repo);app=await startProject(join(root,'s'),{port:0,history:history()});const project=host.command({command:'create',name:'References'}).project,grant=host.command({command:'invite',room:project.room,label:'Client'});await app.app.teamConnect(grant.connection);
+ const saved=await app.app.memory({command:'remember',requestId:'note',kind:'decision',title:'Decision',text:'Use the existing Git repository',files:['code.ts'],commits:[commit]});const note=await app.app.memory({command:'get',id:saved.id});assert.equal(note.git.repository,'https://example.test/company/repo.git');assert.equal(note.files[0].commit,commit);assert.equal(note.files[0].path,'code.ts');assert.equal(note.files[0].dirty,false);assert.equal(note.files[0].contentHash.length,64);assert.deepEqual(note.commits,[commit]);assert.equal(note.freshness,'matches-local-content');
+ const post=(action,input)=>fetch(host.origin+`/v1/rooms/${project.room}/${action}`,{method:'POST',headers:{authorization:'Bearer '+grant.connection.token,'content-type':'application/json'},body:JSON.stringify(input)});
+ const raw=await (await post('memory',{command:'get',id:saved.id})).json();assert.equal(raw.freshness,'git-reference');assert.ok(!JSON.stringify(raw).includes('secret-token'));assert.ok(!JSON.stringify(raw).includes('UNIQUE-PRIVATE-SOURCE-MARKER'));
+ assert.equal((await post('source',{requestId:'old-client',records:[{kind:'message',id:'must-not-save',role:'assistant',text:'atomicity sentinel'},{kind:'file',id:'code',path:'code.ts',text:'UNIQUE-PRIVATE-SOURCE-MARKER'}]})).status,426);assert.equal((await post('push',{})).status,403);assert.equal((await post('review',{command:'publish'})).status,403);assert.equal((await post('memory',{command:'file_read',path:'code.ts'})).status,404);
+ assert.equal((await post('memory',{command:'remember',requestId:'invalid',kind:'finding',title:'Bad',text:'Bad',codeReferences:[{path:'code.ts',text:'raw source'}]})).status,400);
+ assert.equal(host.relay.engine.db.prepare("SELECT count(*) AS n FROM shard_changes WHERE doc LIKE 'f:%'").get().n,0);assert.equal((await app.app.memory({command:'search',query:'atomicity sentinel'})).results.length,0);
+ writeFileSync(join(repo,'code.ts'),'changed locally');await app.app.capture();assert.equal((await app.app.memory({command:'get',id:saved.id})).freshness,'code-changed');assert.equal((await app.app.memory({command:'file_read',path:'code.ts'})).sharing.uploaded,false);
+});
+test('migration removes immutable file history while preserving rooms, memory identities, revisions, grants and invites',async t=>{
+ const base=mkdtempSync(join(tmpdir(),'tw-migrate-')),dir=join(base,'relay');let host=await startTeamHost(dir,{port:0});t.after(async()=>{await host?.close();rmSync(base,{recursive:true,force:true});});const project=host.command({command:'create',name:'Legacy'}).project,grant=host.command({command:'invite',room:project.room,label:'Existing client'}),invite=host.command({command:'create-invite',room:project.room,label:'Pending teammate'}),engine=host.relay.engine,branch='relay-'+project.room;
+ engine.submit(branch,{actor:'old-client',requestId:'source',expectedHeads:engine.ref(branch).heads,operations:[{type:'file.create',fileId:'old-file',path:'@machines/old-client/code.ts',text:'old source content'}]});
+ const oldMemory=new MemoryStore(engine),principal={id:grant.memberId};const taskInput={command:'task_update',requestId:'task',taskId:'continue-work',title:'Work',text:'Still needed',status:'in_progress',expectedRevision:0};const task=oldMemory.run(project.room,taskInput,principal);const finding=oldMemory.run(project.room,{command:'remember',requestId:'finding',kind:'finding',title:'Finding',text:'Preserve this decision',files:['@machines/old-client/code.ts']},principal);
+ await host.close();host=null;const migrated=migrateMemoryOnly(dir,join(base,'local-rollback'));assert.equal(migrated.removedFileDocuments,1);assert.equal(migrated.messages,2);assert.match(migrated.backup,/local-rollback/);
+ host=await startTeamHost(dir,{port:0});assert.equal(host.command({command:'list'}).projects[0].room,project.room);assert.equal(host.command({command:'list'}).projects[0].members[0].id,grant.memberId);
+ const memory=host.relay.memory;assert.equal(memory.run(project.room,{command:'get',id:finding.id}).files[0].path,'code.ts');assert.equal(memory.run(project.room,{command:'context'}).tasks[0].revision,1);assert.equal(memory.run(project.room,taskInput,principal).id,task.id);assert.equal(host.relay.engine.db.prepare("SELECT count(*) AS n FROM shard_changes WHERE doc LIKE 'f:%'").get().n,0);
+ assert.ok(host.relay.engine.db.prepare('SELECT count(*) AS n FROM team_invites').get().n>0);assert.ok(invite.link);
+});

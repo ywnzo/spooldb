@@ -1,0 +1,176 @@
+{
+  "measuredAt": "2026-10-23T08:51:54.720Z",
+  "node": "v26.11.1",
+  "platform": "linux",
+  "arch": "x64",
+  "cpu": "AMD Ryzen 5 5500",
+  "logicalCpus": 12,
+  "hostMemoryBytes": 33510481920,
+  "methodology": "Separate worker per case; SQLite WAL/FULL; explicit GC and event-loop yield between every timed call for both layouts (GC excluded from call times, included in total wall time); five application-cache-cold reads with warm OS cache, thirty hot reads; one run, not a throughput SLA. Temporary databases removed after completion.",
+  "results": [
+    {
+      "layout": "legacy",
+      "checkpointEvery": 0,
+      "files": 100,
+      "edits": 200,
+      "messages": 200,
+      "textBytes": 1024,
+      "initialFilesMs": 744.035357,
+      "initialMessagesMs": 1026.738258,
+      "writes": {
+        "medianMs": 387.2399469999946,
+        "p95Ms": 408.14289400000416
+      },
+      "coldFileRead": {
+        "medianMs": 407.99451200000476,
+        "p95Ms": 410.0962819999986
+      },
+      "hotFileRead": {
+        "medianMs": 409.8756549999962,
+        "p95Ms": 421.1632440000103
+      },
+      "forkMs": 411.540605999995,
+      "rssAtStartBytes": 77402112,
+      "peakRssBytes": 475688960,
+      "finalRssBytes": 475688960,
+      "totalWallMs": 96156.764025,
+      "diskBytes": 5131816,
+      "replayMetrics": null,
+      "stats": null,
+      "status": "completed",
+      "verified": true
+    },
+    {
+      "layout": "sharded",
+      "checkpointEvery": 0,
+      "files": 100,
+      "edits": 200,
+      "messages": 200,
+      "textBytes": 1024,
+      "initialFilesMs": 617.3769090000001,
+      "initialMessagesMs": 990.282328,
+      "writes": {
+        "medianMs": 2.5882470000001376,
+        "p95Ms": 3.9176709999999275
+      },
+      "coldFileRead": {
+        "medianMs": 6.185586999999941,
+        "p95Ms": 6.883809999999812
+      },
+      "hotFileRead": {
+        "medianMs": 1.773768999999902,
+        "p95Ms": 2.025387000000137
+      },
+      "forkMs": 0.16223500000023705,
+      "rssAtStartBytes": 77455360,
+      "peakRssBytes": 155115520,
+      "finalRssBytes": 154841088,
+      "totalWallMs": 2841.4421490000004,
+      "diskBytes": 7917504,
+      "replayMetrics": {
+        "layout": "sharded",
+        "cacheHits": 0,
+        "documentLoads": 1,
+        "checkpointLoads": 0,
+        "replayedChanges": 202,
+        "corruptCheckpoints": 0,
+        "activeDocumentHandles": 0,
+        "cacheEntries": 1,
+        "cacheWeightBytes": 8543,
+        "cacheWeightLimit": 33554432,
+        "cacheEntryLimit": 64,
+        "documents": 300,
+        "changes": 800,
+        "checkpoints": 0,
+        "manifestNodes": 3000,
+        "batches": 203
+      },
+      "stats": {
+        "layout": "sharded",
+        "cacheHits": 32,
+        "documentLoads": 1,
+        "checkpointLoads": 0,
+        "replayedChanges": 202,
+        "corruptCheckpoints": 0,
+        "activeDocumentHandles": 0,
+        "cacheEntries": 1,
+        "cacheWeightBytes": 8543,
+        "cacheWeightLimit": 33554432,
+        "cacheEntryLimit": 64,
+        "documents": 300,
+        "changes": 800,
+        "checkpoints": 0,
+        "manifestNodes": 3000,
+        "batches": 203
+      },
+      "status": "completed",
+      "verified": true
+    },
+    {
+      "layout": "sharded",
+      "checkpointEvery": 32,
+      "files": 100,
+      "edits": 200,
+      "messages": 200,
+      "textBytes": 1024,
+      "initialFilesMs": 596.802372,
+      "initialMessagesMs": 982.929435,
+      "writes": {
+        "medianMs": 2.570974999999862,
+        "p95Ms": 2.9831089999997857
+      },
+      "coldFileRead": {
+        "medianMs": 4.673596000000089,
+        "p95Ms": 5.584135999999944
+      },
+      "hotFileRead": {
+        "medianMs": 1.8044800000002397,
+        "p95Ms": 2.0854699999999866
+      },
+      "forkMs": 0.2397080000000642,
+      "rssAtStartBytes": 77664256,
+      "peakRssBytes": 153423872,
+      "finalRssBytes": 146989056,
+      "totalWallMs": 2742.6656470000003,
+      "diskBytes": 7946200,
+      "replayMetrics": {
+        "layout": "sharded",
+        "cacheHits": 0,
+        "documentLoads": 1,
+        "checkpointLoads": 1,
+        "replayedChanges": 10,
+        "corruptCheckpoints": 0,
+        "activeDocumentHandles": 0,
+        "cacheEntries": 1,
+        "cacheWeightBytes": 8545,
+        "cacheWeightLimit": 33554432,
+        "cacheEntryLimit": 64,
+        "documents": 300,
+        "changes": 800,
+        "checkpoints": 6,
+        "manifestNodes": 3000,
+        "batches": 203
+      },
+      "stats": {
+        "layout": "sharded",
+        "cacheHits": 32,
+        "documentLoads": 1,
+        "checkpointLoads": 1,
+        "replayedChanges": 10,
+        "corruptCheckpoints": 0,
+        "activeDocumentHandles": 0,
+        "cacheEntries": 1,
+        "cacheWeightBytes": 8545,
+        "cacheWeightLimit": 33554432,
+        "cacheEntryLimit": 64,
+        "documents": 300,
+        "changes": 800,
+        "checkpoints": 6,
+        "manifestNodes": 3000,
+        "batches": 203
+      },
+      "status": "completed",
+      "verified": true
+    }
+  ]
+}

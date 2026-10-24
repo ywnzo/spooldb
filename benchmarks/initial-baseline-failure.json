@@ -1,0 +1,15 @@
+{
+  "recordedAt": "2026-10-23T08:39:56.042Z",
+  "layout": "legacy",
+  "status": "failed",
+  "workload": {
+    "files": 100,
+    "messages": 200,
+    "edits": 200,
+    "textBytes": 1024
+  },
+  "mode": "synchronous loop, no explicit GC or event-loop yield",
+  "failure": "Automerge WebAssembly allocator exhausted; RuntimeError: unreachable (rust_oom)",
+  "peakRssBytes": null,
+  "note": "Original attempt did not capture peak RSS or number of completed edits. Comparative rerun allows GC/finalizers between calls for both layouts."
+}

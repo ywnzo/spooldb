@@ -1,0 +1,4 @@
+{"type":"system","subtype":"init","session_id":"synthetic-claude-session","apiKey":"MUST_NOT_RETAIN"}
+{"type":"assistant","session_id":"synthetic-claude-session","uuid":"message-1","parent_tool_use_id":null,"message":{"id":"assistant-1","content":[{"type":"thinking","thinking":"PRIVATE_REASONING_MUST_NOT_RETAIN"},{"type":"text","text":"Synthetic response."},{"type":"tool_use","id":"call-1","name":"Read","input":{"file_path":"a.txt"}}]}}
+{"type":"user","session_id":"synthetic-claude-session","uuid":"message-2","parent_tool_use_id":null,"message":{"content":[{"type":"tool_result","tool_use_id":"call-1","content":"hello"}]}}
+{"type":"result","subtype":"success","is_error":false,"session_id":"synthetic-claude-session","result":"Synthetic response."}

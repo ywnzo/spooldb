@@ -1,0 +1,55 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${PLUGIN_ROOT}/scripts/spool.sh\" hook SessionStart",
+            "timeout": 60,
+            "additionalContextLimit": 7000,
+            "statusMessage": "SpoolDB: Load project context"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${PLUGIN_ROOT}/scripts/spool.sh\" hook UserPromptSubmit",
+            "timeout": 60,
+            "additionalContextLimit": 7000,
+            "statusMessage": "SpoolDB: Retrieve relevant memory"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${PLUGIN_ROOT}/scripts/spool.sh\" hook Stop",
+            "timeout": 60,
+            "statusMessage": "SpoolDB: Save handoff"
+          }
+        ]
+      }
+    ],
+    "Interrupt": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${PLUGIN_ROOT}/scripts/spool.sh\" hook Interrupt",
+            "timeout": 3,
+            "statusMessage": "SpoolDB: Save interrupted checkpoint"
+          }
+        ]
+      }
+    ]
+  },
+  "description": "SpoolDB shared project memory and handoff automation"
+}

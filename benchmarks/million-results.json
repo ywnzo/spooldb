@@ -1,0 +1,482 @@
+{
+  "measuredAt": "2026-10-23T09:19:48.456Z",
+  "node": "v26.11.1",
+  "cpu": "AMD Ryzen 5 5500",
+  "workload": {
+    "operations": 1000000,
+    "files": 1000,
+    "batchSize": 100,
+    "rounds": 10,
+    "initialTextBytes": 256,
+    "checkpointEvery": 128,
+    "checkpointKeep": 2
+  },
+  "methodology": "One local SQLite WAL/FULL writer. Each logical operation is a distinct Automerge change, replacing the first character. Batches visit files round-robin; bounded visible text, retained edit history. No explicit GC; event-loop yield after each committed batch. Setup operations excluded from the edit count. No network or concurrent clients.",
+  "writeWallMs": 313673.340557,
+  "batchLatency": {
+    "medianMs": 31.50273899998865,
+    "p95Ms": 41.408806000021286
+  },
+  "coldFileRead": {
+    "medianMs": 9.635494000045583,
+    "p95Ms": 10.69998699997086
+  },
+  "stats": {
+    "layout": "sharded",
+    "cacheHits": 16,
+    "documentLoads": 11052,
+    "checkpointLoads": 9036,
+    "replayedChanges": 512032,
+    "corruptCheckpoints": 0,
+    "activeDocumentHandles": 0,
+    "cacheEntries": 1,
+    "cacheWeightBytes": 1435,
+    "cacheWeightLimit": 33554432,
+    "cacheEntryLimit": 64,
+    "documents": 1000,
+    "changes": 1002000,
+    "checkpoints": 2000,
+    "manifestNodes": 53815,
+    "batches": 10002
+  },
+  "diskBeforeMaintenance": {
+    "files": {
+      "database": 584859648,
+      "-wal": 4466112,
+      "-shm": 32768
+    },
+    "totalBytes": 589358528,
+    "tables": [
+      {
+        "name": "shard_changes",
+        "allocatedBytes": 374673408,
+        "payloadBytes": 363213450
+      },
+      {
+        "name": "sqlite_autoindex_shard_changes_1",
+        "allocatedBytes": 136339456,
+        "payloadBytes": 116088885
+      },
+      {
+        "name": "shard_nodes",
+        "allocatedBytes": 41971712,
+        "payloadBytes": 33605236
+      },
+      {
+        "name": "shard_batches",
+        "allocatedBytes": 8286208,
+        "payloadBytes": 7640671
+      },
+      {
+        "name": "shard_receipts",
+        "allocatedBytes": 7081984,
+        "payloadBytes": 6557839
+      },
+      {
+        "name": "sqlite_autoindex_shard_nodes_1",
+        "allocatedBytes": 4509696,
+        "payloadBytes": 3787970
+      },
+      {
+        "name": "shard_checkpoints",
+        "allocatedBytes": 4112384,
+        "payloadBytes": 3115394
+      },
+      {
+        "name": "shard_versions",
+        "allocatedBytes": 1867776,
+        "payloadBytes": 1740283
+      },
+      {
+        "name": "sqlite_autoindex_shard_batch_files_1",
+        "allocatedBytes": 1433600,
+        "payloadBytes": 1241662
+      },
+      {
+        "name": "sqlite_autoindex_shard_versions_1",
+        "allocatedBytes": 1327104,
+        "payloadBytes": 1110094
+      },
+      {
+        "name": "shard_batch_files",
+        "allocatedBytes": 1294336,
+        "payloadBytes": 1208790
+      },
+      {
+        "name": "sqlite_autoindex_shard_batches_1",
+        "allocatedBytes": 1269760,
+        "payloadBytes": 1070086
+      },
+      {
+        "name": "sqlite_autoindex_shard_checkpoints_1",
+        "allocatedBytes": 274432,
+        "payloadBytes": 237780
+      },
+      {
+        "name": "sqlite_autoindex_shard_receipts_1",
+        "allocatedBytes": 245760,
+        "payloadBytes": 188780
+      },
+      {
+        "name": "shard_doc_stats",
+        "allocatedBytes": 73728,
+        "payloadBytes": 55890
+      },
+      {
+        "name": "sqlite_autoindex_shard_doc_stats_1",
+        "allocatedBytes": 61440,
+        "payloadBytes": 48762
+      },
+      {
+        "name": "sqlite_schema",
+        "allocatedBytes": 4096,
+        "payloadBytes": 2791
+      },
+      {
+        "name": "sqlite_autoindex_shard_refs_1",
+        "allocatedBytes": 4096,
+        "payloadBytes": 19
+      },
+      {
+        "name": "sqlite_autoindex_refs_1",
+        "allocatedBytes": 4096,
+        "payloadBytes": 0
+      },
+      {
+        "name": "sqlite_autoindex_receipts_1",
+        "allocatedBytes": 4096,
+        "payloadBytes": 0
+      },
+      {
+        "name": "sqlite_autoindex_changes_1",
+        "allocatedBytes": 4096,
+        "payloadBytes": 0
+      },
+      {
+        "name": "shard_refs",
+        "allocatedBytes": 4096,
+        "payloadBytes": 362
+      },
+      {
+        "name": "refs",
+        "allocatedBytes": 4096,
+        "payloadBytes": 0
+      },
+      {
+        "name": "receipts",
+        "allocatedBytes": 4096,
+        "payloadBytes": 0
+      },
+      {
+        "name": "changes",
+        "allocatedBytes": 4096,
+        "payloadBytes": 0
+      }
+    ],
+    "payloads": {
+      "shard_nodes": {
+        "rows": 53815,
+        "bytes": 29892973
+      },
+      "shard_changes": {
+        "rows": 1002000,
+        "bytes": 178020670
+      },
+      "shard_checkpoints": {
+        "rows": 2000,
+        "bytes": 2745614
+      },
+      "shard_batches": {
+        "rows": 10002,
+        "bytes": 5210316
+      },
+      "shard_receipts": {
+        "rows": 10001,
+        "bytes": 4468740
+      }
+    },
+    "pageCount": 142788,
+    "freePages": 0
+  },
+  "compaction": {
+    "removedNodes": 0,
+    "encodedRows": 0,
+    "removedCheckpoints": 0,
+    "vacuum": true,
+    "walBusy": false
+  },
+  "compactionMs": 4295.21476599999,
+  "diskAfterMaintenance": {
+    "files": {
+      "database": 568352768,
+      "-wal": 0,
+      "-shm": 1114112
+    },
+    "totalBytes": 569466880,
+    "tables": [
+      {
+        "name": "shard_changes",
+        "allocatedBytes": 374673408,
+        "payloadBytes": 363213450
+      },
+      {
+        "name": "sqlite_autoindex_shard_changes_1",
+        "allocatedBytes": 120823808,
+        "payloadBytes": 116088885
+      },
+      {
+        "name": "shard_nodes",
+        "allocatedBytes": 41971712,
+        "payloadBytes": 33605236
+      },
+      {
+        "name": "shard_batches",
+        "allocatedBytes": 8286208,
+        "payloadBytes": 7640671
+      },
+      {
+        "name": "shard_receipts",
+        "allocatedBytes": 7081984,
+        "payloadBytes": 6557839
+      },
+      {
+        "name": "shard_checkpoints",
+        "allocatedBytes": 4108288,
+        "payloadBytes": 3115394
+      },
+      {
+        "name": "sqlite_autoindex_shard_nodes_1",
+        "allocatedBytes": 4018176,
+        "payloadBytes": 3787970
+      },
+      {
+        "name": "shard_versions",
+        "allocatedBytes": 1867776,
+        "payloadBytes": 1740283
+      },
+      {
+        "name": "sqlite_autoindex_shard_batch_files_1",
+        "allocatedBytes": 1294336,
+        "payloadBytes": 1241662
+      },
+      {
+        "name": "shard_batch_files",
+        "allocatedBytes": 1294336,
+        "payloadBytes": 1208790
+      },
+      {
+        "name": "sqlite_autoindex_shard_versions_1",
+        "allocatedBytes": 1175552,
+        "payloadBytes": 1110094
+      },
+      {
+        "name": "sqlite_autoindex_shard_batches_1",
+        "allocatedBytes": 1118208,
+        "payloadBytes": 1070086
+      },
+      {
+        "name": "sqlite_autoindex_shard_checkpoints_1",
+        "allocatedBytes": 253952,
+        "payloadBytes": 237780
+      },
+      {
+        "name": "sqlite_autoindex_shard_receipts_1",
+        "allocatedBytes": 225280,
+        "payloadBytes": 188780
+      },
+      {
+        "name": "shard_doc_stats",
+        "allocatedBytes": 65536,
+        "payloadBytes": 55890
+      },
+      {
+        "name": "sqlite_autoindex_shard_doc_stats_1",
+        "allocatedBytes": 57344,
+        "payloadBytes": 48762
+      },
+      {
+        "name": "sqlite_schema",
+        "allocatedBytes": 4096,
+        "payloadBytes": 2791
+      },
+      {
+        "name": "sqlite_autoindex_shard_refs_1",
+        "allocatedBytes": 4096,
+        "payloadBytes": 19
+      },
+      {
+        "name": "sqlite_autoindex_refs_1",
+        "allocatedBytes": 4096,
+        "payloadBytes": 0
+      },
+      {
+        "name": "sqlite_autoindex_receipts_1",
+        "allocatedBytes": 4096,
+        "payloadBytes": 0
+      },
+      {
+        "name": "sqlite_autoindex_changes_1",
+        "allocatedBytes": 4096,
+        "payloadBytes": 0
+      },
+      {
+        "name": "shard_refs",
+        "allocatedBytes": 4096,
+        "payloadBytes": 362
+      },
+      {
+        "name": "refs",
+        "allocatedBytes": 4096,
+        "payloadBytes": 0
+      },
+      {
+        "name": "receipts",
+        "allocatedBytes": 4096,
+        "payloadBytes": 0
+      },
+      {
+        "name": "changes",
+        "allocatedBytes": 4096,
+        "payloadBytes": 0
+      }
+    ],
+    "payloads": {
+      "shard_nodes": {
+        "rows": 53815,
+        "bytes": 29892973
+      },
+      "shard_changes": {
+        "rows": 1002000,
+        "bytes": 178020670
+      },
+      "shard_checkpoints": {
+        "rows": 2000,
+        "bytes": 2745614
+      },
+      "shard_batches": {
+        "rows": 10002,
+        "bytes": 5210316
+      },
+      "shard_receipts": {
+        "rows": 10001,
+        "bytes": 4468740
+      }
+    },
+    "pageCount": 138758,
+    "freePages": 0
+  },
+  "verified": {
+    "finalFiles": 1000,
+    "reopenedFiles": 1000,
+    "historicalFiles": 16,
+    "anchors": 16,
+    "changeCount": 1002000,
+    "sqliteIntegrity": "ok"
+  },
+  "status": "completed",
+  "completedOperations": 1000000,
+  "progress": [
+    {
+      "completed": 50000,
+      "elapsedSeconds": 11.644882593,
+      "rssBytes": 194310144
+    },
+    {
+      "completed": 100000,
+      "elapsedSeconds": 22.913910051,
+      "rssBytes": 195264512
+    },
+    {
+      "completed": 150000,
+      "elapsedSeconds": 35.266145266,
+      "rssBytes": 196120576
+    },
+    {
+      "completed": 200000,
+      "elapsedSeconds": 47.689431015000004,
+      "rssBytes": 195874816
+    },
+    {
+      "completed": 250000,
+      "elapsedSeconds": 60.872118904,
+      "rssBytes": 195940352
+    },
+    {
+      "completed": 300000,
+      "elapsedSeconds": 73.836652722,
+      "rssBytes": 197906432
+    },
+    {
+      "completed": 350000,
+      "elapsedSeconds": 88.659033041,
+      "rssBytes": 200396800
+    },
+    {
+      "completed": 400000,
+      "elapsedSeconds": 103.08378358600001,
+      "rssBytes": 201183232
+    },
+    {
+      "completed": 450000,
+      "elapsedSeconds": 117.442891145,
+      "rssBytes": 201445376
+    },
+    {
+      "completed": 500000,
+      "elapsedSeconds": 131.944717084,
+      "rssBytes": 201576448
+    },
+    {
+      "completed": 550000,
+      "elapsedSeconds": 148.762318399,
+      "rssBytes": 203411456
+    },
+    {
+      "completed": 600000,
+      "elapsedSeconds": 165.636451139,
+      "rssBytes": 203542528
+    },
+    {
+      "completed": 650000,
+      "elapsedSeconds": 181.724360943,
+      "rssBytes": 203280384
+    },
+    {
+      "completed": 700000,
+      "elapsedSeconds": 197.855614566,
+      "rssBytes": 203280384
+    },
+    {
+      "completed": 750000,
+      "elapsedSeconds": 216.34553632400002,
+      "rssBytes": 203411456
+    },
+    {
+      "completed": 800000,
+      "elapsedSeconds": 234.955319421,
+      "rssBytes": 203411456
+    },
+    {
+      "completed": 850000,
+      "elapsedSeconds": 253.128088919,
+      "rssBytes": 203673600
+    },
+    {
+      "completed": 900000,
+      "elapsedSeconds": 271.72094663,
+      "rssBytes": 203673600
+    },
+    {
+      "completed": 950000,
+      "elapsedSeconds": 292.73938282200004,
+      "rssBytes": 204066816
+    },
+    {
+      "completed": 1000000,
+      "elapsedSeconds": 313.67313579100005,
+      "rssBytes": 204328960
+    }
+  ],
+  "totalWallMs": 342332.93873,
+  "peakRssBytes": 276418560
+}

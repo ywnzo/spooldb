@@ -1,0 +1,16 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "spooldb",
+  "main": "src/cloudflare/worker.js",
+  "compatibility_date": "2026-10-19",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "workers_dev": true,
+  "alias": {"node:sqlite": "./src/cloudflare/no-node-sqlite.js"},
+  "durable_objects": {"bindings": [
+    {"name": "WORKSPACE", "class_name": "SpoolWorkspace"},
+    {"name": "PROJECTS", "class_name": "SpoolProject"}
+  ]},
+  "migrations": [{"tag": "v1", "new_sqlite_classes": ["SpoolWorkspace", "SpoolProject"]}],
+  "observability": {"enabled": true},
+  "limits": {"cpu_ms": 30000}
+}

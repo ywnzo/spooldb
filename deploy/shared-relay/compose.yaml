@@ -1,0 +1,27 @@
+services:
+  relay:
+    build:
+      context: ../..
+      dockerfile: deploy/shared-relay/Dockerfile
+    command: ["node", "src/team-host.js", "start", "/data", "--host=0.0.0.0", "--port=8878", "--origin=https://${SPOOL_DOMAIN:?Set SPOOL_DOMAIN}"]
+    restart: unless-stopped
+    volumes:
+      - relay-data:/data
+    expose:
+      - "8878"
+  proxy:
+    image: caddy:2
+    restart: unless-stopped
+    environment:
+      SPOOL_DOMAIN: ${SPOOL_DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+volumes:
+  relay-data:
+  caddy-data:
+  caddy-config:

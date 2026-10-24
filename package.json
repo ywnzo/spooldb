@@ -1,0 +1,78 @@
+{
+  "name": "spooldb",
+  "version": "0.4.3",
+  "private": true,
+  "description": "Local-first code and conversation history, independent of agent harnesses",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=24.0.0",
+    "bun": ">=1.4.3"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
+    },
+    "./relay": {
+      "types": "./src/relay/index.d.ts",
+      "default": "./src/relay/index.js"
+    },
+    "./adapters": {
+      "types": "./src/adapters/index.d.ts",
+      "default": "./src/adapters/index.js"
+    }
+  },
+  "bin": {
+    "spool": "./src/cli.js",
+    "spool-relay": "./src/relay-cli.js",
+    "spool-sync": "./src/sync-cli.js",
+    "spool-project": "./src/project-cli.js",
+    "spool-memory-mcp": "./src/memory-mcp.js",
+    "spool-host": "./src/team-host.js"
+  },
+  "scripts": {
+    "build:installer": "node scripts/build-linux-installer.js",
+    "test": "node --test test/*.test.js",
+    "demo": "node examples/offline-merge.js",
+    "demo:git": "node examples/git-bridge.js",
+    "demo:review": "node examples/review-demo.js",
+    "typecheck": "tsc --noEmit --strict --module nodenext --target es2024 test/types/adapters.ts",
+    "benchmark": "node benchmarks/run.js",
+    "benchmark:large": "node benchmarks/run.js --large --no-gc --output=benchmarks/large-results.json",
+    "benchmark:million": "node benchmarks/million.js",
+    "benchmark:relay": "node benchmarks/relay.js",
+    "test:bun": "bun test --timeout 30000 test/",
+    "test:cloudflare": "node --test test/cloudflare.test.js test/remote-mcp.test.js",
+    "deploy:cloudflare": "bun src/cli.js deploy cloudflare",
+    "generate:schemas": "node scripts/generate-event-validator.js",
+    "build:cloudflare": "wrangler deploy --dry-run --outdir work/cloudflare-build",
+    "build:downloads": "node scripts/build-download-assets.js",
+    "generate:memory-schemas": "node scripts/generate-memory-validators.js",
+    "build:plugin": "node scripts/build-codex-plugin.js"
+  },
+  "dependencies": {
+    "@automerge/automerge": "3.5.0",
+    "@cloudflare/workers-oauth-provider": "1.2.4",
+    "ajv": "8.20.0"
+  },
+  "devDependencies": {
+    "miniflare": "5.20261019.2-beta",
+    "typescript": "7.0.2",
+    "wrangler": "4.152.0"
+  },
+  "imports": {
+    "#spool-sqlite": {
+      "workerd": "./src/cloudflare/no-node-sqlite.js",
+      "default": "./src/sqlite.js"
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ywnzo/spooldb.git"
+  },
+  "homepage": "https://github.com/ywnzo/spooldb",
+  "bugs": {
+    "url": "https://github.com/ywnzo/spooldb/issues"
+  }
+}

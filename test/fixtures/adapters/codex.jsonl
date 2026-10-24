@@ -1,0 +1,7 @@
+{"type":"thread.started","thread_id":"synthetic-codex-session","credential_field":"MUST_NOT_RETAIN"}
+{"type":"turn.started"}
+{"type":"item.started","item":{"id":"call-1","type":"command_execution","command":"printf hello","status":"in_progress"}}
+{"type":"item.completed","item":{"id":"call-1","type":"command_execution","command":"printf hello","aggregated_output":"hello","status":"completed"}}
+{"type":"item.completed","item":{"id":"reasoning-1","type":"reasoning","text":"PRIVATE_REASONING_MUST_NOT_RETAIN"}}
+{"type":"item.completed","item":{"id":"reply-1","type":"agent_message","text":"Synthetic response."}}
+{"type":"turn.completed","usage":{"input_tokens":10,"output_tokens":4}}

@@ -1,0 +1,78 @@
+{
+  "measuredAt": "2026-10-23T08:45:09.660Z",
+  "node": "v26.11.1",
+  "platform": "linux",
+  "arch": "x64",
+  "cpu": "AMD Ryzen 5 5500",
+  "logicalCpus": 12,
+  "hostMemoryBytes": 33510481920,
+  "methodology": "Separate worker per case; SQLite WAL/FULL; no explicit GC and no event-loop yield between synchronous calls; five application-cache-cold reads with warm OS cache, thirty hot reads; one run, not a throughput SLA. Temporary databases removed after completion.",
+  "results": [
+    {
+      "layout": "sharded",
+      "checkpointEvery": 128,
+      "files": 10000,
+      "edits": 2000,
+      "messages": 1000,
+      "textBytes": 256,
+      "initialFilesMs": 25551.54346,
+      "initialMessagesMs": 2156.323697,
+      "writes": {
+        "medianMs": 6.774543999999878,
+        "p95Ms": 13.45754499999748
+      },
+      "coldFileRead": {
+        "medianMs": 822.7793939999974,
+        "p95Ms": 829.1518450000003
+      },
+      "hotFileRead": {
+        "medianMs": 10.537297000002582,
+        "p95Ms": 10.888437999994494
+      },
+      "forkMs": 0.29854899999918416,
+      "rssAtStartBytes": 77668352,
+      "peakRssBytes": 273874944,
+      "finalRssBytes": 265252864,
+      "totalWallMs": 46390.811787000006,
+      "diskBytes": 262376776,
+      "replayMetrics": {
+        "layout": "sharded",
+        "cacheHits": 0,
+        "documentLoads": 1,
+        "checkpointLoads": 1,
+        "replayedChanges": 82,
+        "corruptCheckpoints": 0,
+        "activeDocumentHandles": 0,
+        "cacheEntries": 1,
+        "cacheWeightBytes": 81827,
+        "cacheWeightLimit": 33554432,
+        "cacheEntryLimit": 64,
+        "documents": 11000,
+        "changes": 24000,
+        "checkpoints": 15,
+        "manifestNodes": 115000,
+        "batches": 2003
+      },
+      "stats": {
+        "layout": "sharded",
+        "cacheHits": 32,
+        "documentLoads": 1,
+        "checkpointLoads": 1,
+        "replayedChanges": 82,
+        "corruptCheckpoints": 0,
+        "activeDocumentHandles": 0,
+        "cacheEntries": 1,
+        "cacheWeightBytes": 81827,
+        "cacheWeightLimit": 33554432,
+        "cacheEntryLimit": 64,
+        "documents": 11000,
+        "changes": 24000,
+        "checkpoints": 15,
+        "manifestNodes": 115000,
+        "batches": 2003
+      },
+      "status": "completed",
+      "verified": true
+    }
+  ]
+}

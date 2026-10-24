@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none">
+  <title>SpoolDB</title>
+  <rect x="3" y="3" width="58" height="58" rx="16" fill="#131313" stroke="#34312D" stroke-width="1.5"/>
+  <path d="M17 23c11-9 19 9 30 0M17 32c11-9 19 9 30 0M17 41c11-9 19 9 30 0" stroke="#E6B99D" stroke-width="4.5" stroke-linecap="round"/>
+</svg>

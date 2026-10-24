@@ -1,0 +1,48 @@
+/* Kiln palette from the owner's KDE Kiln.colors. Shared by review and setup. */
+:root {
+  color-scheme: dark;
+  --bg: #0b0b0b;
+  --surface: #131313;
+  --raised: #1a1a1a;
+  --hover: #242424;
+  --line: #34312d;
+  --ink: #f5efe3;
+  --muted: #a89984;
+  --accent: #e6b99d;
+  --accent-soft: #2c231e;
+  --positive: #90b99f;
+  --positive-soft: #19251e;
+  --negative: #ff6b4a;
+  --negative-soft: #301c17;
+  --warning: #ecc79b;
+  --warning-soft: #2a241b;
+  --blue: var(--accent);
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: var(--ink);
+  background: var(--bg);
+  font-synthesis: none;
+}
+::selection { background: var(--accent); color: var(--bg); }
+* { scrollbar-color: #51473d var(--surface); scrollbar-width: thin; }
+html { scroll-behavior: smooth; }
+body { background: var(--bg); color: var(--ink); }
+a { color: var(--accent); }
+button, input, select, textarea { font: inherit; }
+input, select, textarea {
+  background: var(--bg); color: var(--ink); border: 1px solid var(--line);
+  border-radius: 8px; padding: 11px 13px; min-height: 42px;
+}
+input::placeholder, textarea::placeholder { color: var(--muted); opacity: .8; }
+input[type=checkbox] { accent-color: var(--accent); min-height: 0; width: 16px; height: 16px; }
+button { cursor: pointer; transition: background-color .15s, border-color .15s, color .15s; }
+button:disabled { cursor: not-allowed; opacity: .5; }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, a:focus-visible, summary:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 4px;
+}
+summary { cursor: pointer; color: var(--ink); line-height: 1.6; }
+summary::marker { color: var(--accent); }
+code, pre, .mono { font-family: "JetBrains Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace; }
+code { color: var(--accent); }
+.error { color: var(--negative) !important; }
+.workspace-success { color: var(--positive); }
+@media(prefers-reduced-motion:reduce) { html { scroll-behavior: auto; } * { transition: none !important; } }

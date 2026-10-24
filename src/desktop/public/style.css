@@ -1,0 +1,44 @@
+/* First-run setup uses the same Kiln tokens as the project UI. */
+* { box-sizing:border-box; }
+[hidden] { display:none!important; }
+body { margin:0; padding:48px 20px; font-size:15px; }
+main { max-width:720px; margin:0 auto; background:var(--surface); border:1px solid var(--line); padding:40px; border-radius:14px; }
+.brand { font-size:18px; font-weight:650; letter-spacing:-.4px; color:var(--accent); }
+h1 { font-size:36px; font-weight:550; letter-spacing:-1.2px; line-height:1.2; margin:28px 0 18px; }
+h2 { font-size:19px; font-weight:600; letter-spacing:-.4px; }
+h3 { font-size:16px; }
+p { color:var(--muted); line-height:1.75; font-size:14px; }
+label { display:block; color:var(--muted); font-size:13px; font-weight:500; margin-top:20px; }
+input, select, textarea { width:100%; margin:8px 0; }
+button { border:1px solid var(--line); background:var(--raised); color:var(--ink); padding:11px 16px; border-radius:8px; }
+button:hover { background:var(--hover); }
+.primary { display:block; background:var(--accent); color:var(--bg); border-color:var(--accent); font-weight:650; width:100%; margin-top:24px; }
+.primary:hover { background:#f0cbb2; }
+.quiet { color:var(--accent); background:transparent; }
+.folder { display:flex; align-items:center; gap:10px; }
+.folder input { min-width:0; flex:1; }
+.check { font-weight:400; line-height:1.7; }
+input[type=checkbox] { display:inline-block; width:16px; margin-right:8px; }
+#error, .error { color:var(--negative); }
+.workspace-panel { margin:28px 0; padding:24px; border:1px solid var(--line); border-radius:10px; }
+.workspace-panel button { margin:8px 8px 8px 0; }
+.workspace-panel details { margin:18px 0; border-top:1px solid var(--line); padding-top:16px; }
+.workspace-panel label { margin-top:12px; }
+.memory-detail { padding:20px; margin-top:20px; border:1px solid var(--line); border-radius:10px; background:var(--raised); }
+.workspace-success { color:var(--positive); }
+@media(max-width:600px) { body { padding:20px 12px; } main { padding:24px; } h1 { font-size:29px; } .workspace-panel { padding:16px; } }
+
+#workspace-sharing-form { margin:24px 0; }
+#workspace-sharing-form fieldset { border:1px solid var(--line); border-radius:12px; padding:20px; }
+#workspace-sharing-form legend { color:var(--ink); padding:0 8px; font-weight:600; }
+#workspace-sharing-form label { display:flex; align-items:center; gap:10px; min-height:36px; margin:0; color:var(--ink); }
+#workspace-sharing-form p { color:var(--muted); line-height:1.5; font-size:13px; }
+#workspace-sharing-save { margin-top:14px; background:var(--accent-soft); border:1px solid var(--line); border-radius:8px; padding:10px 14px; color:var(--accent); }
+
+#workspace-project-sharing-form { margin:24px 0; max-width:620px; }
+#workspace-project-sharing-form fieldset { border:1px solid var(--line); border-radius:12px; padding:20px; }
+#workspace-project-sharing-form legend { padding:0 8px; font-weight:600; }
+#workspace-project-sharing-form label { display:flex; align-items:center; justify-content:space-between; gap:16px; margin:12px 0; }
+#workspace-project-sharing-form select { max-width:240px; }
+#workspace-project-sharing-form p { color:var(--muted); font-size:13px; line-height:1.5; }
+#workspace-project-sharing-save { margin-top:12px; border:1px solid var(--line); background:var(--accent-soft); border-radius:8px; padding:10px 14px; color:var(--accent); }

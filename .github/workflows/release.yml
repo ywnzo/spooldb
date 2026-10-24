@@ -1,0 +1,40 @@
+name: Release installers
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '26'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm test
+      - run: npm run typecheck
+      - run: node scripts/build-codex-plugin.js
+      - run: node scripts/build-linux-installer.js
+      - run: SPOOL_BUILD_RUNTIME=node node scripts/build-linux-installer.js
+      - name: Prepare downloads
+        run: |
+          cp scripts/install.sh installers/install.sh
+          cd installers
+          sha256sum spool-linux-x64.run spool-linux-x64-node.run spooldb-codex-linux-x64.tar.gz install.sh > SHA256SUMS
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          notes=(--generate-notes)
+          if [ -f "docs/releases/$GITHUB_REF_NAME.md" ]; then
+            notes=(--notes-file "docs/releases/$GITHUB_REF_NAME.md")
+          fi
+          gh release create "$GITHUB_REF_NAME" \
+            installers/spool-linux-x64.run \
+            installers/spool-linux-x64-node.run \
+            installers/spooldb-codex-linux-x64.tar.gz \
+            installers/install.sh installers/SHA256SUMS \
+            --verify-tag "${notes[@]}" --title "SpoolDB $GITHUB_REF_NAME"

@@ -1,0 +1,169 @@
+{
+  "measuredAt": "2026-10-23T08:41:48.005Z",
+  "node": "v26.11.1",
+  "platform": "linux",
+  "arch": "x64",
+  "cpu": "AMD Ryzen 5 5500",
+  "logicalCpus": 12,
+  "hostMemoryBytes": 33510481920,
+  "methodology": "Separate worker per case; SQLite WAL/FULL; explicit GC and event-loop yield between every timed call for both layouts (GC excluded from call times, included in total wall time); five application-cache-cold reads with warm OS cache, thirty hot reads; one run, not a throughput SLA. Temporary databases removed after completion.",
+  "results": [
+    {
+      "layout": "legacy",
+      "checkpointEvery": 0,
+      "files": 100,
+      "edits": 200,
+      "messages": 200,
+      "textBytes": 1024,
+      "initialFilesMs": 777.5635199999999,
+      "initialMessagesMs": 1061.938917,
+      "writes": {
+        "medianMs": 410.2062089999963,
+        "p95Ms": 476.13197299999956
+      },
+      "coldFileRead": {
+        "medianMs": 428.80020300000615,
+        "p95Ms": 475.023617999992
+      },
+      "hotFileRead": {
+        "medianMs": 429.87208400000236,
+        "p95Ms": 442.07883300000685
+      },
+      "forkMs": 421.6897339999996,
+      "rssAtStartBytes": 76980224,
+      "peakRssBytes": 481214464,
+      "finalRssBytes": 481214464,
+      "totalWallMs": 103050.092406,
+      "diskBytes": 5131840,
+      "replayMetrics": null,
+      "stats": null,
+      "verified": true
+    },
+    {
+      "layout": "sharded",
+      "checkpointEvery": 0,
+      "files": 100,
+      "edits": 200,
+      "messages": 200,
+      "textBytes": 1024,
+      "initialFilesMs": 660.3851980000001,
+      "initialMessagesMs": 1066.6628759999999,
+      "writes": {
+        "medianMs": 3.1305240000001504,
+        "p95Ms": 3.920028000000002
+      },
+      "coldFileRead": {
+        "medianMs": 9.381883000000016,
+        "p95Ms": 10.612440999999762
+      },
+      "hotFileRead": {
+        "medianMs": 1.9952310000003308,
+        "p95Ms": 2.3403809999999794
+      },
+      "forkMs": 0.21993699999984528,
+      "rssAtStartBytes": 77225984,
+      "peakRssBytes": 152416256,
+      "finalRssBytes": 152141824,
+      "totalWallMs": 3174.5191680000003,
+      "diskBytes": 7958608,
+      "replayMetrics": {
+        "layout": "sharded",
+        "cacheHits": 0,
+        "documentLoads": 1,
+        "checkpointLoads": 0,
+        "replayedChanges": 202,
+        "corruptCheckpoints": 0,
+        "cacheEntries": 1,
+        "cacheWeightBytes": 8545,
+        "cacheWeightLimit": 33554432,
+        "cacheEntryLimit": 64,
+        "documents": 300,
+        "changes": 800,
+        "checkpoints": 0,
+        "manifestNodes": 3000,
+        "batches": 203
+      },
+      "stats": {
+        "layout": "sharded",
+        "cacheHits": 32,
+        "documentLoads": 1,
+        "checkpointLoads": 0,
+        "replayedChanges": 202,
+        "corruptCheckpoints": 0,
+        "cacheEntries": 1,
+        "cacheWeightBytes": 8545,
+        "cacheWeightLimit": 33554432,
+        "cacheEntryLimit": 64,
+        "documents": 300,
+        "changes": 800,
+        "checkpoints": 0,
+        "manifestNodes": 3000,
+        "batches": 203
+      },
+      "verified": true
+    },
+    {
+      "layout": "sharded",
+      "checkpointEvery": 32,
+      "files": 100,
+      "edits": 200,
+      "messages": 200,
+      "textBytes": 1024,
+      "initialFilesMs": 658.701575,
+      "initialMessagesMs": 1069.9204220000001,
+      "writes": {
+        "medianMs": 3.0869030000003477,
+        "p95Ms": 4.186535999999933
+      },
+      "coldFileRead": {
+        "medianMs": 13.656302000000323,
+        "p95Ms": 14.626760999999988
+      },
+      "hotFileRead": {
+        "medianMs": 1.9918200000001889,
+        "p95Ms": 2.254558000000088
+      },
+      "forkMs": 0.25608699999975215,
+      "rssAtStartBytes": 79405056,
+      "peakRssBytes": 149147648,
+      "finalRssBytes": 148856832,
+      "totalWallMs": 3199.6773519999997,
+      "diskBytes": 7974920,
+      "replayMetrics": {
+        "layout": "sharded",
+        "cacheHits": 0,
+        "documentLoads": 1,
+        "checkpointLoads": 1,
+        "replayedChanges": 10,
+        "corruptCheckpoints": 0,
+        "cacheEntries": 1,
+        "cacheWeightBytes": 8544,
+        "cacheWeightLimit": 33554432,
+        "cacheEntryLimit": 64,
+        "documents": 300,
+        "changes": 800,
+        "checkpoints": 6,
+        "manifestNodes": 3000,
+        "batches": 203
+      },
+      "stats": {
+        "layout": "sharded",
+        "cacheHits": 32,
+        "documentLoads": 1,
+        "checkpointLoads": 1,
+        "replayedChanges": 10,
+        "corruptCheckpoints": 0,
+        "cacheEntries": 1,
+        "cacheWeightBytes": 8544,
+        "cacheWeightLimit": 33554432,
+        "cacheEntryLimit": 64,
+        "documents": 300,
+        "changes": 800,
+        "checkpoints": 6,
+        "manifestNodes": 3000,
+        "batches": 203
+      },
+      "verified": true
+    }
+  ]
+}
