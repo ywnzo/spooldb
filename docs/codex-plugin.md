@@ -10,6 +10,8 @@ Install the plugin once, review its hooks, and connect a project through a norma
 
 The plugin prepares its bundled runtime automatically on first use. No download/extraction steps, separate SpoolDB installation, Node/Bun installation, or JSON editing are needed. Linux x86-64 with glibc and Apple Silicon Macs with macOS 13 or newer are supported; Git, curl and tar must be available.
 
+On a fresh installation, the first MCP connection can fail while the bundled runtime is prepared. Retry the connection or restart Codex once the download has finished. Native Apple Silicon MCP and lifecycle-hook startup are tested in CI; this does not replace checking the final install in your desktop app.
+
 Review the four named hooks in Codex, then start a new chat and say **“Connect SpoolDB”**. Paste your workspace invitation there. Project sharing still requires your approval. Installation itself does not connect a workspace or upload conversations.
 
 ### Terminal alternative
