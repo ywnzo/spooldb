@@ -31,7 +31,7 @@ export async function configureVPS({domain,bundle,paths=vpsPaths,run=rootRun,che
  progress('Building the relay container and downloading Caddy…');run(engine,['build','-f',join(app,'Containerfile'),'-t',image,app],{stdio:'inherit',timeout:600000});run(engine,['pull','docker.io/library/caddy:2.11.7'],{stdio:'inherit',timeout:300000});
  const config={managedBy:'SpoolDB',engine,image,domain,app,probe};writeFileSync(configPath,JSON.stringify(config,null,2)+'\n',{mode:0o600});
  // Named volumes survive failed setup, container recreation and installer reruns.
- for(const name of ['spool-relay-data','spool-caddy-data','spool-caddy-config'])run(engine,['volume','create','--label',label+'=true',name]);
+ for(const name of ['spool-relay-data','spool-caddy-data','spool-caddy-config']){let found=false;try{run(engine,['volume','inspect',name]);found=true;}catch{}if(!found)run(engine,['volume','create','--label',label+'=true',name]);}
  try{run(engine,['network','inspect','spool-network']);}catch{run(engine,['network','create','--label',label+'=true','spool-network']);}
  const savedUnit=existsSync(paths.unit)?readFileSync(paths.unit):null,savedCLI=existsSync(paths.cli)?readFileSync(paths.cli):null,backups=[],created=[];
  let enrollment;
