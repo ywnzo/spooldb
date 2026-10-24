@@ -91,3 +91,7 @@ Use `spool project sharing Wield` for interactive prompts, or append `--json` to
 ## Updates
 
 Ask **“Enable automatic SpoolDB updates”** to opt in through the setup tool. Updates wait for active sessions to finish; changed hooks still require review. See [updates](updates.md).
+
+### Companion upgrades
+
+The plugin checks the companion protocol, version and capabilities before reusing a running service. An older plugin-owned companion is restarted automatically. Recognized Linux user services are upgraded to a staged runtime with the same state directory and a service-configuration backup; failed startup restores the previous configuration. Workspace credentials, project bindings and sharing approvals remain in place. Newer compatible companions are reused, so an older chat cannot downgrade them. Unrecognized services are left untouched with an actionable error. Project setup status includes the running companion version.

@@ -1,3 +1,4 @@
+import {companionInfo} from './plugin/companion-upgrade.js';
 import {discoveryRequest} from './discovery-request.js';
 import {existsSync,mkdirSync,readFileSync,writeFileSync,renameSync,chmodSync,unlinkSync,realpathSync} from 'node:fs';
 import {join,relative} from 'node:path';
@@ -11,7 +12,7 @@ export class RepositoryDiscovery{
  save(){mkdirSync(this.directory,{recursive:true,mode:0o700});writeFileSync(this.path+'.tmp',JSON.stringify({entries:this.entries},null,2)+'\n',{mode:0o600});renameSync(this.path+'.tmp',this.path);}
  run(input){const result=this.tail.then(()=>this.execute(input));this.tail=result.catch(()=>{});return result;}
  async execute(input){
-  if(input.command==='list')return {entries:this.entries,origin:this.origin()};
+  if(input.command==='list')return {entries:this.entries,origin:this.origin(),companion:companionInfo()};
   const repo=repositoryAt(input.cwd??input.root);const within=relative(repo.root,this.directory);if(!within||(!within.startsWith('..')&&!within.startsWith('/')))throw new Error('Choose a source folder outside SpoolDB state');
   const id=digest(repo.root),scope=existsSync(join(this.workspace.directory,'workspace.json'))?JSON.parse(readFileSync(join(this.workspace.directory,'workspace.json'))).url:null;
   let entry=this.entries.find(e=>e.id===id);
