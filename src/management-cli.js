@@ -6,6 +6,7 @@ import {randomUUID} from 'node:crypto';
 import {desktopPaths,defaultState} from './desktop/paths.js';
 import {WorkspaceClient} from './team/workspace-client.js';
 import {hostRequest} from './team/host.js';
+import {containerRequest} from './server-vps.js';
 import {enableDiscovery} from './discovery-install.js';
 import {projectRequest} from './project.js';
 import {launch} from './desktop/launcher.js';
@@ -186,8 +187,8 @@ export async function runManagement(args,{input=process.stdin,output=process.std
   if(action==='project'&&rest[0]==='create')request={command:'create',name:need(rest[1],'Specify a project name')};
   if(action==='project'&&rest[0]==='invite')request={command:'create-invite',room:need(rest[1],'Specify a room ID'),label:options.label??'Teammate'};
   if(action==='project'&&rest[0]==='revoke')request={command:'revoke',room:need(rest[1],'Specify a room ID'),memberId:need(rest[2],'Specify a member ID')};
-  if(request){print(await hostRequest(serverState,request));return;}
+  if(request){print(await (process.env.SPOOL_CONTAINER_CONFIG?containerRequest(process.env.SPOOL_CONTAINER_CONFIG,request):hostRequest(serverState,request)));return;}
  }
- if(group==='service'){const unit={client:'spool.service',server:'spool-shared.service'}[action],operation=rest[0];if(!unit||!['start','stop','restart','status','logs'].includes(operation))throw new Error('Use service client|server start|stop|restart|status|logs');try{const result=execFileSync(operation==='logs'?'journalctl':'systemctl',operation==='logs'?['--user','-u',unit,'-n','100','--no-pager']:['--user',operation,unit,'--no-pager'],{encoding:'utf8',timeout:15000});if(result)print(result.trim());}catch(error){if(error.stdout)print(error.stdout.trim());throw new Error('Service command failed; check the service output');}return;}
+ if(group==='service'){const unit={client:'spool.service',server:'spool-shared.service'}[action],operation=rest[0];if(!unit||!['start','stop','restart','status','logs'].includes(operation))throw new Error('Use service client|server start|stop|restart|status|logs');try{const result=execFileSync(operation==='logs'?'journalctl':'systemctl',operation==='logs'?[...(action==='server'&&process.env.SPOOL_SYSTEM_SERVICE==='1'?[]:['--user']),'-u',unit,'-n','100','--no-pager']:[...(action==='server'&&process.env.SPOOL_SYSTEM_SERVICE==='1'?[]:['--user']),operation,unit,'--no-pager'],{encoding:'utf8',timeout:15000});if(result)print(result.trim());}catch(error){if(error.stdout)print(error.stdout.trim());throw new Error('Service command failed; check the service output');}return;}
  throw new Error('Unknown management command. Run spool --help');
 }

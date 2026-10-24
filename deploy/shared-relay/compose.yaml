@@ -10,7 +10,7 @@ services:
     expose:
       - "8878"
   proxy:
-    image: caddy:2
+    image: docker.io/library/caddy:2.11.7
     restart: unless-stopped
     environment:
       SPOOL_DOMAIN: ${SPOOL_DOMAIN}

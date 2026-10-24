@@ -25,7 +25,17 @@ export async function configureServer({state,app,workspaceName,publicOrigin,port
 }
 export async function interactiveServerSetup({bundle}={}){
  const rl=createInterface({input:stdin,output:stdout}),ask=async(label,value='')=>(await rl.question(label+(value?' ['+value+']':'')+': ')).trim()||value;
- try{const paths=desktopPaths();let address='localhost';try{address=Object.values(networkInterfaces()).flat().find(value=>value.family==='IPv4'&&!value.internal)?.address??address;}catch{}console.log('\nSpoolDB server setup\nOne server hosts multiple projects. Shared memory contains conversations and Git references; repository code stays in Git.\n');
+ try{
+ const choice=await ask('Domain for automatic VPS HTTPS (or type advanced for LAN/custom setup)');
+ if(choice.toLowerCase()!=='advanced'){
+  const {normalizeDomain}=await import('./server-caddy.js');const domain=normalizeDomain(choice);
+  const existing=join(desktopPaths().state,'spool-server/server.json');if(existsSync(existing))throw Error('An existing per-user relay was found. Choose advanced to keep its storage and service; automatic VPS setup uses a separate system installation.');
+  console.log('\nURL: https://'+domain+'\nRun the relay and Caddy in Docker or Podman (must already be installed).\nApplication: /opt/spooldb\nPersistent memory and certificates: container volumes\nAn active UFW firewall will allow TCP 80/443. Your DNS and provider firewall must allow this VPS.');
+  if(!/^y(es)?$/i.test(await ask('Install containerized relay, Caddy and automatic HTTPS? Root/sudo access is required. (y/N)','N')))return;
+  const app=bundle??fileURLToPath(new URL('../',import.meta.url)),runtime=bundledRuntime(app),args=[runtime,join(app,'src/server-vps.js'),'--domain',domain,'--bundle',app];
+  execFileSync(process.getuid?.()===0?args.shift():'sudo',process.getuid?.()===0?args:['--',...args],{stdio:'inherit',timeout:900000});return;
+ }
+ const paths=desktopPaths();let address='localhost';try{address=Object.values(networkInterfaces()).flat().find(value=>value.family==='IPv4'&&!value.internal)?.address??address;}catch{}console.log('\nSpoolDB server setup\nOne server hosts multiple projects. Shared memory contains conversations and Git references; repository code stays in Git.\n');
  const workspaceName=await ask('Workspace name','Company workspace'),state=resolve(await ask('Persistent server storage',join(paths.state,'spool-server'))),mode=await ask('HTTPS mode: 1 = private LAN certificate, 2 = your HTTPS reverse proxy','1'),port=Number(await ask('Relay port','8878')),publicOrigin=await ask('Reachable server URL (include https://)',mode==='1'?'https://'+address+':'+port:'https://memory.example.com'),host=mode==='1'?'0.0.0.0':'127.0.0.1';
  const checkUrl=new URL(publicOrigin);if(checkUrl.username||checkUrl.password||checkUrl.pathname!=='/'||checkUrl.search||checkUrl.hash||!['https:','http:'].includes(checkUrl.protocol)||checkUrl.protocol==='http:'&&!['localhost','127.0.0.1','[::1]'].includes(checkUrl.hostname))throw new Error('Enter a valid HTTPS server origin');if(!['1','2'].includes(mode)||!Number.isInteger(port)||port<1||port>65535)throw new Error('Choose mode 1 or 2 and a valid port');
  if(mode==='1')try{execFileSync('openssl',['version'],{stdio:'ignore'});}catch{throw new Error('Install OpenSSL with your distribution’s software manager to use private LAN TLS.');}

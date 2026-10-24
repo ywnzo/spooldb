@@ -17,14 +17,14 @@ An SSH tunnel remains an alternative for a host that cannot open its LAN firewal
 
 ## Deploy on another host
 
-The host needs Node.js 24+ with SQLite support (development/runtime tests use Node 26), persistent storage and an HTTPS reverse proxy. It does not need Codex or access to source checkouts. A container deployment is supplied at `deploy/shared-relay/`:
+The host needs persistent storage and either the bundled Bun runtime or a container engine. The interactive Linux server installer configures Docker/Podman and Caddy containers as described in [workspaces](workspaces.md). It does not need Codex or access to source checkouts. A container deployment is supplied at `deploy/shared-relay/`:
 
 ```sh
 export SPOOL_DOMAIN=memory.example.com
 docker compose -f deploy/shared-relay/compose.yaml up -d --build
 ```
 
-Point that domain at the host and allow ports 80/443 for Caddy’s certificate provisioning. Only the proxy publishes ports; the relay stays on the compose network. Project data and certificate state use persistent volumes. This container recipe is provided but was not built here because Docker is unavailable on the test computer. The native host/service path was exercised live.
+Point that domain at the host and allow ports 80/443 for Caddy’s certificate provisioning. Only the proxy publishes ports; the relay stays on the compose network. Project data and certificate state use persistent volumes. The installer supports Docker and Podman directly, without a Compose provider. The manual recipe below uses Docker Compose.
 
 Administer projects locally on the deployment host:
 

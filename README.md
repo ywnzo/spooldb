@@ -16,7 +16,7 @@ On a Linux x86-64 server:
 curl -fsSL https://github.com/ywnzo/spooldb/releases/latest/download/install.sh -o install-spooldb.sh && sh install-spooldb.sh --server
 ```
 
-Setup configures a background relay and prints a **private, single-use owner invitation**—before any client connects. Follow its prompts for storage, a reachable address, HTTPS and firewall setup.
+Install Docker or Podman first, point a domain at your VPS and allow TCP 80/443 in its provider firewall. Setup asks for the domain and sudo approval, runs the relay and Caddy in containers, configures HTTPS and reboot startup, and prints a **private, single-use owner invitation**. Memory and certificates persist in named volumes. Choose `advanced` for native LAN/custom setup.
 
 Alternatively, install the CLI using the client command below, then run `spool deploy cloudflare`. Guided deployment creates a Cloudflare relay and owner invitation. Resume interrupted setup with `spool deploy cloudflare --resume`.
 
