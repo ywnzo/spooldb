@@ -30,7 +30,12 @@ export async function runHarness(engine, { harness, root, branch = 'main', promp
   const groupSignal = sig => {
     if (!child?.pid || hasClosed) return;
     try { if (process.platform === 'win32') child.kill(sig); else process.kill(-child.pid, sig); }
-    catch (error) { if (error.code !== 'ESRCH') throw error; }
+    catch (error) {
+      // macOS can reject a process-group signal during child exit. The owned
+      // child can still be terminated directly without masking the run failure.
+      if (error.code === 'EPERM') child.kill(sig);
+      else if (error.code !== 'ESRCH') throw error;
+    }
   };
   const terminate = () => {
     if (!child || hasClosed) return;
