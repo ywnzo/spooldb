@@ -12,9 +12,14 @@ rmSync(out,{recursive:true,force:true});const plugin=join(out,'plugins/spooldb')
 for(const name of ['src','schemas','package.json','bun.lock','LICENSE'])cpSync(join(root,name),join(app,name),{recursive:true});
 cpSync(join(root,'plugins/spooldb'),join(app,'plugins/spooldb'),{recursive:true});
 copyProductionDependencies(root,app);
-const runtime=process.env.SPOOL_BUILD_BUN??await fetchBunRuntime();if(execFileSync(runtime,['-p','process.platform+"-"+process.arch'],{encoding:'utf8'}).trim()!=='linux-x64')throw Error('Need Linux x86-64 runtime');
-mkdirSync(join(app,'runtime'));cpSync(runtime,join(app,'runtime/bun'));chmodSync(join(app,'runtime/bun'),0o755);cpSync(join(root,'third-party/BUN-LICENSE.txt'),join(app,'runtime/LICENSE'));chmodSync(join(plugin,'scripts/spool.sh'),0o755);
+mkdirSync(join(app,'runtime'));
+for(const target of ['linux-x64','darwin-arm64']){
+ const runtime=await fetchBunRuntime({target});
+ const name=target==='linux-x64'?'bun':'bun-darwin-arm64';
+ cpSync(runtime,join(app,'runtime',name));chmodSync(join(app,'runtime',name),0o755);
+}
+cpSync(join(root,'third-party/BUN-LICENSE.txt'),join(app,'runtime/LICENSE'));chmodSync(join(plugin,'scripts/spool.sh'),0o755);
 prepareStableHooks(plugin);
 mkdirSync(join(out,'.agents/plugins'),{recursive:true});writeFileSync(join(out,'.agents/plugins/marketplace.json'),JSON.stringify({name:'spooldb',interface:{displayName:'SpoolDB'},plugins:[{name:'spooldb',source:{source:'local',path:'./plugins/spooldb'},policy:{installation:'AVAILABLE',authentication:'ON_USE'},category:'Productivity'}]},null,2)+'\n');
-mkdirSync(join(root,'installers'),{recursive:true});const archive=join(root,'installers/spooldb-codex-linux-x64.tar.gz');execFileSync('tar',['-czf',archive,'-C',out,'.']);const sha=createHash('sha256').update(readFileSync(archive)).digest('hex');writeFileSync(archive+'.sha256',sha+'  spooldb-codex-linux-x64.tar.gz\n');
+mkdirSync(join(root,'installers'),{recursive:true});const archive=join(root,'installers/spooldb-codex.tar.gz');execFileSync('tar',['-czf',archive,'-C',out,'.']);const sha=createHash('sha256').update(readFileSync(archive)).digest('hex');writeFileSync(archive+'.sha256',sha+'  spooldb-codex.tar.gz\n');
 console.log(JSON.stringify({marketplace:out,plugin,archive,sha256:sha}));

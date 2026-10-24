@@ -13,16 +13,21 @@ if [ -z "$root" ]; then echo 'SpoolDB hook: plugin location was not provided by 
 root=$(CDPATH= cd -- "$root" && pwd -P)
 cd -- "$root"
 while read -r checksum file; do
-  if [ "$(readlink -f -- "$file")" != "$root/$file" ]; then
+  # Resolve each parent physically and reject a symlink at the leaf.
+  parent=$(CDPATH= cd -- "$(dirname -- "$file")" && pwd -P)
+  if [ -L "$file" ] || [ "$parent/$(basename -- "$file")" != "$root/$file" ]; then
     echo 'SpoolDB hook dependencies must not be redirected through symlinks.' >&2
     exit 1
   fi
+  if command -v sha256sum >/dev/null 2>&1; then actual=$(sha256sum "$file"); else actual=$(shasum -a 256 "$file"); fi
+  if [ "\${actual%% *}" != "$checksum" ]; then
+    echo 'SpoolDB hook code changed or is incomplete. Reinstall/update the plugin and review its changed hook definition.' >&2
+    exit 1
+  fi
 done < "$profile/files.sha256"
-if ! sha256sum --check --status "$profile/files.sha256"; then
-  echo 'SpoolDB hook code changed or is incomplete. Reinstall/update the plugin and review its changed hook definition.' >&2
-  exit 1
-fi
-exec "$root/__SPOOL_HOOK_RUNTIME__" "$root/app/src/plugin/hook-entry.js" "$@"
+runtime="$root/__SPOOL_HOOK_RUNTIME__"
+if [ "$(uname -sm)" = 'Darwin arm64' ] && [ -x "$root/app/runtime/bun-darwin-arm64" ]; then runtime="$root/app/runtime/bun-darwin-arm64"; fi
+exec "$runtime" "$root/app/src/plugin/hook-entry.js" "$@"
 `;
 const imports=/(?:\b(?:import|export)\s+(?:(?:[^'";]+?)\s+from\s*)?|\bimport\s*\(\s*)['"]([^'"]+)['"]/g;
 export function hookProfile(plugin){
@@ -30,7 +35,7 @@ export function hookProfile(plugin){
  while(queue.length){const path=queue.pop();if(seen.has(path))continue;const name=relative(plugin,path);if(!name.startsWith('app/src/')||name.includes('..'))throw Error('Hook dependencies must stay inside app/src');const code=readFileSync(path,'utf8');seen.set(path,{name,hash:sha(code)});
   for(const match of code.matchAll(imports)){const specifier=match[1];if(specifier.startsWith('node:'))continue;if(!specifier.startsWith('.'))throw Error('Hook runtime must use local modules or Node builtins: '+specifier);const dependency=resolve(dirname(path),specifier);if(!dependency.endsWith('.js'))throw Error('Hook module must be JavaScript');queue.push(dependency);}
  }
- const runtime=existsSync(join(plugin,'app/runtime/bun'))?'app/runtime/bun':'app/runtime/node',files=[...seen.values(),{name:runtime,hash:sha(readFileSync(join(plugin,runtime)))}].sort((a,b)=>a.name.localeCompare(b.name)),manifest=files.map(f=>f.hash+'  '+f.name+'\n').join('');
+ const runtime=existsSync(join(plugin,'app/runtime/bun'))?'app/runtime/bun':'app/runtime/node',files=[...seen.values(),...(existsSync(join(plugin,'app/runtime/bun-darwin-arm64'))?[{name:'app/runtime/bun-darwin-arm64',hash:sha(readFileSync(join(plugin,'app/runtime/bun-darwin-arm64')))}]:[]),{name:runtime,hash:sha(readFileSync(join(plugin,runtime)))}].sort((a,b)=>a.name.localeCompare(b.name)),manifest=files.map(f=>f.hash+'  '+f.name+'\n').join('');
  const dispatcher=dispatcherTemplate.replaceAll('__SPOOL_HOOK_RUNTIME__',runtime);const fingerprint=sha(JSON.stringify({protocol:'spool-hooks/1',dispatcher,runtime,manifest}));return {fingerprint,runtime,manifest,dispatcher,files};
 }
 export function prepareStableHooks(plugin){

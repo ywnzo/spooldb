@@ -5,7 +5,19 @@ on:
 permissions:
   contents: write
 jobs:
+  apple-silicon:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.3'
+      - run: test "$(uname -m)" = arm64
+      - run: bun install --frozen-lockfile
+      - run: bun run build:plugin
+      - run: bun scripts/verify-plugin-bundle.js
   release:
+    needs: apple-silicon
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -22,7 +34,7 @@ jobs:
         run: |
           cp scripts/install.sh installers/install.sh
           cd installers
-          sha256sum spool-linux-x64.run spooldb-codex-linux-x64.tar.gz install.sh > SHA256SUMS
+          sha256sum spool-linux-x64.run spooldb-codex.tar.gz install.sh > SHA256SUMS
       - name: Publish release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -33,7 +45,7 @@ jobs:
           fi
           gh release create "$GITHUB_REF_NAME" \
             installers/spool-linux-x64.run \
-            installers/spooldb-codex-linux-x64.tar.gz \
+            installers/spooldb-codex.tar.gz \
             installers/install.sh installers/SHA256SUMS \
             --verify-tag "${notes[@]}" --title "SpoolDB $GITHUB_REF_NAME"
           cd work/codex-marketplace

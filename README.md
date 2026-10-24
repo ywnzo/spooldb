@@ -50,4 +50,4 @@ The **management UI runs on clients**; the relay serves invitation, download and
 
 [CLI reference](docs/cli.md) · [Server setup](docs/workspaces.md) · [Cloudflare](docs/cloudflare.md) · [Codex plugin](docs/codex-plugin.md) · [MCP and memory](docs/memory.md) · [Architecture and limits](docs/architecture.md)
 
-Early-stage software · MIT license · Linux x86-64/glibc installers. Development: `bun install --frozen-lockfile` and `bun run test`.
+Early-stage software · MIT license · Linux x86-64/glibc installers; Codex plugin also supports Apple Silicon macOS 13+. Development: `bun install --frozen-lockfile` and `bun run test`.

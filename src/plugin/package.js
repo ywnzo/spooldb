@@ -10,7 +10,7 @@ import {bundledRuntime} from '../runtime.js';
 import {pluginSettingsPath} from './state.js';
 export function packagePlugin({app,destination,runtime=bundledRuntime(app),engine=process.versions.bun?'bun':'node'}){
  app=resolve(app);destination=resolve(destination);if(app===destination||app.startsWith(destination+'/'))throw Error('Plugin destination must not contain the application');
- if(process.platform!=='linux'||process.arch!=='x64')throw Error('The bundled plugin currently supports Linux x86-64');
+ if(!['linux-x64','darwin-arm64'].includes(process.platform+'-'+process.arch))throw Error('The bundled plugin supports Linux x86-64 and Apple Silicon macOS');
  const receipt=join(destination,'spool-marketplace.json');if(existsSync(destination)&&!existsSync(receipt))throw Error('Refusing to replace an unmanaged plugin marketplace');
  const stage=destination+'.new-'+randomUUID(),plugin=join(stage,'plugins/spooldb'),bundled=join(plugin,'app');mkdirSync(dirname(stage),{recursive:true,mode:0o700});
  try{
@@ -18,7 +18,7 @@ export function packagePlugin({app,destination,runtime=bundledRuntime(app),engin
   for(const name of ['src','schemas','package.json','bun.lock','LICENSE'])cpSync(join(app,name),join(bundled,name),{recursive:true});
   cpSync(join(app,'plugins/spooldb'),join(bundled,'plugins/spooldb'),{recursive:true});
   copyProductionDependencies(app,bundled);
-  mkdirSync(join(bundled,'runtime'));engine=runtime.endsWith('/bun')?'bun':engine;cpSync(runtime,join(bundled,'runtime',engine));chmodSync(join(bundled,'runtime',engine),0o755);chmodSync(join(plugin,'scripts/spool.sh'),0o755);
+  mkdirSync(join(bundled,'runtime'));engine=/\/bun(?:-darwin-arm64)?$/.test(runtime)?'bun':engine;cpSync(runtime,join(bundled,'runtime',engine));chmodSync(join(bundled,'runtime',engine),0o755);chmodSync(join(plugin,'scripts/spool.sh'),0o755);
   const runtimeLicense=existsSync(join(app,'runtime/LICENSE'))?join(app,'runtime/LICENSE'):engine==='bun'?'/usr/share/licenses/bun/LICENSE.md':'/usr/share/licenses/nodejs/LICENSE';if(existsSync(runtimeLicense))cpSync(runtimeLicense,join(bundled,'runtime/LICENSE'));
   prepareStableHooks(plugin);
   mkdirSync(join(stage,'.agents/plugins'),{recursive:true});writeFileSync(join(stage,'.agents/plugins/marketplace.json'),JSON.stringify({name:'spooldb',interface:{displayName:'SpoolDB'},plugins:[{name:'spooldb',source:{source:'local',path:'./plugins/spooldb'},policy:{installation:'AVAILABLE',authentication:'ON_USE'},category:'Productivity'}]},null,2)+'\n');

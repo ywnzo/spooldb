@@ -21,7 +21,7 @@ export async function publicDownloads(req,env){
  if(path==='/install.sh'){
   const artifact=data.releases[data.current['spool-linux-x64.run']+'/spool-linux-x64.run'];return text(bootstrapScript({origin:url.origin,artifact}),'text/x-shellscript; charset=utf-8');
  }
- const match=/^\/downloads\/(?:([a-f0-9]{64})\/)?(spool-linux-x64(?:-node)?\.run|spooldb-codex-linux-x64\.tar\.gz)$/.exec(path);if(!match)return response('Download not found','text/plain',404);
+ const match=/^\/downloads\/(?:([a-f0-9]{64})\/)?(spool-linux-x64(?:-node)?\.run|spooldb-codex(?:-linux-x64)?\.tar\.gz)$/.exec(path);if(!match)return response('Download not found','text/plain',404);
  const artifact=data.releases[(match[1]??data.current[match[2]])+'/'+match[2]];if(!artifact)return response('Download not found','text/plain',404);
  const etag='"'+artifact.sha256+'"',cache=match[1]?'public, max-age=31536000, immutable':'public, max-age=60';
  if(req.headers.get('if-none-match')===etag&&!req.headers.has('range'))return response(null,'application/octet-stream',304,{etag,'cache-control':cache});

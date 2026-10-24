@@ -1,6 +1,6 @@
 # SpoolDB Codex plugin
 
-Install the plugin once, review its hooks, and connect a project through a normal Codex chat. The plugin includes its Linux x86-64 runtime, MCP server, companion, setup skill and continuity skill. A separate Node/Bun or SpoolDB terminal installation is not required. The shared relay remains independent and can run on Cloudflare or a self-hosted server.
+Install the plugin once, review its hooks, and connect a project through a normal Codex chat. The plugin includes its native Bun runtime, MCP server, companion, setup skill and continuity skill. A separate Node/Bun or SpoolDB terminal installation is not required. The shared relay remains independent and can run on Cloudflare or a self-hosted server.
 
 ## Install in Codex
 
@@ -8,7 +8,7 @@ Install the plugin once, review its hooks, and connect a project through a norma
 2. Enter **`ywnzo/spooldb`** and add it.
 3. Select **SpoolDB → Install**.
 
-The plugin prepares its bundled runtime automatically on first use. No download/extraction steps, separate SpoolDB installation, Node/Bun installation, or JSON editing are needed. Linux x86-64 with glibc is currently supported; Git, curl and tar must be available.
+The plugin prepares its bundled runtime automatically on first use. No download/extraction steps, separate SpoolDB installation, Node/Bun installation, or JSON editing are needed. Linux x86-64 with glibc and Apple Silicon Macs with macOS 13 or newer are supported; Git, curl and tar must be available.
 
 Review the four named hooks in Codex, then start a new chat and say **“Connect SpoolDB”**. Paste your workspace invitation there. Project sharing still requires your approval. Installation itself does not connect a workspace or upload conversations.
 
@@ -24,7 +24,7 @@ If SpoolDB is already installed, `spool plugin install` remains available. If le
 
 The Git marketplace contains a small plugin launcher. Its release URL, archive checksum, hook definitions and hook fingerprint are pinned in the marketplace commit. On first launch, it downloads the matching release, checks the checksum and hook definitions, then installs the runtime into the plugin cache. Subsequent launches reuse it. Updates never switch to an unpinned latest payload or silently change reviewed hook definitions.
 
-Manual [bundle downloads](https://github.com/ywnzo/spooldb/releases/latest/download/spooldb-codex-linux-x64.tar.gz) remain available for offline distribution.
+Manual [bundle downloads](https://github.com/ywnzo/spooldb/releases/latest/download/spooldb-codex.tar.gz) remain available for offline distribution.
 
 ## What runs automatically
 
@@ -50,7 +50,7 @@ Build from source:
 bun run build:plugin
 ```
 
-The marketplace is written to `work/plugin-marketplace` and the self-contained archive to `installers/spooldb-codex-linux-x64.tar.gz`. The bundle contains source/runtime/production dependencies and public plugin metadata, never workspace tokens, invitations, state databases or deployment receipts.
+The marketplace is written to `work/plugin-marketplace` and the self-contained archive to `installers/spooldb-codex.tar.gz`. The bundle contains source/runtime/production dependencies and public plugin metadata, never workspace tokens, invitations, state databases or deployment receipts.
 
 ## Stable hook trust across updates
 
