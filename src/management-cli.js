@@ -46,6 +46,7 @@ Usage: spool COMMAND [--state DIR] [--json]
   server setup | status
   server workspace init NAME | owner-invite
   server project create NAME | invite ROOM [--label NAME] | revoke ROOM MEMBER
+  project delete-conversations [PROJECT] [--dry-run | --yes]
   service client|server start|stop|restart|status|logs
 
 Workspace commands work headlessly without a local web service.
@@ -159,6 +160,8 @@ export async function runManagement(args,{input=process.stdin,output=process.std
   if(action==='disconnect'){print(await ws({command:'disconnect'}));return;}
  }
  if(group==='project'){
+  if(action==='delete-conversations'){const project=await sharedProject(rest[0]),preview=await ws({command:'delete-conversations',room:project.room});print({...preview,project:project.name});if(options['dry-run']||!preview.messages)return;if(!options.yes){if(!input.isTTY)throw Error('Deletion requires an interactive confirmation or --yes after user approval');const rl=createInterface({input,output});try{if(!/^y(es)?$/i.test((await rl.question(`Delete ${preview.messages} shared messages from ${project.name}? Local chats and other memory stay. (y/N): `)).trim()))return;}finally{rl.close();}}print(await ws({command:'delete-conversations',room:project.room,confirm:true,deletionToken:preview.deletionToken,requestId:options['request-id']??randomUUID()}));return;}
+
   if(action==='sharing'){const project=await sharedProject(rest[0]),current=await ws({command:'project-sharing',room:project.room});if(!input.isTTY||options.json){print(current);return;}const rl=createInterface({input,output});try{const sharing={};for(const [key,value]of Object.entries(current.overrides)){const defaultValue=value===null?'inherit':value?'shared':'private';const answer=(await rl.question(`${key}: shared/private/inherit [${defaultValue}]: `)).trim().toLowerCase()||defaultValue;if(!['shared','private','inherit'].includes(answer))throw Error('Choose shared, private, or inherit; settings were not changed');sharing[key]=answer==='inherit'?null:answer==='shared';}print(await ws({command:'project-sharing',room:project.room,sharing,expectedRevision:current.sharingRevision}));}finally{rl.close();}return;}
   if(['connections','revoke'].includes(action)){const project=await sharedProject(rest[0]),data=await ws({command:'project-members',room:project.room});if(action==='connections'){print(data);return;}const selector=need(rest[1],'Specify a connection label'),matches=data.members.filter(m=>!m.revoked&&(m.id===selector||m.label===selector));if(matches.length!==1)throw new Error('Connection label must match one active connection; use spool project connections');print(await ws({command:'revoke-project-member',room:project.room,memberId:matches[0].id}));return;}
   if(action==='invite'){print(await ws({command:'invite-project',room:(await sharedProject(rest[0])).room,label:options.label??'Teammate',role:options.role??'write'}));return;}

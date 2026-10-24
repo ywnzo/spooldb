@@ -95,3 +95,9 @@ Ask **“Enable automatic SpoolDB updates”** to opt in through the setup tool.
 ### Companion upgrades
 
 The plugin checks the companion protocol, version and capabilities before reusing a running service. An older plugin-owned companion is restarted automatically. Recognized Linux user services are upgraded to a staged runtime with the same state directory and a service-configuration backup; failed startup restores the previous configuration. Workspace credentials, project bindings and sharing approvals remain in place. Newer compatible companions are reused, so an older chat cannot downgrade them. Unrecognized services are left untouched with an actionable error. Project setup status includes the running companion version.
+
+### Delete shared conversations
+
+Ask Codex to “Delete shared conversations from PROJECT” or to delete one identified captured conversation. The plugin previews the scope and count, then submits the authorized deletion with a stale-preview check. Project admin access is required. Findings, decisions, tasks, handoffs and local Codex chats remain. Deleted messages/sessions are blocked from capture re-upload. Older relays must be upgraded once to v0.4.12 or newer.
+
+In the web UI use **Project settings → Company workspace → Project sharing → Delete shared conversations…**. A shared conversation’s source details also offer deletion of its captured session. CLI administrators can use `spool project delete-conversations PROJECT`, with `--dry-run` for preview. Independent backups and already-downloaded copies are outside the deletion scope.

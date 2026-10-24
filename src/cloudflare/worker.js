@@ -1,3 +1,4 @@
+import {deleteSharedConversations} from '../team/conversation-deletion.js';
 import {sharedMemoryInput} from '../team/sharing.js';
 import {authenticatedRelay} from './oauth.js';
 import {publicDownloads} from './downloads.js';
@@ -34,7 +35,7 @@ export class SpoolWorkspace extends DurableObject {
  const projects=()=>this.db.prepare('SELECT room,name FROM team_projects ORDER BY rowid').all();
  this.invites=new InviteStore(this.engine,'/unused',{key:key('invite-key'),projects,origin:()=>this.origin});
  const command=input=>{fail(input.command==='create','WORKSPACE_ACTION','Unknown project operation');fail(typeof input.name==='string'&&input.name.trim()&&input.name.length<=160,'PROJECT_NAME','Enter a project name');return this.engine.transaction(()=>{const prior=this.db.prepare('SELECT room,name FROM team_projects WHERE creator=? AND request_id=?').get(input.creator,input.requestId);if(prior){fail(prior.name===input.name.trim(),'REQUEST_CONFLICT','Retry key changed',409);return {project:prior};}const project={room:randomUUID(),name:input.name.trim()};this.db.prepare('INSERT INTO team_projects VALUES(?,?,?,?)').run(project.room,project.name,input.creator,input.requestId);if(input.repositoryKey)this.db.prepare('INSERT INTO workspace_repositories VALUES(?,?)').run(input.repositoryKey,project.room);return {project};});};
- this.workspace=new WorkspaceStore(this.engine,'/unused',{key:key('workspace-key'),projects,command,invites:this.invites,origin:()=>this.origin,refresh:()=>{}});
+ this.workspace=new WorkspaceStore(this.engine,'/unused',{key:key('workspace-key'),projects,command,invites:this.invites,origin:()=>this.origin,refresh:()=>{},conversationDeletion:async(room,input,member)=>{const response=await this.env.PROJECTS.get(this.env.PROJECTS.idFromName(room)).fetch(new Request('https://project.internal/conversation-delete',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({room,input,principal:{id:member.id}})}));const result=await response.json();if(!response.ok)throw new RelayError(result.error?.code??'DELETE_FAILED',result.error?.message??'Deletion failed',response.status);return result;}});
  }
  async fetch(req){try{
  const path=new URL(req.url).pathname;this.origin=this.env.PUBLIC_ORIGIN||new URL(req.url).origin;
@@ -44,7 +45,7 @@ export class SpoolWorkspace extends DurableObject {
  }
  if(path.startsWith('/v1/workspace/')){
   fail(req.method==='POST','METHOD','Use POST',405);const input=await body(req,20000),action=path.slice('/v1/workspace/'.length);let result;
-  if(action==='action'){const token=/^Workspace ([A-Za-z0-9_-]{43})$/.exec(req.headers.get('authorization')??'')?.[1];result=this.workspace.run(this.workspace.authorize(token),input);}
+  if(action==='action'){const token=/^Workspace ([A-Za-z0-9_-]{43})$/.exec(req.headers.get('authorization')??'')?.[1];result=await this.workspace.run(this.workspace.authorize(token),input);}
   else{const code=/^Invite ([A-Za-z0-9_-]{43})$/.exec(req.headers.get('authorization')??'')?.[1];fail(code,'INVITE_REQUIRED','Invite required',401);fail(['preview','enroll'].includes(action),'NOT_FOUND','Unknown workspace action',404);result=action==='preview'?this.workspace.preview(code):this.workspace.enroll(code,input);}
   return json(result);
  }
@@ -73,7 +74,8 @@ export class SpoolProject extends DurableObject {
  if(!existing.length)this.engine.create(branch,{room});
  const actualBranch=branch;
  let result;
- if(action==='state')result={heads:this.engine.ref(actualBranch).heads,maxPageBytes:1500000,...policy};
+ if(action==='conversation-delete')result=deleteSharedConversations(this.engine,room,input);
+ else if(action==='state')result={heads:this.engine.ref(actualBranch).heads,maxPageBytes:1500000,...policy};
  else if(action==='memory')result=this.memory.run(room,input,principal);
  else if(action==='source')result=ingestSource(this.engine,room,input,principal,policy?.sharing);
  else if(action==='review'){fail(input.command!=='publish','GIT_ONLY','Code stays in Git',403);result=this.review.run(room,input,principal);}

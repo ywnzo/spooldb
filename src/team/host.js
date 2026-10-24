@@ -1,3 +1,4 @@
+import {deleteSharedConversations} from './conversation-deletion.js';
 import {mkdirSync,readFileSync,writeFileSync,renameSync,existsSync,chmodSync,unlinkSync} from 'node:fs';
 import {join,resolve} from 'node:path';
 import {createServer,createConnection} from 'node:net';
@@ -37,7 +38,7 @@ export async function startTeamHost(dir,{port=8878,host='127.0.0.1',publicOrigin
   if(input.command==='revoke'){invites.revoke(project.room,input.memberId);return {revoked:true};}
   throw new Error('Unknown shared host action');
  };
- workspace=new WorkspaceStore(relay.engine,dir,{projects:projectList,command,invites,origin:()=>url,ca:certificate?.ca,refresh});
+ workspace=new WorkspaceStore(relay.engine,dir,{projects:projectList,command,invites,origin:()=>url,ca:certificate?.ca,refresh,conversationDeletion:(room,input)=>deleteSharedConversations(relay.engine,room,input)});
  relay.sharingPolicy=room=>workspace.projectSharing(room);
  const projectInvites=relay.inviteHandler;relay.inviteHandler=async(req,res,path)=>{
   if(!path.startsWith('/v1/workspace/'))return projectInvites(req,res,path);
@@ -45,7 +46,7 @@ export async function startTeamHost(dir,{port=8878,host='127.0.0.1',publicOrigin
   if(!['/v1/workspace/preview','/v1/workspace/enroll','/v1/workspace/action'].includes(path))throw new RelayError('NOT_FOUND','Unknown workspace endpoint',404);
   if(!/^application\/json(?:;|$)/.test(req.headers['content-type']??''))throw new RelayError('CONTENT_TYPE','Use JSON',415);
   const body=await readJson(req,20000);let result;
-  if(path.endsWith('/action')){const match=/^Workspace ([A-Za-z0-9_-]{43})$/.exec(req.headers.authorization??'');result=workspace.run(workspace.authorize(match?.[1]),body);}
+  if(path.endsWith('/action')){const match=/^Workspace ([A-Za-z0-9_-]{43})$/.exec(req.headers.authorization??'');result=await workspace.run(workspace.authorize(match?.[1]),body);}
   else{const match=/^Invite ([A-Za-z0-9_-]{43})$/.exec(req.headers.authorization??'');if(!match)throw new RelayError('INVITE_REQUIRED','Workspace invitation required',401);result=path.endsWith('/preview')?workspace.preview(match[1]):workspace.enroll(match[1],body);}
   relay.send(res,200,result);return true;
  };

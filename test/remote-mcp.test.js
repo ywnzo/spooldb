@@ -47,7 +47,7 @@ test('remote OAuth MCP in workerd: consent, PKCE, context, handoffs, scope isola
  let tokens=await authorize();
  let id=0;const mcp=async(method,params={},access=tokens.access_token,status=200)=>(await request('/mcp',{jsonrpc:'2.0',id:++id,method,params},{authorization:'Bearer '+access},status)).data;
  const initialized=await mcp('initialize',{protocolVersion:'2025-11-25'});assert.equal(initialized.result.serverInfo.name,'spool-project-memory');
- const list=await mcp('tools/list');assert.equal(list.result.tools.length,7);assert.ok(!list.result.tools.some(t=>t.name==='file_read'));assert.equal(list.result.tools.find(t=>t.name==='handoff').securitySchemes[0].type,'oauth2');
+ const list=await mcp('tools/list');assert.equal(list.result.tools.length,8);assert.ok(!list.result.tools.some(t=>t.name==='file_read'));assert.equal(list.result.tools.find(t=>t.name==='handoff').securitySchemes[0].type,'oauth2');
  const tool=async(name,args={},access=tokens.access_token,status=200)=>mcp('tools/call',{name,arguments:args},access,status);
  const context=await tool('project_context');assert.match(JSON.stringify(context),/Shipping calculation/);
  const bad=await tool('project_context',{room:other.room});assert.equal(bad.error.code,-32602);
@@ -61,6 +61,7 @@ test('remote OAuth MCP in workerd: consent, PKCE, context, handoffs, scope isola
 
  // One workspace OAuth grant supports isolated chats selecting different projects, including future projects.
  const shared=await authorize('writer','memory:read memory:write',true),sharedTool=(name,args={})=>tool(name,args,shared.access_token);
+ const deniedDeletion=await sharedTool('delete_conversations',{project:project.room});assert.equal(deniedDeletion.result.isError,true);assert.match(deniedDeletion.result.content[0].text,/admin access/);
  const sharedList=(await sharedTool('project_list')).result.structuredContent.projects;assert.equal(sharedList.length,2);assert.ok(sharedList.every(p=>p.id&&p.name&&!p.token));
  assert.equal((await sharedTool('project_context')).error.code,-32602);
  assert.equal((await sharedTool('project_context',{project:'not-authorized'})).error.code,-32602);

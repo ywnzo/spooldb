@@ -631,3 +631,8 @@ button:focus-visible,select:focus-visible,input:focus-visible,a:focus-visible{ou
 #workspace-project-sharing-form select { max-width:240px; }
 #workspace-project-sharing-form p { color:var(--muted); font-size:13px; line-height:1.5; }
 #workspace-project-sharing-save { margin-top:12px; border:1px solid var(--line); background:var(--accent-soft); border-radius:8px; padding:10px 14px; color:var(--accent); }
+
+#workspace-delete-dialog { max-width:520px; padding:24px; color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:12px; }
+#workspace-delete-dialog::backdrop { background:rgba(0,0,0,.6); }
+#workspace-delete-summary { font-weight:600; }
+#workspace-delete-error { color:var(--accent); }
