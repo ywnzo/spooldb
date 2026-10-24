@@ -87,3 +87,7 @@ Automatic lifecycle records that embed raw prompt or assistant excerpts follow t
 Under Settings → Workspace & team access, choose a shared project and use Project sharing. Each category offers Use workspace setting (default), Shared or Private. Workspace settings are an upper limit: a workspace-disabled category stays private even if the project requests sharing. The panel shows the effective settings. Existing shared history stays readable and private items are never backfilled automatically. Workspace administrators and that project's admins can save settings.
 
 Use `spool project sharing Wield` for interactive prompts, or append `--json` to read the settings. In Codex, `spool_setup action="project_sharing" project="Wield"` reads them; an approved change adds `sharing`, `expectedRevision` and `confirm:true`. Set an override to null to inherit again. Settings are stored on the relay and enforced on every client, including direct remote MCP writes.
+
+## Updates
+
+Ask **“Enable automatic SpoolDB updates”** to opt in through the setup tool. Updates wait for active sessions to finish; changed hooks still require review. See [updates](updates.md).

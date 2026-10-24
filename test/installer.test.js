@@ -29,3 +29,11 @@ test('invite redemption is single-use, recoverable for the same machine and revo
  const port=Number(new URL(host.origin).port);await host.close();host=await startTeamHost(root,{port});assert.equal((await inviteHttp(invite,'redeem',input)).connection.token,first.connection.token);host.command({command:'revoke',room:project.room,memberId:first.memberId});await assert.rejects(()=>inviteHttp(invite,'redeem',input),/revoked/);
  const expired=host.command({command:'create-invite',room:project.room,label:'Expired'});host.relay.engine.db.prepare('UPDATE team_invites SET expires=0').run();await assert.rejects(()=>inviteHttp(parseInvite(expired.link),'preview'),/expired/);
 });
+
+test('a failed upgrade restores the previous application and service without changing project state',async t=>{
+ const base=mkdtempSync(join(tmpdir(),'spool-rollback-'));t.after(()=>rmSync(base,{recursive:true,force:true}));const bundle=join(base,'bundle'),paths={data:join(base,'data'),config:join(base,'config'),state:join(base,'state')};mkdirSync(bundle);
+ const prepare=(value,version)=>{writeFileSync(join(bundle,'payload'),value);writeFileSync(join(bundle,'manifest.json'),JSON.stringify({version,files:{payload:createHash('sha256').update(value).digest('hex')}}));};
+ prepare('old','1.0.0');const installed=await installApp({bundle,paths,activate:false});writeFileSync(join(installed.state,'project-memory'),'preserve');const unit=readFileSync(installed.unit,'utf8');prepare('new','1.1.0');
+ await assert.rejects(()=>installApp({bundle,paths,activate:false,onProgress:message=>{if(message.startsWith('Registering'))throw Error('simulated registration failure');}}),/simulated registration failure/);
+ assert.equal(readFileSync(join(installed.app,'payload'),'utf8'),'old');assert.equal(readFileSync(installed.unit,'utf8'),unit);assert.equal(readFileSync(join(installed.state,'project-memory'),'utf8'),'preserve');assert.equal(JSON.parse(readFileSync(join(paths.data,'spool/installation.json'))).version,'1.0.0');
+});

@@ -37,6 +37,11 @@ test('Cloudflare real workerd: workspace invites, independent projects, memory c
  const b=(await bws({command:'join',room:project.room})).connection;
  assert.equal((await mem(b,{command:'get',id:found.id})).sessionId,'codex-a');assert.equal((await mem(b,{command:'get',id:found.id})).actorLabel,'Alice');
  assert.equal((await mem(b,{command:'get',id:handoff.id})).refs[0],found.id);
+ const submodules=[{path:'packages/shared',expectedCommit:'b'.repeat(40),commit:'b'.repeat(40),initialized:true,verified:true,dirty:false,repository:'https://example.test/shared.git'}];
+ const submoduleNote=await mem(a,{command:'remember',requestId:'submodule-reference',sessionId:'codex-a',kind:'finding',title:'Submodule evidence',text:'The shared module was checked at this revision',git:{commit:'a'.repeat(40),verified:true,dirty:false,submodules}});
+ assert.deepEqual((await mem(b,{command:'get',id:submoduleNote.id})).git.submodules,submodules);
+ await mem(a,{command:'remember',requestId:'invalid-submodule-reference',kind:'finding',title:'Invalid',text:'Rejected',git:{submodules:[{...submodules[0],code:'must not upload source'}]}},400);
+
  await mem(b,{command:'task_update',requestId:'task2',sessionId:'codex-b',taskId:'audit',title:'Fixed',text:'Verified',expectedRevision:1,status:'done',refs:[found.id]});
  const c=(await ws({command:'join',room:other.room})).connection;await mem(c,{command:'get',id:found.id},404);
  await call('/v1/rooms/'+other.room+'/memory','Bearer '+b.token,{command:'context'},401);

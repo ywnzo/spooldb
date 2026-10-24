@@ -104,3 +104,7 @@ The workspace management UI runs in the **local companion**, normally at `http:/
 Repository discovery is available with `spool discovery enable`, `list`, and `propose|preview|approve|ignore FOLDER`. `approve` asks before connecting and sharing captured conversations. Use `--room ROOM` to choose an existing project or `--name NAME` when creating one. `--yes` is for already-authorized noninteractive approval. See [discovery](discovery.md).
 
 Connect a cloud MCP client once to all workspace projects: run `spool workspace invite` and answer the guided questions. Only omitted options are prompted for. For scripts, `--label "ChatGPT" --role writer --no-create` skips the questions; `--allow-create` explicitly permits project creation. JSON and non-terminal usage keep their existing noninteractive defaults. Choose `reader` for read only, or `member` for individually granted projects. Reader/writer access includes future projects without granting workspace administration.
+
+## Updates
+
+Use `spool update` for an interactive update, `spool update check` to check without installing, or `spool update enable` to opt in to daily updates. `spool update disable` turns them off. Choose `--target plugin` or `--target client` when both are installed. See [updates](updates.md).

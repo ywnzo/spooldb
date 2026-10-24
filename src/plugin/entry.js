@@ -9,6 +9,7 @@ process.umask(0o077);
 const [mode,...args]=process.argv.slice(2),state=pluginState(),app=fileURLToPath(new URL('../',import.meta.url));
 try{
  const pluginRoot=fileURLToPath(new URL('../../../',import.meta.url));if(mode==='mcp'&&existsSync(join(pluginRoot,'.codex-plugin/plugin.json')))installStableHooks(pluginRoot);
+ try{const {refreshUpdater}=await import('../update.js');refreshUpdater(state,fileURLToPath(new URL('../../',import.meta.url)));}catch(error){console.error('SpoolDB updater refresh failed: '+error.message);}
  const companion=await ensureCompanion(state,{timeout:mode==='hook'&&args[0]==='Interrupt'?1500:20000});
  const release=()=>companion.release();process.once('exit',release);
  if(mode==='mcp'){

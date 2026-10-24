@@ -12,6 +12,8 @@ import {launch} from './desktop/launcher.js';
 export const managementHelp=`SpoolDB management CLI
 Usage: spool COMMAND [--state DIR] [--json]
 
+  update [check|status|enable|disable] [--target plugin|client] [--yes]
+                                              Daily opt-in updates; run without a subcommand to update now
   plugin install                              Install the self-contained Codex plugin
   init                                        Connect the current Git project interactively
   deploy cloudflare [--dry-run | --resume] [--name NAME] [--account-id ID]
@@ -50,7 +52,7 @@ Local project operations use the running companion, starting an installed compan
 Use --server-state DIR for server-local administration; Unix socket ownership is required.
 Invites are prompted for, read from a file or stdin; avoid putting them in shell history.
 The server exposes an API, not a hosted administration dashboard. The local UI and CLI use that API.`;
-export function parseManagementArgs(args){const options={},words=[];const flags=new Set(['json','invite-stdin','allow-create','no-create','no-capture','no-agents','help','text-stdin','yes','dry-run','resume','connect','no-connect']);for(let i=0;i<args.length;i++){const value=args[i];if(value.startsWith('--')){const [key,inline]=value.slice(2).split(/=(.*)/s,2);if(['file','ref','next-step','blocker','resolve-id'].includes(key)){const next=inline??args[++i];if(!next||next.startsWith('--'))throw new Error('Missing value for --'+key);(options[key]??=[]).push(next);}else if(flags.has(key)){if(inline!==undefined)throw new Error('Unexpected value for --'+key);options[key]=true;}else{if(!['state','server-state','invite-file','device','label','role','request-id','project','task','local-url','title','text-file','kind','revision','status','offset','limit','room','name','account-id','workspace-name','deploy-dir','url'].includes(key))throw new Error('Unknown option --'+key);const next=inline??args[++i];if(!next||next.startsWith('--'))throw new Error('Missing value for --'+key);options[key]=next;}}else words.push(value);}return {options,words};}
+export function parseManagementArgs(args){const options={},words=[];const flags=new Set(['json','invite-stdin','allow-create','no-create','no-capture','no-agents','help','text-stdin','yes','dry-run','resume','connect','no-connect']);for(let i=0;i<args.length;i++){const value=args[i];if(value.startsWith('--')){const [key,inline]=value.slice(2).split(/=(.*)/s,2);if(['file','ref','next-step','blocker','resolve-id'].includes(key)){const next=inline??args[++i];if(!next||next.startsWith('--'))throw new Error('Missing value for --'+key);(options[key]??=[]).push(next);}else if(flags.has(key)){if(inline!==undefined)throw new Error('Unexpected value for --'+key);options[key]=true;}else{if(!['state','server-state','invite-file','device','label','role','request-id','project','task','local-url','title','text-file','kind','revision','status','offset','limit','room','name','account-id','workspace-name','deploy-dir','url','target','mode'].includes(key))throw new Error('Unknown option --'+key);const next=inline??args[++i];if(!next||next.startsWith('--'))throw new Error('Missing value for --'+key);options[key]=next;}}else words.push(value);}return {options,words};}
 async function invite(options,io){if(options['invite-file'])return readFileSync(resolve(options['invite-file']),'utf8').trim();if(options['invite-stdin'])return readFileSync(0,'utf8').trim();if(!io.input.isTTY)throw new Error('Supply --invite-file FILE or --invite-stdin');const rl=createInterface({input:io.input,output:io.output});try{return (await rl.question('Paste the private invitation link: ')).trim();}finally{rl.close();}}
 function localOrigin(value){const url=new URL(value);if(url.protocol!=='http:'||!['127.0.0.1','localhost','[::1]'].includes(url.hostname)||url.username||url.password||url.pathname!=='/'||url.search||url.hash)throw new Error('The companion URL must be loopback HTTP');return url.origin;}
 export async function localCommand(state,path,input,options={}){
@@ -97,6 +99,22 @@ export async function runManagement(args,{input=process.stdin,output=process.std
  const print=value=>output.write(typeof value==='string'?value+'\n':!options.json&&value?.link?(value.browserLink??value.link)+'\n'+(value.expiresAt?'Expires: '+value.expiresAt+'\n':''):JSON.stringify(value,null,options.json?0:2)+'\n');
  if(options.help||!group){print(managementHelp);return;}
  const state=resolve(options.state??process.env.SPOOL_STATE??defaultState()),serverState=resolve(options['server-state']??process.env.SPOOL_SERVER_STATE??join(desktopPaths().state,'spool-server'));
+ if(group==='update'){
+  const {updateStatus,configureUpdates,checkUpdate,applyUpdate}=await import('./update.js');
+  const paths=desktopPaths(),target=options.target??(existsSync(join(paths.data,'spool/installation.json'))?'client':'plugin');
+  if(!['plugin','client'].includes(target))throw Error('Choose --target plugin or client');
+  const config={...updateStatus(state,target),target,paths,state,app:resolve(new URL('..',import.meta.url).pathname)};
+  if(action==='status'){print(config);return;}
+  if(action==='disable'||action==='enable'){
+   const mode=action==='disable'?'off':options.mode??'automatic';
+   if(action==='enable'&&!options.yes){if(!input.isTTY)throw Error('Use --yes to opt in to scheduled updates');const rl=createInterface({input,output});try{if(!/^y(es)?$/i.test((await rl.question('Enable daily '+mode+' updates for '+target+'? Changed plugin hooks still require review. (y/N): ')).trim()))return;}finally{rl.close();}}
+   print(configureUpdates({...config,mode}));return;
+  }
+  if(action&&action!=='check')throw Error('Use spool update [check|status|enable|disable]');
+  const checked=await checkUpdate(config);if(action==='check'||!checked.available){print(checked);return;}
+  if(!options.yes){if(!input.isTTY)throw Error('Update available: '+checked.latest+'. Run spool update --yes to install it.');const rl=createInterface({input,output});try{if(!/^y(es)?$/i.test((await rl.question('Update '+target+' from '+checked.current+' to '+checked.latest+'? (y/N): ')).trim()))return;}finally{rl.close();}}
+  print(await applyUpdate(config));return;
+ }
  if(group==='plugin'){if(action!=='install')throw Error('Use spool plugin install');const {installPlugin}=await import('./plugin/package.js');print(installPlugin({state}));return;}
  if(group==='init'){if(action)throw new Error('Run spool init from inside your Git project folder.');if(!input.isTTY)throw new Error('spool init needs an interactive terminal so you can choose a project and approve sharing.');const {initializeCheckout}=await import('./init.js');const rl=createInterface({input,output});try{const result=await initializeCheckout({state,options,output,workspace:input=>new WorkspaceClient(state).run(input),local:(path,body,selected={})=>localCommand(state,path,body,{...options,...selected}),ask:async(label,value='')=>(await rl.question(label+(value?' ['+value+']':'')+': ')).trim()||value});if(options.json)print(result);if(result.problems?.length)process.exitCode=1;}finally{rl.close();}return;}
  if(group==='deploy'){if(action!=='cloudflare')throw new Error('Use spool deploy cloudflare');const {deployCloudflare}=await import('./deploy/cloudflare.js');const result=await deployCloudflare({state,options,input,output});if(options.json)print(result);return;}

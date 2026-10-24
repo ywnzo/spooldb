@@ -91,13 +91,14 @@ export class Bridge {
     const exclusions=JSON.parse(this.db.prepare('SELECT paths FROM source_exclusions WHERE root=?').get(root)?.paths??'[]');
     check(realpathSync(git(root, ['rev-parse', '--show-toplevel']).toString().trim()) === root, 'Choose the top-level Git checkout');
     const stage = git(root, ['ls-files', '--stage', '-z']).toString('utf8').split('\0').filter(Boolean);
-    check(!stage.some(line => line.startsWith('160000 ')), 'Submodules are not supported yet');
+    const submodules=stage.filter(line=>line.startsWith('160000 ')).map(line=>line.slice(line.indexOf('\t')+1));
     check(!stage.some(line => !/^\d+ [a-f0-9]+ 0\t/.test(line)), 'Resolve Git index conflicts before capturing');
     const names = new TextDecoder('utf-8', { fatal: true }).decode(git(root, ['ls-files', '--cached', '--others', '--exclude-standard', '-z']))
       .split('\0').filter(Boolean);
     check(names.length <= 10000, 'Checkout exceeds 10000 listed paths');
     const excluded = []; const entries = Object.create(null);
     for (const name of [...new Set(names)].sort()) {
+      if(submodules.some(path=>name===path||name.startsWith(path+'/'))){excluded.push({path:name,reason:'git-submodule-reference'});continue;}
       if(exclusions.some(path=>name===path||name.startsWith(path+'/'))) {excluded.push({path:name,reason:'configured-exclusion'});continue;}
       if (secretPath(name) || name.split('/').some(p => p.toLowerCase().startsWith('.spool')) ||
           [this.engine.filename, `${this.engine.filename}-wal`, `${this.engine.filename}-shm`].includes(join(root, name))) {

@@ -1,6 +1,6 @@
 import {execFileSync} from 'node:child_process';
 import {realpathSync} from 'node:fs';
-import {basename} from 'node:path';
+import {basename,relative} from 'node:path';
 import {createHash} from 'node:crypto';
 export function canonicalRemote(raw){
  if(typeof raw!=='string'||!raw.trim())return null;raw=raw.trim();let host,path;
@@ -12,5 +12,6 @@ export function canonicalRemote(raw){
 export function repositoryAt(cwd){
  const git=args=>execFileSync('git',['-c','core.fsmonitor=false','-c','core.hooksPath=/dev/null','-C',cwd,...args],{encoding:'utf8',timeout:10000,stdio:['ignore','pipe','pipe'],env:{...process.env,GIT_OPTIONAL_LOCKS:'0'}}).trim();
  const root=realpathSync(git(['rev-parse','--show-toplevel']));let remote=null;try{remote=canonicalRemote(git(['remote','get-url','origin']));}catch{}
- return {root,name:basename(root),remote,repositoryKey:remote?createHash('sha256').update(remote).digest('hex'):null};
+ let superproject=null;try{const parent=git(['rev-parse','--show-superproject-working-tree']);if(parent){const parentRoot=realpathSync(parent);superproject={root:parentRoot,path:relative(parentRoot,root)};}}catch{}
+ return {superproject,root,name:basename(root),remote,repositoryKey:remote?createHash('sha256').update(remote).digest('hex'):null};
 }
