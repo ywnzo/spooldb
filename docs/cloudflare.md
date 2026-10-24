@@ -10,7 +10,7 @@ With the installed CLI:
 spool deploy cloudflare
 ```
 
-From a source checkout, install dependencies with `bun install --frozen-lockfile`, then run `bun src/cli.js deploy cloudflare`. Node 24+ remains supported (`npm ci` and `node src/cli.js deploy cloudflare`). The installer contains the application runtime; Wrangler is downloaded on demand if it is not installed with the application. A network connection and a Cloudflare account with permission to deploy Workers and SQLite Durable Objects are required.
+From a source checkout, install dependencies with `bun install --frozen-lockfile`, then run `bun src/cli.js deploy cloudflare`. The installer contains the application runtime; Wrangler is downloaded on demand if it is not installed with the application. A network connection and a Cloudflare account with permission to deploy Workers and SQLite Durable Objects are required.
 
 The wizard:
 
@@ -55,7 +55,7 @@ One deployment currently represents one company workspace with many project obje
 
 ## Verification
 
-`npm run test:cloudflare` compiles the actual Worker bundle and exercises it in local workerd with persistent SQLite: owner setup, invite redemption, independent projects, shared findings/handoffs, task revision updates, conversation provenance, access denial, revocation and restart durability. `test/deploy-cloudflare.test.js` covers the wizard's non-publishing path and deployment sequence with injected cloud calls. A local emulator pass does not prove a deployment to a particular account; a live run additionally needs Wrangler authentication and the wizard's publish confirmation.
+`bun run test:cloudflare` compiles the actual Worker bundle and exercises it in local workerd with persistent SQLite: owner setup, invite redemption, independent projects, shared findings/handoffs, task revision updates, conversation provenance, access denial, revocation and restart durability. `test/deploy-cloudflare.test.js` covers the wizard's non-publishing path and deployment sequence with injected cloud calls. A local emulator pass does not prove a deployment to a particular account; a live run additionally needs Wrangler authentication and the wizard's publish confirmation.
 
 ## Resume after a published deployment
 
@@ -71,9 +71,8 @@ The invite fragment remains in the recipient’s browser. The page validates tha
 To publish installers from a source build:
 
 ```sh
-node scripts/build-linux-installer.js
-SPOOL_BUILD_RUNTIME=node node scripts/build-linux-installer.js
-node scripts/build-download-assets.js
+bun scripts/build-linux-installer.js
+bun scripts/build-download-assets.js
 spool deploy cloudflare
 ```
 
@@ -103,4 +102,4 @@ spool project revoke Wield "Cloud MCP · ChatGPT"
 
 Use the exact label returned by `connections`, or its ID if several active connections have the same label. Workspace cloud connections are listed with `spool workspace status` and revoked with `spool workspace revoke MEMBER_ID` (use the ID shown beside the cloud connection in `spool workspace members`). Project-only connections use the project commands above. Revocation is checked against the workspace Durable Object on every authenticated MCP request and token exchange, so an unexpired OAuth token cannot retain project access after revocation. Ordinary KV propagation still affects OAuth code/refresh state; do not treat this as a globally atomic OAuth transaction store.
 
-To validate locally, run `npm run test:cloudflare`. The workerd test exercises discovery, browser-bound consent, PKCE, redirect rejection, project context, linked findings/handoffs, retry keys, read-only access, revocation, refresh and persisted tokens after Worker restart. Validators for remote tool arguments are precompiled for Workers (no runtime `eval`); regenerate them after changing `src/memory/tools.js` with `npm run generate:memory-schemas`.
+To validate locally, run `bun run test:cloudflare`. The workerd test exercises discovery, browser-bound consent, PKCE, redirect rejection, project context, linked findings/handoffs, retry keys, read-only access, revocation, refresh and persisted tokens after Worker restart. Validators for remote tool arguments are precompiled for Workers (no runtime `eval`); regenerate them after changing `src/memory/tools.js` with `bun run generate:memory-schemas`.

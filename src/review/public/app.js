@@ -134,7 +134,7 @@ $('room').value=new URLSearchParams(location.hash.slice(1)).get('room')??'';
 
 if(location.protocol==='file:') {
   $('connect-screen').hidden=false;
-  $('connect-error').textContent='This is a local preview. Run npm run demo:review from the SpoolDB project folder, then open the printed http:// URL to browse sample branches and conversations.';
+  $('connect-error').textContent='This is a local preview. Run bun run demo:review from the SpoolDB project folder, then open the printed http:// URL to browse sample branches and conversations.';
   for(const control of $('connect-form').elements)control.disabled=true;
   document.querySelector('.brand').href='./index.html';
 }

@@ -7,7 +7,7 @@ The new storage engine is opt-in. It separates file state and conversation recor
 ```sh
 printf '%s\n' '{"command":"init","branch":"main"}' \
   '{"command":"storage.stats"}' \
-  | node src/cli.js ./sharded.sqlite --sharded
+  | bun src/cli.js ./sharded.sqlite --sharded
 ```
 
 `--sharded` may also be used with `run` and `watch`. Keep that flag on subsequent openings of the same database. Opening it through the legacy engine fails with an explicit layout error. Existing legacy databases stay readable through the original engine; opening one with the sharded engine also fails rather than migrating it. No data is deleted or rewritten by a conversion. There is currently no automatic migration of legacy histories, anchors or bundles.
@@ -97,11 +97,11 @@ Default new writes avoid temporary-node overhead without requiring compaction. R
 The original engine behaviors are tested against both layouts. Additional tests cover selective reads, bounded tail replay, historical checkpoint selection, corrupt-checkpoint fallback, cache budgets, shared forks, rollback after shard persistence, publication across two SQLite connections, invalid/partial imports, comments created after an edit in the same batch, bridge/adapter compatibility and ten offline replicas editing shared and separate file shards.
 
 ```sh
-npm test
-npm run typecheck
-npm run benchmark
-npm run benchmark:large
-npm run benchmark:million
+bun test
+bun run typecheck
+bun run benchmark
+bun run benchmark:large
+bun run benchmark:million
 ```
 
 See [benchmark method and results](../benchmarks/README.md), [disk comparison JSON](../benchmarks/disk-optimized-results.json) and [million-edit JSON](../benchmarks/million-results.json). The million-edit run verified every file before and after compaction/reopening, 16 historical files and anchors, the exact 1,002,000-change count including setup, and SQLite integrity. It used 10,000 edit transactions across 1,000 files. Reported results are synthetic local measurements, not a service SLA, multi-host load test or evidence of a million independent commits.

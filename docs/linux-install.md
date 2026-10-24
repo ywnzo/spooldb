@@ -30,7 +30,7 @@ The interactive installer asks before installing, then guides you through:
 4. Confirm sharing saved Codex conversations and memory with Git references.
 5. Choose automatic Codex integration, including Codex in Zed.
 
-No JSON editing, separate runtime installation, npm commands or sudo are needed. Git must already be installed. The default package includes Bun 1.4.3 and production dependencies; `spool-linux-x64-node.run` retains the Node runtime option. Both support Linux x86-64 on glibc systems; Alpine/musl and ARM are not supported.
+No JSON editing, separate runtime installation, or sudo are needed. Git must already be installed. The package includes Bun 1.4.3 and production dependencies. It supports Linux x86-64 on glibc systems; Alpine/musl and ARM are not supported.
 
 The app registers `spool://` invite links and an application-menu entry. Capture and MCP start at sign-in through a user systemd service; desktops without a user systemd manager receive an autostart entry. Automatic Codex connection writes the project's managed MCP configuration and lifecycle hooks. Start a new Codex session after joining so it loads those settings. Existing Codex installations and authentication are prerequisites for using Codex.
 
@@ -68,15 +68,15 @@ If the installer reported desktop autostart instead, remove `~/.config/autostart
 ## Build and verify the package
 
 ```sh
-npm ci
-node scripts/build-linux-installer.js
+bun install --frozen-lockfile
+bun scripts/build-linux-installer.js
 sh installers/spool-linux-x64.run --verify-only
 ```
 
-The build uses the standalone Node runtime specified by `SPOOL_BUILD_NODE`, defaulting to the bundled runtime on the development host. The runtime's license is included. Verification checks packaged file hashes and opens an in-memory engine using the bundled runtime; hashes detect corruption, not publisher authenticity.
+The build downloads and verifies the pinned portable Bun runtime. Set `SPOOL_BUILD_BUN` to use an existing standalone Bun executable. The runtime's license is included. Verification checks packaged file hashes and opens an in-memory engine using the bundled runtime; hashes detect corruption, not publisher authenticity.
 
 ## Runtime and Cloudflare options
 
 `spool deploy cloudflare` adds a hosted workspace without replacing a self-hosted relay. See [Cloudflare deployment](cloudflare.md).
 
-Builders can select `SPOOL_BUILD_RUNTIME=bun` (default) or `SPOOL_BUILD_RUNTIME=node` when running `scripts/build-linux-installer.js`. Application launchers, services and MCP hooks use the selected bundled executable. Existing Node bundles and databases remain supported; no data-format migration is required.
+Application launchers, services and MCP hooks use the bundled Bun executable. Existing databases remain compatible; no data-format migration is required.

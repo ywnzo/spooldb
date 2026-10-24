@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 import {randomUUID,createHash} from 'node:crypto';
 import {resolve,join} from 'node:path';
 import {readFileSync,readdirSync,realpathSync} from 'node:fs';

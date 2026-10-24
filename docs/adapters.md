@@ -8,9 +8,9 @@ Install and authenticate the desired CLI through its own supported setup. SpoolD
 
 ```sh
 printf '%s\n' 'Explain the repository structure.' \
-  | node src/cli.js history.sqlite run codex /absolute/path/to/repo
+  | bun src/cli.js history.sqlite run codex /absolute/path/to/repo
 printf '%s\n' 'Explain the repository structure.' \
-  | node src/cli.js history.sqlite run claude /absolute/path/to/repo
+  | bun src/cli.js history.sqlite run claude /absolute/path/to/repo
 ```
 
 Use an optional branch after the root, followed by `--write` if desired. The prompt is sent on stdin rather than in process arguments. The selected root must be a Git checkout that fits the bridge's limits. The runner attaches it if necessary and records the prompt with evidence `adapter-input` before starting the CLI.
@@ -23,7 +23,7 @@ Default timeout is two minutes; the library accepts 100 ms to one hour. SIGINT/S
 
 ## The envelope
 
-The authoritative format is [adapter-event.schema.json](../schemas/adapter-event.schema.json), compiled once by Ajv for runtime validation. The [TypeScript declarations](../src/adapters/index.d.ts) describe the public adapter API, and the engine has corresponding declarations. Run `npm run typecheck` to verify the included consumer example.
+The authoritative format is [adapter-event.schema.json](../schemas/adapter-event.schema.json), compiled once by Ajv for runtime validation. The [TypeScript declarations](../src/adapters/index.d.ts) describe the public adapter API, and the engine has corresponding declarations. Run `bun run typecheck` to verify the included consumer example.
 
 | Field | Meaning |
 | --- | --- |

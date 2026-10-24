@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 import {bundledRuntime} from './runtime.js';
 import {existsSync,mkdirSync,readFileSync,writeFileSync,cpSync,renameSync,rmSync} from 'node:fs';
 import {join,resolve} from 'node:path';

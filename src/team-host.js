@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 import {startTeamHost,hostRequest} from './team/host.js';
 process.umask(0o077);
 const [command,dir,...args]=process.argv.slice(2);

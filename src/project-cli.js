@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 import { readFileSync,openSync,closeSync } from 'node:fs';
 import { resolve,join } from 'node:path';
 import {spawn} from 'node:child_process';

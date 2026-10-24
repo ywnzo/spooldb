@@ -10,7 +10,7 @@ The terminal guides you through the workspace name, persistent storage, public U
 
 Choose private LAN TLS for this host-style deployment. Open the chosen port in the server firewall and use an address reachable from the clients. The invite carries the server's public certificate, which clients verify for that server only. OpenSSL is required for private certificate generation. For public deployments, choose your HTTPS reverse proxy and configure it to forward the public origin to the loopback relay port; the provided Caddy/Compose recipe is an alternative. The installer does not configure DNS, a reverse proxy or firewall rules automatically.
 
-Source installations can run `node src/server-setup.js` after installing the documented Node dependencies. Server storage must be on a persistent local filesystem. The client installer remains `sh spool-linux-x64.run` without `--server`. Server setup needs a Linux user systemd manager; containers should use the Compose deployment instead.
+Source installations can run `bun src/server-setup.js` after installing the documented Node dependencies. Server storage must be on a persistent local filesystem. The client installer remains `sh spool-linux-x64.run` without `--server`. Server setup needs a Linux user systemd manager; containers should use the Compose deployment instead.
 
 ## Connect clients and create projects
 
@@ -39,13 +39,13 @@ Credentials are kept in private local files; the browser receives workspace/proj
 For an already-running relay, its local administrator can initialize the workspace without replacing its service:
 
 ```sh
-node src/team-host.js workspace-init /path/to/relay-state 'Company workspace'
+bun src/team-host.js workspace-init /path/to/relay-state 'Company workspace'
 ```
 
 This prints the private owner link on first setup. If setup was interrupted before owner enrollment, repeating it issues a recovery invitation. Once an owner exists, it does not generate additional owners. Server-local recovery remains available explicitly:
 
 ```sh
-node src/team-host.js workspace-owner-invite /path/to/relay-state
+bun src/team-host.js workspace-owner-invite /path/to/relay-state
 ```
 
 

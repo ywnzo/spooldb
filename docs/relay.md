@@ -8,14 +8,14 @@ This implementation uses polling and room-level grants. PostgreSQL, object stora
 
 ## Start a private relay
 
-Use Node.js 24 or newer and install the project's locked dependencies with `npm ci`. Run commands from the project directory. Use a separate relay database, outside any source checkout you capture.
+Use Bun 1.4.3 or newer and install the project's locked dependencies with `bun install --frozen-lockfile`. Run commands from the project directory. Use a separate relay database, outside any source checkout you capture.
 
 First initialize or attach the first local sharded client database using the existing CLI. Obtain its `room` from the `init` response or `refs`. Other clients must join that same room; independently initializing them creates unrelated rooms.
 
 ```sh
 printf '%s\n' '{"command":"init","branch":"main"}' \
-  | node src/cli.js alice.sqlite --sharded
-node src/relay-cli.js credential alice ROOM_ID write
+  | bun src/cli.js alice.sqlite --sharded
+bun src/relay-cli.js credential alice ROOM_ID write
 ```
 
 The credential command outputs a random bearer `token` and its server-side `credential` containing only the SHA-256 `tokenHash`. Give the token to that client and copy the credential into an administrator-owned configuration file. Generate separate credentials per client or person. Do not commit tokens or put them in URLs or command-line arguments.
@@ -34,7 +34,7 @@ Example `relay-config.json` (replace both placeholders):
 ```
 
 ```sh
-node src/relay-cli.js relay.sqlite relay-config.json --port=8787
+bun src/relay-cli.js relay.sqlite relay-config.json --port=8787
 ```
 
 The default bind address is `127.0.0.1`. The process emits a JSON listening event and accepts SIGINT/SIGTERM for shutdown. `GET /healthz` reports readiness without listing rooms or data. Bind options are explicit: `--host=127.0.0.1 --port=8787` (port zero selects a free port).
@@ -46,8 +46,8 @@ For remote hosting, terminate HTTPS at a reverse proxy and forward to the loopba
 Load the bearer token into `SPOOL_RELAY_TOKEN` through your shell environment or secret manager. It is read only at client startup and is not stored in the client cursor table.
 
 ```sh
-node src/sync-cli.js alice.sqlite http://127.0.0.1:8787 ROOM_ID
-node src/sync-cli.js bob.sqlite https://relay.example.org ROOM_ID --watch
+bun src/sync-cli.js alice.sqlite http://127.0.0.1:8787 ROOM_ID
+bun src/sync-cli.js bob.sqlite https://relay.example.org ROOM_ID --watch
 ```
 
 Create a Bob credential with the same room grant and use Bob's own token. The second command can start with an absent database: it imports the authorized room instead of creating a new identity. HTTP is accepted automatically only for loopback names; remote origins require HTTPS. The library offers an explicit `allowInsecureHttp` override for controlled networks; the CLI does not enable it.
@@ -113,7 +113,7 @@ HTTP request/response JSON is capped at 16,000,000 bytes. Compressed requests ar
 Create a consistent local snapshot while the relay is running:
 
 ```sh
-node src/relay-cli.js backup relay.sqlite relay-backup-001.sqlite
+bun src/relay-cli.js backup relay.sqlite relay-backup-001.sqlite
 ```
 
 The destination must be new; the command creates it with mode `0600` and uses SQLite `VACUUM INTO`. Existing files are never overwritten. The library equivalent is `relay.backup(newPath)`. The snapshot includes all relay rooms, history and the audit table. Preserve the credential configuration separately. The operation can be expensive and is not an incremental backup ([SQLite snapshot behavior](https://www.sqlite.org/lang_vacuum.html#vacuum_with_an_into_clause)).
@@ -122,6 +122,6 @@ To restore, stop the relay, preserve its current database and WAL/SHM files as r
 
 ## Verification
 
-`npm test` covers ten HTTP clients, separate relay/CLI client processes, offline concurrency, restart, lost acknowledgments, cursor reset, complete-batch paging, page budgets, read-only access, two populated room boundaries, revocation during upload, rejected partial bundles, cancellation and backup restoration. `npm run benchmark:relay` records a separate ten-client/five-round run with correctness checks and payload counts in [relay-results.json](../benchmarks/relay-results.json).
+`bun test` covers ten HTTP clients, separate relay/CLI client processes, offline concurrency, restart, lost acknowledgments, cursor reset, complete-batch paging, page budgets, read-only access, two populated room boundaries, revocation during upload, rejected partial bundles, cancellation and backup restoration. `bun run benchmark:relay` records a separate ten-client/five-round run with correctness checks and payload counts in [relay-results.json](../benchmarks/relay-results.json).
 
 The measured HTTP workload uses loopback and shares a Node process for relay/client engine work. The CLI process tests establish process separation and persistence, not multi-host capacity. WAN reconnect bandwidth, million-operation network sync, reverse-proxy TLS, destructive power-loss recovery and distributed failover remain unverified.

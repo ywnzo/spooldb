@@ -29,13 +29,13 @@ Point that domain at the host and allow ports 80/443 for Caddy’s certificate p
 Administer projects locally on the deployment host:
 
 ```sh
-docker compose -f deploy/shared-relay/compose.yaml exec relay node src/team-host.js create /data 'Wield'
-docker compose -f deploy/shared-relay/compose.yaml exec relay node src/team-host.js list /data
-docker compose -f deploy/shared-relay/compose.yaml exec relay node src/team-host.js create-invite /data ROOM 'Alice laptop' write
-docker compose -f deploy/shared-relay/compose.yaml exec relay node src/team-host.js revoke /data ROOM MEMBER_ID
+docker compose -f deploy/shared-relay/compose.yaml exec relay bun src/team-host.js create /data 'Wield'
+docker compose -f deploy/shared-relay/compose.yaml exec relay bun src/team-host.js list /data
+docker compose -f deploy/shared-relay/compose.yaml exec relay bun src/team-host.js create-invite /data ROOM 'Alice laptop' write
+docker compose -f deploy/shared-relay/compose.yaml exec relay bun src/team-host.js revoke /data ROOM MEMBER_ID
 ```
 
-The create-invite command outputs a private, single-use invite link. A `read` credential can use direct remote MCP retrieval but cannot upload captured history; companion capture requires `write`. Native deployment uses `node src/team-host.js start STATE --host=127.0.0.1 --port=8878 --origin=https://memory.example.com` behind your proxy. For native private TLS, add `--tls`, bind the required LAN interface and use its HTTPS public origin; initial certificate creation requires OpenSSL. Adapt the supplied systemd unit’s paths for that host. Keep the state directory and all SQLite WAL/SHM files on a local persistent filesystem; do not synchronize live database files with a file-sync tool. Stop the service before copying its complete state directory for a consistent cold backup.
+The create-invite command outputs a private, single-use invite link. A `read` credential can use direct remote MCP retrieval but cannot upload captured history; companion capture requires `write`. Native deployment uses `bun src/team-host.js start STATE --host=127.0.0.1 --port=8878 --origin=https://memory.example.com` behind your proxy. For native private TLS, add `--tls`, bind the required LAN interface and use its HTTPS public origin; initial certificate creation requires OpenSSL. Adapt the supplied systemd unit’s paths for that host. Keep the state directory and all SQLite WAL/SHM files on a local persistent filesystem; do not synchronize live database files with a file-sync tool. Stop the service before copying its complete state directory for a consistent cold backup.
 
 ## Data, evidence and failures
 
@@ -58,7 +58,7 @@ The automated multi-client test uses three independent project directories/state
 A relay with old file-shard history refuses startup until migrated. Deleting current file entries is insufficient because immutable historical batches retain their contents. Stop the relay, rebuild it without file history, then restart:
 
 ```sh
-node src/team/migrate-memory-only.js /path/to/relay-state /path/to/local-rollback-backups
+bun src/team/migrate-memory-only.js /path/to/relay-state /path/to/local-rollback-backups
 ```
 
 The rollback directory must be outside relay storage. The migration preserves project IDs, message IDs, task revisions, grants, pending invites and write retry receipts. It rewrites storage heads and converts old machine-qualified file references into project-relative legacy references. The previous database is retained separately for rollback; it still contains old captured code. Keep backups outside the served relay state. Remove it according to your backup policy when rollback is no longer needed. Already-downloaded data on other machines cannot be recalled.

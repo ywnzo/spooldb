@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 import { createInterface } from 'node:readline';
 import { Engine } from './index.js';
 import { Bridge } from './bridge.js';

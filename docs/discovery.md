@@ -44,7 +44,7 @@ Implementation follows the [official Codex hooks documentation](https://learn.ch
 
 ## Live end-to-end acceptance
 
-Run `node examples/discovery-flow-check.js` from the source checkout with Codex installed and signed in. It uses the configured model, an isolated Codex home referencing the existing sign-in, a disposable Git checkout and a separate loopback relay/client. No projects are created in the company workspace. The sign-in link is removed and both services stop at the end.
+Run `bun examples/discovery-flow-check.js` from the source checkout with Codex installed and signed in. It uses the configured model, an isolated Codex home referencing the existing sign-in, a disposable Git checkout and a separate loopback relay/client. No projects are created in the company workspace. The sign-in link is removed and both services stop at the end.
 
 The first real Codex app-server session asks about connecting. The driver records that no project or capture exists, then supplies an explicit approval reply. That session inspects the fixture and writes a finding and handoff through MCP. A second app-server process receives no recap, retrieves the exact handoff, repairs the fixture, runs its test, completes the original task and leaves its own handoff. The driver separately reruns the fixture test and checks that conversations were captured and the relay has no file shards. Reports and raw fixture-only traces are retained in the reported temporary directory.
 

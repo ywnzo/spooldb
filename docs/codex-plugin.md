@@ -47,7 +47,7 @@ The Git marketplace is separate from OpenAI’s universal public plugin director
 Build from source:
 
 ```sh
-npm run build:plugin
+bun run build:plugin
 ```
 
 The marketplace is written to `work/plugin-marketplace` and the self-contained archive to `installers/spooldb-codex-linux-x64.tar.gz`. The bundle contains source/runtime/production dependencies and public plugin metadata, never workspace tokens, invitations, state databases or deployment receipts.

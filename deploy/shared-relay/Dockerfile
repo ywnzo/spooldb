@@ -1,10 +1,10 @@
-FROM node:26-bookworm-slim
+FROM oven/bun:1.4.3
 WORKDIR /app
-COPY package.json package-lock.json ./
-RUN npm ci --omit=dev --ignore-scripts && mkdir /data && chown node:node /data
+COPY package.json bun.lock ./
+RUN bun install --production --frozen-lockfile --ignore-scripts && mkdir /data && chown bun:bun /data
 COPY src ./src
 COPY schemas ./schemas
-USER node
+USER bun
 VOLUME /data
 EXPOSE 8878
-CMD ["node", "src/team-host.js", "start", "/data", "--host=0.0.0.0", "--port=8878"]
+CMD ["bun", "src/team-host.js", "start", "/data", "--host=0.0.0.0", "--port=8878"]

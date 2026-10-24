@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 import { ShardedEngine } from './index.js';
 import { SyncClient } from './relay/index.js';
 if(process.argv.includes('--help')) {

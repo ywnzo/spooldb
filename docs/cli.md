@@ -2,7 +2,7 @@
 
 The Linux installer installs `spool` under `~/.local/bin` (or the configured CLI bin directory). It uses the bundled runtime, so no separate Node installation is needed. The installer prints the complete command path; use that path if your shell does not include the directory in PATH.
 
-For source development, replace `spool` below with `node src/cli.js`. Run `spool --help` for the command list. Existing database/JSONL commands remain available with an explicit database filename.
+For source development, replace `spool` below with `bun src/cli.js`. Run `spool --help` for the command list. Existing database/JSONL commands remain available with an explicit database filename.
 
 ## Start from a project folder
 

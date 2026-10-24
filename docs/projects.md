@@ -22,15 +22,15 @@ The project service keeps one sharded capture database, one relay database and p
 Choose a **new** state directory whose parent exists. Nothing is installed in the source checkout. Explicit exclusions are literal relative file paths or directory prefixes, not globs. They are persisted in the capture database and apply to watcher and native harness captures alike. Configure them before attachment; excluded content is not reviewed.
 
 ```sh
-node src/project-cli.js init /absolute/state/project /absolute/git/root \
+bun src/project-cli.js init /absolute/state/project /absolute/git/root \
   --exclude=.codex --exclude=.claude --exclude=generated-large-assets
-node src/project-cli.js start /absolute/state/project --port=8787
+bun src/project-cli.js start /absolute/state/project --port=8787
 ```
 
 Keep the start process running. It binds HTTP only to `127.0.0.1`. Its control socket is inside the private state directory. The service creates a read-only review credential and a separate writer credential; it does not print them in service logs. Obtain the URL, room and reader token when needed:
 
 ```sh
-node src/project-cli.js access /absolute/state/project
+bun src/project-cli.js access /absolute/state/project
 ```
 
 Open the printed HTTP URL, paste the token and select Open review. Do not open the raw HTML file for a live workspace. Tokens and databases stay in the state directory, outside the source repository. Keep that directory private and out of version control. The CLI uses umask 077, directory mode 0700 and credential files mode 0600. It does not install a boot service; restart the same start command after reboot. Ctrl-C/SIGTERM shuts down the service and cancels an active wrapped harness run. If it crashes, the next start checks and clears a refused stale control socket.
@@ -41,9 +41,9 @@ From the SpoolDB directory, pipe a prompt into a wrapped harness run:
 
 ```sh
 printf '%s\n' 'Explain this repository without changing files.' \
-  | node src/project-cli.js run /absolute/state/project codex
+  | bun src/project-cli.js run /absolute/state/project codex
 printf '%s\n' 'Explain this repository without changing files.' \
-  | node src/project-cli.js run /absolute/state/project claude
+  | bun src/project-cli.js run /absolute/state/project claude
 ```
 
 The corresponding CLI must already be installed and authenticated. The default Codex sandbox is read-only; Claude defaults to its restricted tool list. Add `--write` to allow the harness's configured edit workflow. Prompts, assistant messages and selected tool events are retained. Native stderr is counted but not retained. A failed run is recorded as failed, not claimed successful. The wrapper prints event counts/status rather than conversation text; read the conversation in review.
@@ -51,8 +51,8 @@ The corresponding CLI must already be installed and authenticated. The default C
 The service serializes wrapped runs on the shared checkout and pauses its ordinary watcher during a run. The adapter captures at tool/turn boundaries and on process exit, then the service publishes the final state. External editors can still change disk concurrently, so observed file changes retain filesystem evidence and unknown authorship. The service never materializes merged code into the checkout. There is no global harness hook: desktop chats and independently started CLI sessions are **not** automatically imported. Use these wrappers for conversations you want captured. See [adapters](adapters.md) for the normalized integration contract for other harnesses.
 
 ```sh
-node src/project-cli.js status /absolute/state/project
-node src/project-cli.js capture /absolute/state/project
+bun src/project-cli.js status /absolute/state/project
+bun src/project-cli.js capture /absolute/state/project
 ```
 
 Status reports the root, room, URL, active harness, last capture and latest watcher error without credentials. Capture forces a filesystem observation and publication. The local project app refreshes automatically; a standalone remote relay review still uses Refresh. The bridge still has 1 MB/file, 12 MB snapshot and 10,000-path limits, and each atomic upload batch must fit the relay page budget. Exclusions should cover large generated files/assets and private configuration. Secret-path filtering is limited to documented filename patterns and is not a general content redactor.

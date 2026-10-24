@@ -3,7 +3,7 @@ services:
     build:
       context: ../..
       dockerfile: deploy/shared-relay/Dockerfile
-    command: ["node", "src/team-host.js", "start", "/data", "--host=0.0.0.0", "--port=8878", "--origin=https://${SPOOL_DOMAIN:?Set SPOOL_DOMAIN}"]
+    command: ["bun", "src/team-host.js", "start", "/data", "--host=0.0.0.0", "--port=8878", "--origin=https://${SPOOL_DOMAIN:?Set SPOOL_DOMAIN}"]
     restart: unless-stopped
     volumes:
       - relay-data:/data

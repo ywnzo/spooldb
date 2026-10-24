@@ -12,5 +12,5 @@ export function buildDownloadAssets({directory,files,chunkBytes=20*1024*1024}){
 }
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
  const root=fileURLToPath(new URL('../',import.meta.url)),directory=join(root,'work/download-assets');
- const manifest=buildDownloadAssets({directory,files:[{path:join(root,'installers/spool-linux-x64.run'),name:'spool-linux-x64.run',runtime:'bun'},{path:join(root,'installers/spool-linux-x64-node.run'),name:'spool-linux-x64-node.run',runtime:'node'},...(existsSync(join(root,'installers/spooldb-codex-linux-x64.tar.gz'))?[{path:join(root,'installers/spooldb-codex-linux-x64.tar.gz'),name:'spooldb-codex-linux-x64.tar.gz',runtime:'bun'}]:[])]});console.log(JSON.stringify({directory,installers:Object.keys(manifest.current)}));
+ const manifest=buildDownloadAssets({directory,files:[{path:join(root,'installers/spool-linux-x64.run'),name:'spool-linux-x64.run',runtime:'bun'},...(existsSync(join(root,'installers/spooldb-codex-linux-x64.tar.gz'))?[{path:join(root,'installers/spooldb-codex-linux-x64.tar.gz'),name:'spooldb-codex-linux-x64.tar.gz',runtime:'bun'}]:[])]});console.log(JSON.stringify({directory,installers:Object.keys(manifest.current)}));
 }

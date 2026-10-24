@@ -2,7 +2,7 @@
 
 This guide describes the legacy-compatible API. A separate, opt-in storage layout uses `--sharded` and the `spool/2` replication bundle; see [sharded storage](storage.md). The normalized adapter envelope remains `spool-adapter/1` in both layouts.
 
-Run `node src/cli.js path/to/project.sqlite`. Input and output are newline-delimited JSON. Standard output contains responses only; Node may print runtime warnings to stderr. The CLI creates a SQLite database if absent. It has no network listener and is intended for trusted local processes.
+Run `bun src/cli.js path/to/project.sqlite`. Input and output are newline-delimited JSON. Standard output contains responses only; The runtime may print warnings to stderr. The CLI creates a SQLite database if absent. It has no network listener and is intended for trusted local processes.
 
 Responses are `{ "id": <request id or null>, "ok": true, "result": ... }` or `{ "id": ..., "ok": false, "error": "..." }`. Error wording is not a stable machine error code yet. `id` correlates a response; `input.requestId` deduplicates writes. One process handles requests sequentially. Maximum JSON request size is 16 MB, checked after reading a line; this is not a network memory limit.
 
@@ -116,7 +116,7 @@ Initialize `main` once before this example. Adapters should obtain supported eve
 
 `snapshot.create` accepts optional historical `heads`. Its target must not exist, its parent must exist, and it must be separate from attached source roots. It returns a snapshot ID and completion status. A snapshot is a file tree, not a Git clone. It does not update an existing output folder. `snapshot.recover` resumes a journaled output after interruption; changed files or an invalid ownership marker stop recovery. Read the [bridge guide](bridge.md) before relying on recovery semantics.
 
-Watch mode is a separate CLI entry point: `node src/cli.js database.sqlite watch /git/root 1000`. It prints a `watching` event, then capture events only on observed changes. A capture error stops the process with a failing exit status. SIGINT/SIGTERM stop it cleanly. It is polling, not an editor keystroke recorder.
+Watch mode is a separate CLI entry point: `bun src/cli.js database.sqlite watch /git/root 1000`. It prints a `watching` event, then capture events only on observed changes. A capture error stops the process with a failing exit status. SIGINT/SIGTERM stop it cleanly. It is polling, not an editor keystroke recorder.
 
 ## Adapter commands
 

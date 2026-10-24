@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 import {readFileSync,existsSync,mkdirSync,writeFileSync,renameSync,rmSync} from 'node:fs';
 import {join} from 'node:path';
 import {createHash} from 'node:crypto';

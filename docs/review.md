@@ -9,7 +9,7 @@ Open `/review` on the relay, enter the room identity and a token with read acces
 For a disposable sample workspace:
 
 ```sh
-npm run demo:review
+bun run demo:review
 ```
 
 The command prints a local URL and a public read-only **demo** token. Its code and conversations are synthetic examples, including its harness labels. It contains no real agent session or user repository. SIGINT/SIGTERM stops the server and removes its temporary databases. Generate separate random credentials for real rooms; do not reuse the sample token.
@@ -19,8 +19,8 @@ The command prints a local URL and a public read-only **demo** token. Its code a
 Local branch names are not automatically replicated. The relay's **Synced room** view is the aggregate causal frontier of uploaded work, which can include concurrent features. Publish explicit named review snapshots to compare independent work:
 
 ```sh
-node src/sync-cli.js project.sqlite https://relay.example.org ROOM_ID main --publish=main
-node src/sync-cli.js project.sqlite https://relay.example.org ROOM_ID feature --publish=feature/pagination
+bun src/sync-cli.js project.sqlite https://relay.example.org ROOM_ID main --publish=main
+bun src/sync-cli.js project.sqlite https://relay.example.org ROOM_ID feature --publish=feature/pagination
 ```
 
 Both commands read `SPOOL_RELAY_TOKEN`; publishing requires write access. The last positional argument selects the local engine branch. `--publish` names the relay review snapshot. Publishing captures that local frontier, uploads its causal history and publishes the name **without pulling the aggregate relay history into the local branch**.
@@ -28,7 +28,7 @@ Both commands read `SPOOL_RELAY_TOKEN`; publishing requires write access. The la
 New names start at revision 1. Updating an existing name requires its current revision, shown in the UI branch selector or returned by the publication command:
 
 ```sh
-node src/sync-cli.js project.sqlite https://relay.example.org ROOM_ID feature \
+bun src/sync-cli.js project.sqlite https://relay.example.org ROOM_ID feature \
   --publish=feature/pagination --revision=1
 ```
 
@@ -75,7 +75,7 @@ Existing comment discovery scans up to 200 comment documents per requested file 
 
 ## Verification
 
-The automated suite covers diff reconstruction/limits, independent branch snapshots, stale publishers, historical isolation, branch-specific conversations and anchors, renamed files, non-text metadata, pagination and room authorization. Browser checks exercise the real relay and synthetic workspace, including login, source/diff tabs, branch changes, historical inspection, file-linked activity, disconnect/reload behavior and responsive layout. The existing engine/relay tests remain part of `npm test`.
+The automated suite covers diff reconstruction/limits, independent branch snapshots, stale publishers, historical isolation, branch-specific conversations and anchors, renamed files, non-text metadata, pagination and room authorization. Browser checks exercise the real relay and synthetic workspace, including login, source/diff tabs, branch changes, historical inspection, file-linked activity, disconnect/reload behavior and responsive layout. The existing engine/relay tests remain part of `bun test`.
 
 
 ## Local app navigation

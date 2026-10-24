@@ -1,3 +1,4 @@
+import {copyProductionDependencies} from '../production-dependencies.js';
 import {prepareStableHooks,installStableHooks} from './stable-hooks.js';
 import {existsSync,readFileSync,mkdirSync,cpSync,writeFileSync,chmodSync,renameSync,rmSync} from 'node:fs';
 import {join,resolve,dirname} from 'node:path';
@@ -14,9 +15,9 @@ export function packagePlugin({app,destination,runtime=bundledRuntime(app),engin
  const stage=destination+'.new-'+randomUUID(),plugin=join(stage,'plugins/spooldb'),bundled=join(plugin,'app');mkdirSync(dirname(stage),{recursive:true,mode:0o700});
  try{
   cpSync(join(app,'plugins/spooldb'),plugin,{recursive:true});mkdirSync(bundled,{recursive:true});
-  for(const name of ['src','schemas','package.json','package-lock.json','LICENSE'])cpSync(join(app,name),join(bundled,name),{recursive:true});
+  for(const name of ['src','schemas','package.json','bun.lock','LICENSE'])cpSync(join(app,name),join(bundled,name),{recursive:true});
   cpSync(join(app,'plugins/spooldb'),join(bundled,'plugins/spooldb'),{recursive:true});
-  const lock=JSON.parse(readFileSync(join(app,'package-lock.json')));for(const [name,meta]of Object.entries(lock.packages)){if(!name.startsWith('node_modules/')||meta.dev||!existsSync(join(app,name)))continue;mkdirSync(dirname(join(bundled,name)),{recursive:true});cpSync(join(app,name),join(bundled,name),{recursive:true});}
+  copyProductionDependencies(app,bundled);
   mkdirSync(join(bundled,'runtime'));engine=runtime.endsWith('/bun')?'bun':engine;cpSync(runtime,join(bundled,'runtime',engine));chmodSync(join(bundled,'runtime',engine),0o755);chmodSync(join(plugin,'scripts/spool.sh'),0o755);
   const runtimeLicense=existsSync(join(app,'runtime/LICENSE'))?join(app,'runtime/LICENSE'):engine==='bun'?'/usr/share/licenses/bun/LICENSE.md':'/usr/share/licenses/nodejs/LICENSE';if(existsSync(runtimeLicense))cpSync(runtimeLicense,join(bundled,'runtime/LICENSE'));
   prepareStableHooks(plugin);

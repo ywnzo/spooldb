@@ -1,6 +1,6 @@
 # Reproducible storage benchmarks
 
-Run `npm run benchmark` for the comparison profile, `npm run benchmark:large` for the 10,000-file profile, or `npm run benchmark:million` for the million-edit profile. They use temporary SQLite databases and remove them afterward. The saved reports contain runtime/CPU information and exact workloads. Existing reports are overwritten only by an explicit benchmark run. Run these profiles separately from tests and other benchmarks.
+Run `bun run benchmark` for the comparison profile, `bun run benchmark:large` for the 10,000-file profile, or `bun run benchmark:million` for the million-edit profile. They use temporary SQLite databases and remove them afterward. The saved reports contain runtime/CPU information and exact workloads. Existing reports are overwritten only by an explicit benchmark run. Run these profiles separately from tests and other benchmarks.
 
 ## Method
 
@@ -14,7 +14,7 @@ The reports include the full database, WAL and SHM size before connection close;
 
 The million-edit profile uses 1,000 files of 256 bytes, populated with deterministic SHA-256 hex text, and ten round-robin visits to each file. Each visit submits 100 first-character replacements in one atomic batch. There are **1,000,000 logical edits, 1,000,000 corresponding Automerge changes, and 10,000 edit transactions**, plus file-creation setup. Text stays bounded while tombstones and history grow. This is not a million independent commits or a single million-change hot file. It uses no explicit GC, yields after each batch and retains the default 64-document byte cache. Checkpoints are created after a batch crosses the 128-change threshold; only two snapshots per file are kept.
 
-It verifies every final file, every file after compaction/reopening, sampled historical versions and stable anchors, the exact raw-change count, and SQLite integrity. It records batch latency, total write time, progress/RSS and both live and vacuumed disk sizes. `node benchmarks/million.js --operations=10000 --files=100 --batch-size=100 --output=benchmarks/million-pilot-results.json` is the smaller diagnostic profile. Failures are saved with their phase and completed edit count.
+It verifies every final file, every file after compaction/reopening, sampled historical versions and stable anchors, the exact raw-change count, and SQLite integrity. It records batch latency, total write time, progress/RSS and both live and vacuumed disk sizes. `bun benchmarks/million.js --operations=10000 --files=100 --batch-size=100 --output=benchmarks/million-pilot-results.json` is the smaller diagnostic profile. Failures are saved with their phase and completed edit count.
 
 ## Findings retained during development
 
@@ -87,7 +87,7 @@ After vacuum, raw change rows occupied 357.32 MiB and their unique index 115.23 
 
 ## Multi-client relay result
 
-Run `npm run benchmark:relay` separately from other tests and benchmarks. [Saved report](relay-results.json): **completed and verified** on AMD Ryzen 5 5500, Node v26.11.1.
+Run `bun run benchmark:relay` separately from other tests and benchmarks. [Saved report](relay-results.json): **completed and verified** on AMD Ryzen 5 5500, Node v26.11.1.
 
 The workload uses ten independent SQLite clients, 100 initial files, and five rounds of offline concurrent edits. Each client makes ten edits to the shared file, one edit to its own file, and one message per round: 600 logical offline operations total. All clients sync concurrently, then perform a catch-up pass; every round verifies full-state equality and stable anchors. The relay restarts midway with the same database and origin. A final no-op reconnect verifies zero data pages.
 
