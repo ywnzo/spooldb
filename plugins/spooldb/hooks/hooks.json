@@ -1,0 +1,55 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${XDG_DATA_HOME:-$HOME/.local/share}/spool/codex-hooks/c529d9116b74b4a68047c5f88d5f080eb486df0f5eb88dc7ea03cde2d4e40289/run.sh\" SessionStart",
+            "timeout": 60,
+            "additionalContextLimit": 7000,
+            "statusMessage": "SpoolDB: Load project context"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${XDG_DATA_HOME:-$HOME/.local/share}/spool/codex-hooks/c529d9116b74b4a68047c5f88d5f080eb486df0f5eb88dc7ea03cde2d4e40289/run.sh\" UserPromptSubmit",
+            "timeout": 60,
+            "additionalContextLimit": 7000,
+            "statusMessage": "SpoolDB: Retrieve relevant memory"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${XDG_DATA_HOME:-$HOME/.local/share}/spool/codex-hooks/c529d9116b74b4a68047c5f88d5f080eb486df0f5eb88dc7ea03cde2d4e40289/run.sh\" Stop",
+            "timeout": 60,
+            "statusMessage": "SpoolDB: Save handoff"
+          }
+        ]
+      }
+    ],
+    "Interrupt": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${XDG_DATA_HOME:-$HOME/.local/share}/spool/codex-hooks/c529d9116b74b4a68047c5f88d5f080eb486df0f5eb88dc7ea03cde2d4e40289/run.sh\" Interrupt",
+            "timeout": 3,
+            "statusMessage": "SpoolDB: Save interrupted checkpoint"
+          }
+        ]
+      }
+    ]
+  },
+  "description": "SpoolDB shared project memory and handoff automation"
+}
