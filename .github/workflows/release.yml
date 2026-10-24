@@ -14,6 +14,7 @@ jobs:
           bun-version: '1.4.3'
       - run: test "$(uname -m)" = arm64
       - run: bun install --frozen-lockfile
+      - run: bun test --timeout 30000 test/adapters.test.js test/plugin-bootstrap.test.js test/production-dependencies.test.js
       - run: bun run build:plugin
       - run: bun scripts/verify-plugin-bundle.js
   release:
