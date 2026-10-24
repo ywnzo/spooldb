@@ -9,7 +9,7 @@ export async function previewInvite(link,{directory}={}){const invite=parseInvit
 export async function joinInvite({directory,manager,link,root,device,captureConversations=true,connectAgents=true,connector=connectCodexMemory}){
  const descriptor=parseInvite(link);if(typeof device!=='string'||!device.trim()||device.length>120)throw new Error('Name this computer');const folder=join(directory,'join-attempts');mkdirSync(folder,{recursive:true,mode:0o700});const path=join(folder,hash(descriptor.url+descriptor.code)+'.json');let attempt=existsSync(path)?JSON.parse(readFileSync(path)):{claim:randomBytes(32).toString('base64url')};const save=()=>{writeFileSync(path+'.tmp',JSON.stringify(attempt)+'\n',{mode:0o600});renameSync(path+'.tmp',path);};save();
  // Validate/register a local folder before consuming an invite or granting access.
- const added=await manager.add({root,connectCodex:false});const app=await manager.get(added.project.id);
+ const added=await manager.add({root,connectCodex:false,captureFiles:false});const app=await manager.get(added.project.id);
  if(!attempt.connection){await inviteHttp(descriptor,'preview').catch(error=>{if(error.code!=='INVITE_USED')throw error;});const result=await inviteHttp(descriptor,'redeem',{claim:attempt.claim,device});attempt={...attempt,...result};save();}
  await app.teamConnect(attempt.connection);let captureError=null,agentError=null;
  if(captureConversations)try{await app.connect();}catch(error){captureError=error.message;}

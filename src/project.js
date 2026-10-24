@@ -1,3 +1,4 @@
+import {repositoryAt} from './repository.js';
 import {projectRequest} from './project-request.js';
 import { mkdirSync, readFileSync, writeFileSync, renameSync, chmodSync, unlinkSync, existsSync } from 'node:fs';
 import { resolve, join, basename, dirname } from 'node:path';
@@ -21,15 +22,17 @@ import {existsSync as fileExists} from 'node:fs';
 import { localApp } from './local-app.js';
 const save=(path,value)=>{const temp=path+'.tmp';writeFileSync(temp,JSON.stringify(value,null,2)+'\n',{mode:0o600});chmodSync(temp,0o600);renameSync(temp,path);};
 const configAt=dir=>join(resolve(dir),'project.json');
-export function initializeProject(dir,root,{exclude=[],onCreated=()=>{}}={}) {
+export function initializeProject(dir,root,{exclude=[],captureFiles=true,onCreated=()=>{}}={}) {
   dir=resolve(dir);mkdirSync(dir,{mode:0o700});onCreated();
   const engine=new ShardedEngine(join(dir,'capture.sqlite'));
   try {
-    const bridge=new Bridge(engine);bridge.setExclusions(root,exclude);const capture=bridge.attach('working',root);engine.fork('working','main');
+    const bridge=new Bridge(engine);root=repositoryAt(root).root;let capture;
+    if(captureFiles){bridge.setExclusions(root,exclude);capture=bridge.attach('working',root);}else{engine.create('working');capture={files:0,excluded:[]};}
+    engine.fork('working','main');
     const room=engine.ref('working').room,writer=createCredential('capture',{[room]:'write'}),reader=createCredential('review',{[room]:'read'});
-    save(configAt(dir),{version:1,root:bridge.sources()[0].root,room,exclude,credentials:[writer.credential,reader.credential]});
+    save(configAt(dir),{version:1,root,room,exclude,captureFiles,credentials:[writer.credential,reader.credential]});
     save(join(dir,'tokens.json'),{writer:writer.token,reader:reader.token});
-    return {room,root:bridge.sources()[0].root,files:capture.files,excluded:capture.excluded};
+    return {room,root,files:capture.files,excluded:capture.excluded};
   } finally {engine.close();}
 }
 export {projectRequest} from './project-request.js';
@@ -61,6 +64,7 @@ export async function startProject(dir,{port=8787,intervalMs=2000,onEvent=()=>{}
     await client.publishBranch(branch,{expectedRevision:previous?.revision??0});
   }
   async function capture() {
+    if(config.captureFiles===false){await publish('working');const observed={at:new Date().toISOString(),operations:0,files:0,mode:'memory-only'};state.lastCapture=observed;state.lastError=null;return observed;}
     const scan=bridge.scan(config.root),signature=createHash('sha256').update(JSON.stringify(scan)).digest('hex');
     const result=signature===lastSignature?{operations:0,files:Object.keys(scan.entries).length}:bridge.captureScan(scan);lastSignature=signature;const observed={at:new Date().toISOString(),operations:result.operations,files:result.files};
     await publish('working');state.lastCapture=observed;state.lastError=null;if(result.operations)onEvent({event:'project.captured',...state.lastCapture});return state.lastCapture;

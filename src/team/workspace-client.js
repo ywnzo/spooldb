@@ -34,7 +34,7 @@ export class WorkspaceClient{
   if(input.command==='disconnect'){this.connection=null;rmSync(this.path,{force:true});return {connected:false};}
   if(!this.connection){if(input.command==='list')return {connected:false};throw new Error('Connect to a workspace first');}
   if(input.command==='join-local'){
-   const manager=await this.manager(input.root),added=await manager.add({root:input.root,connectCodex:false}),app=await manager.get(added.project.id);
+   const manager=await this.manager(input.root),added=await manager.add({root:input.root,connectCodex:false,captureFiles:false}),app=await manager.get(added.project.id);
    const grant=await workspaceRequest(this.connection,'action',{command:'join',room:input.room}),current=app.teamState(),existingConnection=current.configured&&current.url===this.connection.url&&current.room===input.room;if(!existingConnection)await app.teamConnect(grant.connection);let captureError=null,agentError=null;
    if(input.captureConversations!==false)try{await app.connect();}catch(error){captureError=error.message;}
    if(input.connectAgents!==false)try{await this.connector({directory:this.controlDirectory,room:added.project.id,root:added.project.root});}catch(error){agentError=error.message;}

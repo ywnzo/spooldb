@@ -62,3 +62,5 @@ bun src/team/migrate-memory-only.js /path/to/relay-state /path/to/local-rollback
 ```
 
 The rollback directory must be outside relay storage. The migration preserves project IDs, message IDs, task revisions, grants, pending invites and write retry receipts. It rewrites storage heads and converts old machine-qualified file references into project-relative legacy references. The previous database is retained separately for rollback; it still contains old captured code. Keep backups outside the served relay state. Remove it according to your backup policy when rollback is no longer needed. Already-downloaded data on other machines cannot be recalled.
+
+New shared-project connections use memory-only local capture: enrollment does not snapshot or synchronize the checkout, so repository size cannot produce an oversized initial code batch. Existing local code-history projects retain their configured capture behavior.
