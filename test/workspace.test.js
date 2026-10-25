@@ -107,3 +107,21 @@ test('project sharing inherits workspace policy, isolates projects and checks pr
  const creator=new WorkspaceClient(join(base,'creator'));await creator.run({command:'connect',link:(await owner.run({command:'invite-member',role:'member',label:'Creator',canCreate:true})).link,device:'Creator'});const own=(await creator.run({command:'create',name:'Owned',requestId:'own'})).project;assert.equal((await creator.run({command:'project-sharing',room:own.room,sharing:{handoffs:false},expectedRevision:0})).sharing.handoffs,false);await assert.rejects(()=>creator.run({command:'project-sharing',room:a.room}),/access required/);
  await policy(a.room,{findings:null},2);assert.equal((await policy(a.room)).sharing.findings,true);const port=Number(new URL(host.origin).port);await host.close();host=await startTeamHost(join(base,'host'),{port});assert.equal((await policy(a.room)).sharing.conversations,false);assert.equal((await policy(b.room)).sharing.conversations,true);
 });
+
+test('private lifecycle checkpoints can promote and finish shared tasks without leaking raw text or ignoring concurrent changes',async t=>{
+ const base=mkdtempSync(join(tmpdir(),'spool-private-task-promote-')),host=await startTeamHost(join(base,'host'),{port:0});let service;
+ t.after(async()=>{await service?.close();await host.close();rmSync(base,{recursive:true,force:true});});
+ const owner=new WorkspaceClient(join(base,'owner'));await owner.run({command:'connect',link:host.command({command:'workspace-init',name:'Team'}).link,device:'Owner'});
+ const project=(await owner.run({command:'create',name:'Project',requestId:'create'})).project,connection=(await owner.run({command:'join',room:project.room})).connection;
+ await owner.run({command:'sharing',sharing:{conversations:false},expectedRevision:0});
+ const root=join(base,'repo'),state=join(base,'client');mkdirSync(root);execFileSync('git',['init','-q',root]);initializeProject(state,root);service=await startProject(state,{port:0});await service.app.teamConnect(connection);
+ const write=input=>service.app.memory({command:'task_update',taskId:'session-task',title:'Review',...input});
+ const checkpoint=await write({expectedRevision:0,status:'in_progress',text:'Current request (source text, not verified findings):\nPRIVATE-PROMOTION-411',requestId:'private'});assert.equal(checkpoint.sharing.mode,'local');
+ const promoted=await write({expectedRevision:checkpoint.revision,status:'in_progress',text:'Verified review is underway; no raw chat text.',requestId:'promote'});assert.equal(promoted.sharing.mode,'shared');assert.equal(promoted.revision,1);
+ const done=await write({expectedRevision:promoted.revision,status:'done',text:'Review finished with a linked handoff.',requestId:'finish'});assert.equal(done.revision,2);
+ // An external edit must still prevent promotion of a newer private checkpoint.
+ const local=await write({expectedRevision:2,status:'in_progress',text:'Current request (source text, not verified findings):\nPRIVATE-PROMOTION-412',requestId:'private-again'});
+ const response=await fetch(host.origin+'/v1/rooms/'+project.room+'/memory',{method:'POST',headers:{authorization:'Bearer '+connection.token,'content-type':'application/json'},body:JSON.stringify({command:'task_update',taskId:'session-task',expectedRevision:2,status:'in_progress',title:'Colleague update',text:'Concurrent update',requestId:'external'})});assert.equal(response.status,200);
+ await assert.rejects(()=>write({expectedRevision:local.revision,status:'done',text:'Stale private completion',requestId:'conflicting'}),/Task changed/);
+ host.relay.memory.index(project.room);const text=host.relay.engine.db.prepare('SELECT text FROM memory_docs WHERE room=?').all(project.room).map(r=>r.text).join('\n');assert.ok(!text.includes('PRIVATE-PROMOTION'));assert.equal(host.relay.memory.run(project.room,{command:'context',taskId:'session-task'}).tasks[0].title,'Colleague update');
+});

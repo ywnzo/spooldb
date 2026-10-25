@@ -104,6 +104,9 @@ test('historical analysis is an explicit persistent choice, reads private local 
  client=mcp(state,root);await client.call('initialize');const setup=args=>client.tool('spool_setup',args);
  const connected=(await setup({action:'connect',create:true,name:'Game',confirm:true})).structuredContent;assert.equal(connected.requiresRetrospectiveChoice,true);assert.equal(connected.retrospective.status,'offered');
  assert.equal((await setup({action:'history'})).isError,true);
+ assert.equal((await client.tool('history_read',{})).isError,true);
+ assert.equal((await client.tool('history_complete',{handoffId:'not-a-handoff'})).isError,true);
+ const inventory=(await client.call('tools/list')).result.tools;assert.equal(inventory.find(t=>t.name==='history_read').annotations.readOnlyHint,true);assert.equal(inventory.find(t=>t.name==='history_complete').annotations.destructiveHint,false);
  assert.equal((await setup({action:'retrospective',analyzeExisting:true})).isError,true);
  assert.equal((await setup({action:'retrospective',analyzeExisting:false,confirm:true})).structuredContent.retrospective.status,'declined');
  assert.equal((await setup({action:'history'})).isError,true);
@@ -111,15 +114,15 @@ test('historical analysis is an explicit persistent choice, reads private local 
  assert.ok(!(await runDiscoveryHook({directory:state,event:'UserPromptSubmit',input:prompt,plugin:true})).hookSpecificOutput.additionalContext.includes('Ask one optional clarifying'));
  const choice=(await setup({action:'retrospective',analyzeExisting:true,confirm:true})).structuredContent;assert.equal((await setup({action:'retrospective',analyzeExisting:true,confirm:true})).structuredContent.retrospective.chosenAt,choice.retrospective.chosenAt);
  const guidance=await runDiscoveryHook({directory:state,event:'UserPromptSubmit',input:prompt,plugin:true});assert.match(guidance.hookSpecificOutput.additionalContext,/Historical analysis was explicitly approved/);
- const page=(await setup({action:'history',limit:2})).structuredContent;assert.equal(page.sourceScope,'local-only');assert.equal(page.results.length,2);assert.equal(page.nextOffset,2);assert.equal(page.total,3);
- const last=(await setup({action:'history',offset:page.nextOffset,limit:2})).structuredContent;assert.equal(last.results.length,1);assert.equal(last.nextOffset,null);assert.equal(new Set([...page.results,...last.results].map(r=>r.id)).size,3);
+ const page=(await client.tool('history_read',{limit:2})).structuredContent;assert.equal(page.sourceScope,'local-only');assert.equal(page.results.length,2);assert.equal(page.nextOffset,2);assert.equal(page.total,3);
+ const last=(await client.tool('history_read',{offset:page.nextOffset,limit:2})).structuredContent;assert.equal(last.results.length,1);assert.equal(last.nextOffset,null);assert.equal(new Set([...page.results,...last.results].map(r=>r.id)).size,3);
  assert.match((await setup({action:'history',recordId:page.results[0].id})).structuredContent.text,/PRIVATE-RETRO/);
  host.relay.memory.index(connected.room);assert.equal(host.relay.engine.db.prepare("SELECT count(*) AS n FROM memory_docs WHERE room=? AND kind='conversation'").get(connected.room).n,0);
  const finding=(await client.tool('remember',{kind:'finding',title:'Retrospective finding',text:'Historical behavior needs a new verification; raw text omitted.'})).structuredContent;
  assert.equal((await setup({action:'retrospective',handoffId:finding.id,confirm:true})).isError,true);
  await client.tool('task_update',{taskId:'historical-review',expectedRevision:0,status:'in_progress',title:'Historical review',text:'Review approved local snapshot'});
  const handoff=(await client.tool('handoff',{taskId:'historical-review',title:'Historical review finished',text:'Distilled existing evidence; application tests not rerun.',nextSteps:['Recheck historical behavior before new implementation'],refs:[finding.id]})).structuredContent;
- assert.equal((await setup({action:'retrospective',handoffId:handoff.id,confirm:true})).structuredContent.retrospective.status,'completed');
+ assert.equal((await client.tool('history_complete',{handoffId:handoff.id})).structuredContent.retrospective.status,'completed');
  assert.equal((await setup({action:'history'})).isError,true);
  await client.close();client=mcp(state,root);await client.call('initialize');assert.equal((await setup({action:'status'})).structuredContent.retrospective.status,'completed');
  host.relay.memory.index(connected.room);assert.equal(host.relay.engine.db.prepare("SELECT count(*) AS n FROM memory_docs WHERE room=? AND kind='conversation'").get(connected.room).n,0);assert.equal((await client.tool('memory_get',{id:handoff.id})).structuredContent.refs[0],finding.id);
