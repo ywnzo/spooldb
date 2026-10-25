@@ -20,14 +20,30 @@ export class RepositoryDiscovery{
   // enrollment workspace alone must not reassign an already approved checkout.
   const repositoryChanged=Boolean(entry && entry.repositoryKey!==repo.repositoryKey);
   const pendingWorkspaceChanged=Boolean(entry && entry.status!=='enrolled' && entry.workspace!==scope);
-  if(repositoryChanged || pendingWorkspaceChanged){Object.assign(entry,repo,{status:'pending',workspace:scope});delete entry.projectId;delete entry.room;this.save();}
+  if(repositoryChanged || pendingWorkspaceChanged){Object.assign(entry,repo,{status:'pending',workspace:scope});delete entry.projectId;delete entry.room;delete entry.retrospective;this.save();}
   // Previously connected folders retain their explicit authorization. No new capture or join occurs here.
   if(!entry){const manager=await this.manager(null),prior=manager?.list().find(p=>realpathSync(p.root)===repo.root);let shared;if(prior)shared=(await manager.get(prior.id)).teamState();entry={id,...repo,workspace:scope,status:shared?.configured?'enrolled':'pending',...(shared?.configured?{projectId:prior.id,room:shared.room}:{}),discoveredAt:new Date().toISOString()};this.entries.push(entry);this.save();}
+  if(input.command==='retrospective'){
+   if(entry.status!=='enrolled')throw Error('Connect this project before choosing historical analysis');
+   if(input.confirm!==true)throw Error('Explicit user approval is required for the historical analysis choice');
+   if(typeof input.analyzeExisting==='boolean'){
+    if(input.analyzeExisting&&['pending','completed'].includes(entry.retrospective?.status)||!input.analyzeExisting&&entry.retrospective?.status==='declined')return {...entry,controlDirectory:this.controlDirectory};
+    entry.retrospective={status:input.analyzeExisting?'pending':'declined',chosenAt:new Date().toISOString()};
+   }else if(input.handoffId){
+    if(entry.retrospective?.status==='completed'&&entry.retrospective.handoffId===input.handoffId)return {...entry,controlDirectory:this.controlDirectory};
+    if(entry.retrospective?.status!=='pending')throw Error('Approve historical analysis before completing it');
+    const manager=await this.manager(null),app=await manager.get(entry.projectId),record=await app.memory({command:'get',id:input.handoffId});
+    if(record.kind!=='handoff')throw Error('A saved handoff in this project is required to complete historical analysis');
+    entry.retrospective={...entry.retrospective,status:'completed',handoffId:record.id,completedAt:new Date().toISOString()};
+   }else throw Error('Choose whether to analyze existing chats, or supply the saved completion handoff');
+   this.save();return {...entry,controlDirectory:this.controlDirectory};
+  }
   if(input.command==='approve-existing'){
    if(input.confirm!==true)throw new Error('Explicit user confirmation is required before connecting a repository');
    const manager=await this.manager(null),project=manager?.list().find(p=>realpathSync(p.root)===repo.root);if(!project)throw new Error('Connect this checkout to a shared project first');
    const shared=(await manager.get(project.id)).teamState();if(!shared.configured)throw new Error('Connect this checkout to a shared project first');
-   Object.assign(entry,{status:'enrolled',room:shared.room,projectId:project.id,approvedAt:new Date().toISOString()});this.save();return {...entry,origin:this.origin(),controlDirectory:this.controlDirectory};
+   if(entry.room&&entry.room!==shared.room)delete entry.retrospective;
+   Object.assign(entry,{status:'enrolled',room:shared.room,projectId:project.id,approvedAt:new Date().toISOString()});if(typeof input.analyzeExisting==='boolean')entry.retrospective={status:input.analyzeExisting?'pending':'declined',chosenAt:new Date().toISOString()};this.save();return {...entry,origin:this.origin(),controlDirectory:this.controlDirectory};
   }
   if(input.command==='ignore'){if(entry.status==='enrolled')throw new Error('This checkout is already connected. Pause its capture through project controls.');entry.status='ignored';this.save();return {...entry,origin:this.origin()};}
   if(input.command==='approve'){
@@ -42,8 +58,10 @@ export class RepositoryDiscovery{
    // Global MCP/hooks handle the current checkout; do not install another project hook set.
    const result=await this.workspace.run({command:'join-local',room,root:repo.root,captureConversations:true,connectAgents:false});
    if(result.captureError)throw new Error(result.captureError);
+   if(entry.room&&entry.room!==room)delete entry.retrospective;
    Object.assign(entry,{status:'enrolled',room,projectId:result.project.id,approvedAt:new Date().toISOString()});this.save();
   }
+  if(['approve','approve-existing'].includes(input.command)&&typeof input.analyzeExisting==='boolean'){entry.retrospective={status:input.analyzeExisting?'pending':'declined',chosenAt:new Date().toISOString()};this.save();}
   if(input.command==='preview'){
    const workspace=await this.workspace.run({command:'list'});let match=null,matches=[],ambiguous=false;
    if(workspace.connected&&repo.repositoryKey){const result=await this.workspace.run({command:'repository-match',repositoryKey:repo.repositoryKey});match=result.project;matches=result.projects??(match?[match]:[]);ambiguous=Boolean(result.ambiguous);}

@@ -64,7 +64,9 @@ export async function initializeCheckout({cwd=process.cwd(),state,options={},ask
   joined=await local('workspace',{command:'join-local',room:project.room,root:repo.root,captureConversations:true,connectAgents:false});
  }
  if(!joined.project?.id)throw Error('The companion did not return a local project connection. Run spool init again to retry.');
- await local('discovery',{command:'approve-existing',cwd:repo.root,confirm:true});
+ const enrollment=await local('discovery',{command:'approve-existing',cwd:repo.root,confirm:true});
+ if(!enrollment.retrospective){const analyzeExisting=await yes('Analyze existing local chats into decisions, findings, tasks and handoffs in your next Codex session? Raw conversation sharing is unchanged.');
+ await local('discovery',{command:'retrospective',cwd:repo.root,analyzeExisting,confirm:true});}
  await local('projects/select',{id:joined.project.id});
  const problems=[joined.captureError,joined.agentError].filter(Boolean);
  try{await connectCodex(state);}catch(error){problems.push(error.message);}

@@ -9,7 +9,7 @@ import {memoryTools,memoryCommands} from './memory/tools.js';
 import {digest} from './adapters/contract.js';
 const args=process.argv.slice(2),option=name=>{const index=args.indexOf(name);return index>=0?args[index+1]:undefined;};
 const directory=args[0]&&!args[0].startsWith('--')?resolve(args[0]):null,remote=option('--relay'),room=option('--room'),actor=option('--actor')??'codex-agent',projectId=option('--project');
-const plugin=args.includes('--plugin'),setupModule=plugin?await import('./plugin/setup.js'):null,tools=plugin?[...memoryTools,setupModule.setupTool]:memoryTools;let currentCwd=process.cwd();
+const plugin=args.includes('--plugin'),setupEnabled=plugin||args.includes('--discover'),setupModule=setupEnabled?await import('./plugin/setup.js'):null,tools=setupEnabled?[...memoryTools,setupModule.setupTool]:memoryTools;let currentCwd=process.cwd();
 const transportId=`mcp-${randomUUID()}`,ajv=new Ajv({strict:true}),validators=new Map(tools.map(t=>[t.name,ajv.compile(t.inputSchema)]));let initialized=false;
 const digestSession=value=>createHash('sha256').update(value).digest('hex');
 async function request(input){
@@ -34,7 +34,7 @@ async function handle(message){
   if(method!=='tools/call'){process.stdout.write(JSON.stringify({jsonrpc:'2.0',id,error:{code:-32601,message:'Unknown MCP method'}})+'\n');return;}
   const validate=validators.get(params.name),input=params.arguments??{};
   if(!validate||!validate(input))throw new Error('Invalid memory tool arguments');
-  if(plugin&&params.name==='spool_setup'){const result=await setupModule.pluginSetup(directory,input,{cwd:currentCwd,pluginRoot:process.env.SPOOL_PLUGIN_ROOT});if(result.root)currentCwd=result.root;return send({content:[{type:'text',text:JSON.stringify(result)}],structuredContent:result,isError:false});}
+  if(setupEnabled&&params.name==='spool_setup'){const result=await setupModule.pluginSetup(directory,input,{cwd:currentCwd,pluginRoot:process.env.SPOOL_PLUGIN_ROOT});if(result.root)currentCwd=result.root;return send({content:[{type:'text',text:JSON.stringify(result)}],structuredContent:result,isError:false});}
   const command=memoryCommands[params.name],write=['remember','task_update','handoff'].includes(command);
   let sessionId=process.env.CODEX_THREAD_ID??transportId;
   if(directory&&/^codex-[a-f0-9]{24}$/.test(input.taskId??'')){

@@ -95,3 +95,32 @@ test('Codex setup connects and switches saved workspaces without a Git folder or
  const changed=(await client.tool('spool_setup',{action:'status',root})).structuredContent;assert.equal(changed.status,'pending');assert.equal(changed.projectId,undefined);assert.equal((await client.tool('project_context')).isError,true);
  function hostnameForTest(){return (JSON.parse(readFileSync(join(state,'workspace-profiles',saved.workspaces.find(p=>p.name==='Acme').id+'.json')))).member.label;}
 });
+
+test('historical analysis is an explicit persistent choice, reads private local pages and completes only with a project handoff',async t=>{
+ const base=mkdtempSync(join(tmpdir(),'spool-plugin-retrospective-')),state=join(base,'state'),root=repository(base,'repo'),host=await startTeamHost(join(base,'host'),{port:0});let client;
+ const history={close(){},async read(_root,onMessage){let messages=0;for(let i=0;i<3;i++)messages+=await onMessage({source:'codex-history',sessionId:'historical-session',turnId:'turn-'+i,itemId:'item-'+i,role:'assistant',text:'PRIVATE-RETRO-'+i+' historical evidence',harness:'codex'});return {threads:1,messages};}};
+ const desktop=await startDesktop(state,{port:0,history});t.after(async()=>{await client?.close();await desktop.close();await host.close();rmSync(base,{recursive:true,force:true});});
+ const ws=new WorkspaceClient(state);await ws.run({command:'connect',link:host.command({command:'workspace-init',name:'Team'}).link,device:'Owner'});await ws.run({command:'sharing',sharing:{conversations:false},expectedRevision:0});
+ client=mcp(state,root);await client.call('initialize');const setup=args=>client.tool('spool_setup',args);
+ const connected=(await setup({action:'connect',create:true,name:'Game',confirm:true})).structuredContent;assert.equal(connected.requiresRetrospectiveChoice,true);assert.equal(connected.retrospective.status,'offered');
+ assert.equal((await setup({action:'history'})).isError,true);
+ assert.equal((await setup({action:'retrospective',analyzeExisting:true})).isError,true);
+ assert.equal((await setup({action:'retrospective',analyzeExisting:false,confirm:true})).structuredContent.retrospective.status,'declined');
+ assert.equal((await setup({action:'history'})).isError,true);
+ const prompt={cwd:root,session_id:'retro-session',turn_id:'first',prompt:'Inspect the project'};
+ assert.ok(!(await runDiscoveryHook({directory:state,event:'UserPromptSubmit',input:prompt,plugin:true})).hookSpecificOutput.additionalContext.includes('Ask one optional clarifying'));
+ const choice=(await setup({action:'retrospective',analyzeExisting:true,confirm:true})).structuredContent;assert.equal((await setup({action:'retrospective',analyzeExisting:true,confirm:true})).structuredContent.retrospective.chosenAt,choice.retrospective.chosenAt);
+ const guidance=await runDiscoveryHook({directory:state,event:'UserPromptSubmit',input:prompt,plugin:true});assert.match(guidance.hookSpecificOutput.additionalContext,/Historical analysis was explicitly approved/);
+ const page=(await setup({action:'history',limit:2})).structuredContent;assert.equal(page.sourceScope,'local-only');assert.equal(page.results.length,2);assert.equal(page.nextOffset,2);assert.equal(page.total,3);
+ const last=(await setup({action:'history',offset:page.nextOffset,limit:2})).structuredContent;assert.equal(last.results.length,1);assert.equal(last.nextOffset,null);assert.equal(new Set([...page.results,...last.results].map(r=>r.id)).size,3);
+ assert.match((await setup({action:'history',recordId:page.results[0].id})).structuredContent.text,/PRIVATE-RETRO/);
+ host.relay.memory.index(connected.room);assert.equal(host.relay.engine.db.prepare("SELECT count(*) AS n FROM memory_docs WHERE room=? AND kind='conversation'").get(connected.room).n,0);
+ const finding=(await client.tool('remember',{kind:'finding',title:'Retrospective finding',text:'Historical behavior needs a new verification; raw text omitted.'})).structuredContent;
+ assert.equal((await setup({action:'retrospective',handoffId:finding.id,confirm:true})).isError,true);
+ await client.tool('task_update',{taskId:'historical-review',expectedRevision:0,status:'in_progress',title:'Historical review',text:'Review approved local snapshot'});
+ const handoff=(await client.tool('handoff',{taskId:'historical-review',title:'Historical review finished',text:'Distilled existing evidence; application tests not rerun.',nextSteps:['Recheck historical behavior before new implementation'],refs:[finding.id]})).structuredContent;
+ assert.equal((await setup({action:'retrospective',handoffId:handoff.id,confirm:true})).structuredContent.retrospective.status,'completed');
+ assert.equal((await setup({action:'history'})).isError,true);
+ await client.close();client=mcp(state,root);await client.call('initialize');assert.equal((await setup({action:'status'})).structuredContent.retrospective.status,'completed');
+ host.relay.memory.index(connected.room);assert.equal(host.relay.engine.db.prepare("SELECT count(*) AS n FROM memory_docs WHERE room=? AND kind='conversation'").get(connected.room).n,0);assert.equal((await client.tool('memory_get',{id:handoff.id})).structuredContent.refs[0],finding.id);
+});

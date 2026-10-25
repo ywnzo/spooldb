@@ -101,3 +101,9 @@ The plugin checks the companion protocol, version and capabilities before reusin
 Ask Codex to “Delete shared conversations from PROJECT” or to delete one identified captured conversation. The plugin previews the scope and count, then submits the authorized deletion with a stale-preview check. Project admin access is required. Findings, decisions, tasks, handoffs and local Codex chats remain. Deleted messages/sessions are blocked from capture re-upload. Older relays must be upgraded once to v0.4.12 or newer.
 
 In the web UI use **Project settings → Company workspace → Project sharing → Delete shared conversations…**. A shared conversation’s source details also offer deletion of its captured session. CLI administrators can use `spool project delete-conversations PROJECT`, with `--dry-run` for preview. Independent backups and already-downloaded copies are outside the deletion scope.
+
+### Existing chats
+
+Project connection offers **Analyze existing chats** or **Skip**. If accepted, Codex reviews the checkout's locally saved conversation history and saves useful decisions, findings, tasks and handoffs, with source references and verification limits. It deduplicates existing memory and accounts for later fixes and corrections. This choice is saved per checkout and resumes if interrupted.
+
+Raw conversation sharing remains a separate setting. Private local chat retrieval is available only after the analysis choice is approved; the relay receives structured memory according to the workspace/project category settings. Unseen cloud or colleague chats are outside this machine's coverage. The analysis runs in a Codex session with reviewed plugin hooks; it is not an unattended relay summarizer. Connections made through the UI or `spool init` queue accepted analysis for the next Codex session.
