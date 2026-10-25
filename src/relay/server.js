@@ -17,10 +17,10 @@ export function createCredential(id,rooms) {
 const roomName = room => `relay-${room}`;
 
 export class RelayServer {
-  constructor(filename,{credentials=[],maxPageBytes=4*1024*1024,maxConnections=64,maxActiveRequests=16,tls,referencesOnly=false}={}) {
+  constructor(filename,{credentials=[],maxPageBytes=4*1024*1024,maxConnections=64,maxActiveRequests=16,tls,referencesOnly=false,maintenance=()=>false,version}={}) {
     fail(Number.isSafeInteger(maxPageBytes)&&maxPageBytes>=1024&&maxPageBytes<=8*1024*1024,'INVALID_CONFIG','Invalid page size');
     fail([maxConnections,maxActiveRequests].every(n=>Number.isSafeInteger(n)&&n>0&&n<=1024),'INVALID_CONFIG','Invalid connection limits');
-    this.setCredentials(credentials);this.maxPageBytes=maxPageBytes;this.active=0;this.maxActiveRequests=maxActiveRequests;
+    this.maintenance=maintenance;this.version=version;this.setCredentials(credentials);this.maxPageBytes=maxPageBytes;this.active=0;this.maxActiveRequests=maxActiveRequests;
     this.engine=new ShardedEngine(filename);
     this.referencesOnly=referencesOnly;this.review=new ReviewStore(this.engine);this.memory=new MemoryStore(this.engine,{referencesOnly});
     this.engine.db.exec(`CREATE TABLE IF NOT EXISTS relay_audit(seq INTEGER PRIMARY KEY,room TEXT NOT NULL,principal TEXT NOT NULL,heads TEXT NOT NULL,accepted_at TEXT NOT NULL,UNIQUE(room,principal,heads))`);
@@ -56,8 +56,9 @@ export class RelayServer {
     if(this.active>=this.maxActiveRequests) {req.resume();this.send(res,503,{error:{code:'BUSY',message:'Retry later'}});return;}
     this.active++;
     try {
-      if(req.url==='/healthz'&&req.method==='GET') {this.send(res,200,{ok:true});return;}
+      if(req.url==='/healthz'&&req.method==='GET') {this.send(res,200,{ok:true,...(this.version?{version:this.version,updating:this.maintenance()}: {})});return;}
       const reviewUrl=new URL(req.url,'http://localhost');
+      if(this.maintenance()){res.setHeader('retry-after','30');this.send(res,503,{error:{code:'UPDATING',message:'Relay update in progress; retry shortly'}});return;}
       if(this.inviteHandler&&await this.inviteHandler(req,res,reviewUrl.pathname))return;
       if(this.localHandler&&await this.localHandler(req,res,reviewUrl.pathname))return;
       if(reviewUrl.pathname==='/review'&&req.method==='GET') {res.writeHead(308,{location:`/review/${reviewUrl.search}`,'cache-control':'no-store'});res.end();return;}

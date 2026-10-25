@@ -33,6 +33,7 @@ export async function interactiveServerSetup({bundle}={}){
   console.log('\nURL: https://'+domain+'\nRun the relay and Caddy in Docker or Podman (must already be installed).\nApplication: /opt/spooldb\nPersistent memory and certificates: container volumes\nAn active UFW firewall will allow TCP 80/443. Your DNS and provider firewall must allow this VPS.');
   if(!/^y(es)?$/i.test(await ask('Install containerized relay, Caddy and automatic HTTPS? Root/sudo access is required. (y/N)','N')))return;
   const app=bundle??fileURLToPath(new URL('../',import.meta.url)),runtime=bundledRuntime(app),args=[runtime,join(app,'src/server-vps.js'),'--domain',domain,'--bundle',app];
+  if(/^y(es)?$/i.test(await ask('Enable daily automatic relay updates with health checks and rollback? (y/N)','N')))args.push('--auto-update');
   execFileSync(process.getuid?.()===0?args.shift():'sudo',process.getuid?.()===0?args:['--',...args],{stdio:'inherit',timeout:900000});return;
  }
  const paths=desktopPaths();let address='localhost';try{address=Object.values(networkInterfaces()).flat().find(value=>value.family==='IPv4'&&!value.internal)?.address??address;}catch{}console.log('\nSpoolDB server setup\nOne server hosts multiple projects. Shared memory contains conversations and Git references; repository code stays in Git.\n');

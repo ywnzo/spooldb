@@ -13,7 +13,7 @@ import {launch} from './desktop/launcher.js';
 export const managementHelp=`SpoolDB management CLI
 Usage: spool COMMAND [--state DIR] [--json]
 
-  update [check|status|enable|disable] [--target plugin|client] [--yes]
+  update [check|status|enable|disable] [--target plugin|client|relay] [--yes]
                                               Daily opt-in updates; run without a subcommand to update now
   plugin install                              Install the self-contained Codex plugin
   init                                        Connect the current Git project interactively
@@ -102,6 +102,8 @@ export async function runManagement(args,{input=process.stdin,output=process.std
  if(options.help||!group){print(managementHelp);return;}
  const state=resolve(options.state??process.env.SPOOL_STATE??defaultState()),serverState=resolve(options['server-state']??process.env.SPOOL_SERVER_STATE??join(desktopPaths().state,'spool-server'));
  if(group==='update'){
+  if(options.target==='relay'||process.env.SPOOL_CONTAINER_CONFIG){const path=process.env.SPOOL_CONTAINER_CONFIG??'/opt/spooldb/containers.json';const {relayUpdateStatus,configureRelayUpdates,checkRelayUpdate,updateRelay,recoverRelayUpdate}=await import('./relay-update.js');if(action==='recover'){print(await recoverRelayUpdate(path));return;}if(action==='status'){print(relayUpdateStatus(path));return;}if(['enable','disable'].includes(action)){if(action==='enable'&&!options.yes){if(!input.isTTY)throw Error('Use --yes to opt in');const rl=createInterface({input,output});try{if(!/^y(es)?$/i.test((await rl.question('Enable daily relay updates with health checks and rollback? (y/N): ')).trim()))return;}finally{rl.close();}}print(configureRelayUpdates(path,action==='enable'));return;}if(action==='check'){print(await checkRelayUpdate(path));return;}if(action)throw Error('Use update [status|check|enable|disable]');if(!options.yes)throw Error('Run sudo spool update --yes to update the relay now');print(await updateRelay(path));return;}
+
   const {updateStatus,configureUpdates,checkUpdate,applyUpdate}=await import('./update.js');
   const paths=desktopPaths(),target=options.target??(existsSync(join(paths.data,'spool/installation.json'))?'client':'plugin');
   if(!['plugin','client'].includes(target))throw Error('Choose --target plugin or client');
