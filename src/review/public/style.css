@@ -636,3 +636,45 @@ button:focus-visible,select:focus-visible,input:focus-visible,a:focus-visible{ou
 #workspace-delete-dialog::backdrop { background:rgba(0,0,0,.6); }
 #workspace-delete-summary { font-weight:600; }
 #workspace-delete-error { color:var(--accent); }
+
+/* Settings: one task per page, with a persistent scope and short forms. */
+.settings-home{max-width:1120px;margin:0 auto}
+.settings-layout{display:grid;grid-template-columns:180px minmax(0,1fr);gap:48px;margin:24px 0 60px}
+.settings-nav{display:flex;flex-direction:column;gap:4px;align-self:start;position:sticky;top:100px}
+.settings-nav a{padding:12px 16px;border-radius:8px;color:var(--muted);text-decoration:none;font-size:13px}
+.settings-nav a:hover{background:var(--surface);color:var(--ink)}
+.settings-nav a.selected{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.settings-content{min-width:0}
+.settings-context{display:flex;justify-content:space-between;align-items:center;gap:24px;padding:0 0 24px;border-bottom:1px solid var(--line);margin-bottom:32px}
+.settings-context p{margin:6px 0 0;font-size:14px;overflow-wrap:anywhere}
+.settings-context .subtle{font-size:12px}
+.settings-project-select{min-width:200px;max-width:45%}
+.settings-project-select label{display:block;font-size:11px;color:var(--muted)}
+.settings-layout .settings-project-select select{width:100%;margin:6px 0 0}
+.settings-title{margin:0 0 28px}.settings-title h2{font-size:23px;letter-spacing:-.5px;margin:0 0 8px}.settings-title p{font-size:13px;color:var(--muted);line-height:1.7;margin:0}
+.settings-card,.settings-layout .settings-section,.settings-layout .memory-detail{margin:0 0 24px;padding:24px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+.settings-layout h3,.settings-layout .settings-section h2,.settings-layout .memory-detail h2{font-size:15px;margin:0 0 10px;font-weight:550}
+.settings-layout p{font-size:13px;line-height:1.7;color:var(--muted)}
+.settings-layout .workspace-success{color:var(--positive)}
+.settings-feedback:empty{display:none}.settings-feedback{padding:12px 16px;border:1px solid var(--line);border-radius:8px;margin:0 0 24px;background:var(--raised)}
+.settings-layout label{display:block;font-size:12px;margin:16px 0 6px;color:var(--muted)}
+.settings-layout label:has(input[type=checkbox]){display:flex;align-items:center;gap:10px;color:var(--ink)}
+.settings-layout input:not([type=checkbox]),.settings-layout select,.settings-layout textarea{display:block;width:100%;box-sizing:border-box;margin:6px 0 12px;background:var(--bg)}
+.settings-layout form{max-width:none;margin:16px 0 0}.settings-layout fieldset{padding:0!important;border:0!important;margin:0;min-width:0}.settings-layout legend{display:none}
+.settings-layout .primary{display:inline-flex;width:auto;margin:16px 0 0;padding:11px 16px}
+.settings-layout button:not(.primary):not(.quiet){padding:10px 14px;border:1px solid var(--line);border-radius:7px;background:var(--raised);color:var(--ink)}
+.settings-layout .quiet{padding:9px 0;margin-right:20px;color:var(--accent)}
+.settings-actions{display:flex;gap:20px;flex-wrap:wrap}.settings-input-action{display:flex;align-items:center;gap:12px}.settings-input-action select{flex:1;min-width:0}.settings-input-action button{white-space:nowrap}
+.settings-layout details.settings-card{padding:20px 24px}.settings-layout summary{font-size:14px;font-weight:550}.settings-layout details[open]>summary{margin-bottom:20px}
+.settings-layout #workspace-project-sharing-form{max-width:none;margin:0}.settings-layout #workspace-project-sharing-form>fieldset>p{margin-bottom:20px}
+.settings-layout #workspace-project-sharing-form label{display:flex;justify-content:space-between;gap:16px;align-items:center;border-bottom:1px solid var(--line);padding:14px 0;margin:0;color:var(--ink)}
+.settings-layout small{display:block;color:var(--muted);font-size:11px;font-weight:400;margin-top:3px}
+.sharing-choice{display:flex;align-items:center;gap:12px}.sharing-state{font-size:11px;color:var(--muted);min-width:40px}.settings-layout .sharing-choice select{width:190px;max-width:190px;margin:0;font-size:12px}
+.settings-layout #workspace-sharing-form label{padding:12px 0;border-bottom:1px solid var(--line)}
+.settings-layout #workspace-members p{display:flex;justify-content:space-between;gap:16px;align-items:center;border-top:1px solid var(--line);padding-top:16px}
+.settings-layout .danger-zone{background:transparent;border-color:var(--line)}.settings-layout .danger-zone h3{color:var(--negative)}.settings-layout .danger-link,.settings-layout #workspace-delete-conversations{color:var(--negative)!important}
+@media(max-width:750px){.settings-layout{grid-template-columns:1fr;gap:24px}.settings-nav{position:static;flex-direction:row;overflow-x:auto;padding-bottom:6px}.settings-nav a{white-space:nowrap;padding:10px 13px}.settings-context{flex-direction:column;align-items:stretch;gap:16px}.settings-project-select{max-width:none}.settings-layout .settings-card,.settings-layout .settings-section,.settings-layout .memory-detail{padding:20px}.sharing-choice{flex-direction:column;align-items:flex-end;gap:5px}.settings-layout .sharing-choice select{width:160px}.settings-input-action{align-items:stretch;flex-direction:column;gap:0}}
+.settings-layout .members-heading{margin:30px 0 8px;padding-top:24px;border-top:1px solid var(--line)}
+.sharing-state.shared{color:var(--positive)}
+@media(max-width:750px){.settings-nav{min-width:0}.settings-layout{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:480px){.settings-layout #workspace-project-sharing-form label{flex-direction:column;align-items:stretch;gap:12px}.sharing-choice{flex-direction:row;align-items:center;justify-content:space-between}.settings-layout .sharing-choice select{width:70%;max-width:190px}}

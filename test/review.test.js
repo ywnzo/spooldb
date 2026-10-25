@@ -64,6 +64,7 @@ test('review assets expose no workspace data and carry a strict same-origin poli
   assert.deepEqual(stylesheets.map(url=>url.pathname.split('/').at(-1)),['kiln.css','style.css']);
   for(const stylesheet of stylesheets){const css=await fetch(`${stylesheet}?v=1`);assert.equal(css.status,200);assert.match(css.headers.get('content-type'),/^text\/css/);const source=await css.text();assert.match(source,stylesheet.pathname.endsWith('kiln.css')?/color-scheme: dark/:/\.topbar\{/);assert.equal(new URL(stylesheet.pathname.split('/').at(-1),'file:///preview/index.html').pathname,'/preview/'+stylesheet.pathname.split('/').at(-1));}
   const script=await fetch(`${f.url}/review/app.js`);const source=await script.text();assert.ok(!source.includes('innerHTML'));assert.ok(!source.includes('localStorage'));assert.ok(!source.includes('sessionStorage'));
+  for(const match of markup.matchAll(/<script src="([^"]+)"/g)){const asset=await fetch(new URL(match[1],page.url));assert.equal(asset.status,200);assert.match(asset.headers.get('content-type'),/^text\/javascript/);new Bun.Transpiler({loader:'js'}).transformSync(await asset.text());}
   assert.equal((await f.api({command:'branches'},'x'.repeat(43))).status,401);
   const foreign=new ShardedEngine(':memory:');foreign.create();const foreignHeads=foreign.ref('main').heads;foreign.close();
   assert.notEqual((await f.api({command:'publish',name:'foreign',heads:foreignHeads,expectedRevision:0},f.auth.token)).status,200);
