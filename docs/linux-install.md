@@ -30,7 +30,7 @@ The interactive installer asks before installing, then guides you through:
 4. Confirm sharing saved Codex conversations and memory with Git references.
 5. Choose automatic Codex integration, including Codex in Zed.
 
-No JSON editing, separate runtime installation, or sudo are needed. Git must already be installed. The package includes Bun 1.4.3 and production dependencies. It supports Linux x86-64 on glibc systems; Alpine/musl and ARM are not supported.
+No JSON editing, separate runtime installation, or sudo are needed. Git must already be installed. The package includes Bun 1.4.4 and production dependencies. It supports Linux x86-64 on glibc systems; Alpine/musl and ARM are not supported.
 
 The app registers `spool://` invite links and an application-menu entry. Capture and MCP start at sign-in through a user systemd service; desktops without a user systemd manager receive an autostart entry. Automatic Codex connection writes the project's managed MCP configuration and lifecycle hooks. Start a new Codex session after joining so it loads those settings. Existing Codex installations and authentication are prerequisites for using Codex.
 

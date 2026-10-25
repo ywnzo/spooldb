@@ -1,12 +1,12 @@
 {
   "name": "spooldb",
-  "version": "0.4.28",
+  "version": "0.4.29",
   "private": true,
   "description": "Local-first code and conversation history, independent of agent harnesses",
   "type": "module",
   "license": "MIT",
   "engines": {
-    "bun": ">=1.4.3"
+    "bun": ">=1.4.4"
   },
   "exports": {
     ".": {
@@ -80,5 +80,9 @@
   "bugs": {
     "url": "https://github.com/ywnzo/spooldb/issues"
   },
-  "packageManager": "bun@1.4.3"
+  "packageManager": "bun@1.4.4",
+  "overrides": {
+    "sharp": "0.35.5",
+    "undici": "7.30.1"
+  }
 }

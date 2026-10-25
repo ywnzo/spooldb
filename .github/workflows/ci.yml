@@ -6,20 +6,25 @@ jobs:
   bun:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          bun-version: '1.4.3'
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: '1.4.4'
       - run: bun install --frozen-lockfile
+      - run: bun audit
       - run: bun run test
       - run: bun run typecheck
   apple-silicon:
     runs-on: macos-14
     steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          bun-version: '1.4.3'
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: '1.4.4'
       - run: test "$(uname -m)" = arm64
       - run: bun install --frozen-lockfile
       - run: bun test --timeout 30000 test/adapters.test.js test/plugin-bootstrap.test.js test/production-dependencies.test.js test/submodules.test.js test/update.test.js

@@ -1,9 +1,10 @@
+import {validMemoryEvent} from '../memory/event-validation.js';
 import {createHash} from 'node:crypto';
 import {MemoryStore} from '../memory/store.js';
 import {fail} from '../relay/wire.js';
 const hash=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 export function deletionSchema(engine){engine.db.exec(`CREATE TABLE IF NOT EXISTS conversation_tombstones(room TEXT,kind TEXT,key_hash TEXT,PRIMARY KEY(room,kind,key_hash));CREATE TABLE IF NOT EXISTS conversation_deletion_receipts(room TEXT,request_id TEXT,input_hash TEXT,result TEXT,PRIMARY KEY(room,request_id));`);}
-export function isConversation(text){let event;try{event=JSON.parse(text);}catch{}return !(event?.protocol==='spool-memory/1'&&['task','finding','decision','blocker','handoff'].includes(event.kind)&&typeof event.title==='string'&&typeof event.text==='string'&&event.title.length<=500&&event.text.length<=16000);}
+export function isConversation(text,role){let event;try{event=JSON.parse(text);}catch{}return !(role==='system'&&validMemoryEvent(event));}
 export function deletedConversation(engine,room,id,sessionId){return Boolean(engine.db.prepare('SELECT 1 FROM conversation_tombstones WHERE room=? AND ((kind=? AND key_hash=?) OR (kind=? AND key_hash=?))').get(room,'message',hash(id),'session',hash(sessionId??null)));}
 function selection(engine,room,input){const memory=new MemoryStore(engine,{referencesOnly:true}),version=memory.index(room);fail(input.sessionId===undefined||typeof input.sessionId==='string'&&input.sessionId.length>0&&input.sessionId.length<=200,'DELETE_SCOPE','Choose a conversation session or all conversations');const rows=engine.db.prepare('SELECT id,kind,data FROM memory_docs WHERE room=? ORDER BY seq,rowid').all(room);const origins=new Map(engine.db.prepare('SELECT * FROM conversation_origins WHERE room=?').all(room).map(row=>[row.id,row]));const removed=rows.filter(row=>row.kind==='conversation'&&(!input.sessionId||JSON.parse(origins.get(row.id)?.data??'{}').sessionId===input.sessionId));const deletionToken=hash([room,version.heads,input.sessionId??null,removed.map(row=>row.id)]);return {version,rows,origins,removed,deletionToken};}
 export function deleteSharedConversations(engine,room,input={}){

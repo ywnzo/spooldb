@@ -109,3 +109,13 @@ test('exact cited paths are searchable and existing lexical indexes upgrade with
  engine.db.prepare('UPDATE memory_index SET heads=? WHERE room=?').run(JSON.stringify(engine.version('relay-'+room).heads),room);engine.db.prepare('DELETE FROM memory_fts WHERE room=?').run(room);
  const result=await store.retrieve(room,{command:'search',query:'src/checkout/price-calculator.ts'});assert.equal(result.results[0].id,saved.id);assert.equal(store.run(room,{command:'get',id:saved.id}).text,'Tax is rounded once.');
 });
+
+test('distinct warming queries are bounded and model inference is serialized across projects',async t=>{
+ let release;const gate=new Promise(resolve=>release=resolve);let active=0,peak=0;
+ const provider={id:'slow-audit',async embed(texts){active++;peak=Math.max(peak,active);try{await gate;return texts.map(()=>[1,0]);}finally{active--;}}};
+ const {engine,room,store,write}=fixture(t,provider);write({title:'First project',text:'Synthetic audit memory'});store.index(room);
+ const foreign=engine.create('foreign');engine.db.prepare('UPDATE shard_refs SET name=? WHERE name=?').run('relay-'+foreign.room,'foreign');write({title:'Second project',text:'Another synthetic audit memory'},foreign.room);store.index(foreign.room);
+ const jobs=Array.from({length:40},(_,i)=>store.semantic.lookup(i%2?room:foreign.room,{query:'distinct audit '+i},null,{waitMs:0}));
+ const results=await Promise.all(jobs);assert.ok(store.semantic.lookups.size<=32);assert.ok(store.semantic.pending.size<=2);assert.ok(results.some(r=>r.status==='busy'));assert.equal(peak,1);
+ release();await Promise.allSettled([...store.semantic.lookups.values()]);assert.equal(peak,1);assert.equal(store.semantic.lookups.size,0);
+});

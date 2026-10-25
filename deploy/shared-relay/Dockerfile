@@ -1,4 +1,4 @@
-FROM docker.io/oven/bun:1.4.3
+FROM docker.io/oven/bun:1.4.4
 WORKDIR /app
 COPY package.json bun.lock ./
 RUN bun install --production --frozen-lockfile --ignore-scripts && mkdir /data && chown bun:bun /data

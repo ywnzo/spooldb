@@ -23,3 +23,11 @@ test('offline packaging preserves hoisted and nested production dependencies and
  pkg('node_modules/shared',{dependencies:{missing:'1'}});
  assert.throws(()=>copyProductionDependencies(source,join(base,'broken')),/Missing production dependency: missing/);
 });
+
+test('packaging rejects stale nested dependencies that violate security overrides',t=>{
+ const base=mkdtempSync(join(tmpdir(),'spool-stale-package-'));t.after(()=>rmSync(base,{recursive:true,force:true}));
+ const source=join(base,'source');const pkg=(path,value)=>{mkdirSync(join(source,path),{recursive:true});writeFileSync(join(source,path,'package.json'),JSON.stringify(value));};
+ pkg('',{dependencies:{a:'1.0.0'},overrides:{shared:'2.0.0'}});pkg('node_modules/a',{name:'a',version:'1.0.0',dependencies:{shared:'^1.0.0'}});pkg('node_modules/shared',{name:'shared',version:'2.0.0'});pkg('node_modules/a/node_modules/shared',{name:'shared',version:'1.0.0'});
+ assert.throws(()=>copyProductionDependencies(source,join(base,'rejected')),/shared does not match pinned version 2.0.0/);
+ pkg('node_modules/a/node_modules/shared',{name:'shared',version:'2.0.0'});const out=join(base,'valid');copyProductionDependencies(source,out);assert.equal(JSON.parse(readFileSync(join(out,'node_modules/a/node_modules/shared/package.json'))).version,'2.0.0');
+});

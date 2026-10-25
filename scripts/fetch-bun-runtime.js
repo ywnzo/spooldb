@@ -3,7 +3,7 @@ import {fileURLToPath} from 'node:url';
 import {resolve,join} from 'node:path';
 import {createHash} from 'node:crypto';
 import {execFileSync} from 'node:child_process';
-export const BUN_VERSION='1.4.3';
+export const BUN_VERSION='1.4.4';
 const hash=data=>createHash('sha256').update(data).digest('hex');
 export async function fetchBunRuntime({target='linux-x64'}={}){
  if(!['linux-x64','darwin-arm64'].includes(target))throw Error('Unsupported Bun target: '+target);

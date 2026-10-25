@@ -26,7 +26,7 @@ export async function startTeamHost(dir,{port=8878,host='127.0.0.1',publicOrigin
  const save=()=>{relay.setCredentials(config.credentials);writeFileSync(configPath+'.tmp',JSON.stringify(config,null,2)+'\n',{mode:0o600});renameSync(configPath+'.tmp',configPath);relay.setCredentials(config.credentials);};
  const origin=await relay.listen({port,host}),url=publicOrigin??origin;
  let invites;const refresh=()=>{config.credentials=invites.credentials();save();};invites=new InviteStore(relay.engine,dir,{legacy:config.credentials,projects:()=>config.projects,origin:()=>url,ca:certificate?.ca,onChange:refresh});refresh();
- relay.inviteHandler=async(req,res,path)=>{if(!['/v1/invites/preview','/v1/invites/redeem'].includes(path))return false;if(req.method!=='POST')throw new RelayError('METHOD','Use POST',405);const match=/^Invite ([-A-Za-z0-9_]{43})$/.exec(req.headers.authorization??'');if(!match)throw new RelayError('INVITE_REQUIRED','Invite required',401);const body=await readJson(req,10000);const result=path.endsWith('/preview')?invites.preview(match[1]):invites.redeem(match[1],body);relay.send(res,200,result);return true;};
+ relay.inviteHandler=async(req,res,path)=>{if(!['/v1/invites/preview','/v1/invites/redeem'].includes(path))return false;if(req.method!=='POST')throw new RelayError('METHOD','Use POST',405);const match=/^Invite ([-A-Za-z0-9_]{43})$/.exec(req.headers.authorization??'');if(!match)throw new RelayError('INVITE_REQUIRED','Invite required',401);invites.inspect(match[1]);const body=await readJson(req,10000);const result=path.endsWith('/preview')?invites.preview(match[1]):invites.redeem(match[1],body);relay.send(res,200,result);return true;};
  let workspace;const command=input=>{
   if(input.command==='retrieval')return retrieval.run(input);
   if(input.command==='workspace-init')return workspace.init(input.name);
@@ -52,14 +52,16 @@ export async function startTeamHost(dir,{port=8878,host='127.0.0.1',publicOrigin
   if(req.method!=='POST')throw new RelayError('METHOD','Use POST',405);
   if(!['/v1/workspace/preview','/v1/workspace/enroll','/v1/workspace/action'].includes(path))throw new RelayError('NOT_FOUND','Unknown workspace endpoint',404);
   if(!/^application\/json(?:;|$)/.test(req.headers['content-type']??''))throw new RelayError('CONTENT_TYPE','Use JSON',415);
+  const action=path.endsWith('/action'),credential=(action?/^Workspace ([A-Za-z0-9_-]{43})$/:/^Invite ([A-Za-z0-9_-]{43})$/).exec(req.headers.authorization??'')?.[1];
+  if(action)workspace.authorize(credential);else{if(!credential)throw new RelayError('INVITE_REQUIRED','Workspace invitation required',401);workspace.invitation(credential);}
   const body=await readJson(req,20000);let result;
-  if(path.endsWith('/action')){const match=/^Workspace ([A-Za-z0-9_-]{43})$/.exec(req.headers.authorization??'');result=await workspace.run(workspace.authorize(match?.[1]),body);}
+  if(action){result=await workspace.run(workspace.authorize(credential),body);}
   else{const match=/^Invite ([A-Za-z0-9_-]{43})$/.exec(req.headers.authorization??'');if(!match)throw new RelayError('INVITE_REQUIRED','Workspace invitation required',401);result=path.endsWith('/preview')?workspace.preview(match[1]):workspace.enroll(match[1],body);}
   relay.send(res,200,result);return true;
  };
  relay.maintenanceHandler=async(req,res,path)=>{
   if(path!=='/v1/workspace/action'||req.method!=='POST')return false;
-  const body=await readJson(req,20000);if(body.command!=='relay-admin')throw new RelayError('UPDATING','Relay update in progress; retry shortly',503);
+  const credential=/^Workspace ([A-Za-z0-9_-]{43})$/.exec(req.headers.authorization??'')?.[1];workspace.authorize(credential);const body=await readJson(req,20000);if(body.command!=='relay-admin')throw new RelayError('UPDATING','Relay update in progress; retry shortly',503);
   const match=/^Workspace ([A-Za-z0-9_-]{43})$/.exec(req.headers.authorization??'');relay.send(res,200,await workspace.run(workspace.authorize(match?.[1]),body));return true;
  };
  const admin=createServer(socket=>{let text='',handled=false;socket.setTimeout(15000,()=>socket.destroy());socket.on('error',()=>{});socket.on('data',chunk=>{if(handled)return;text+=chunk;if(text.length>10000){socket.destroy();return;}if(!text.includes('\n'))return;handled=true;try{socket.end(JSON.stringify(command(JSON.parse(text.split('\n')[0])))+'\n');}catch(error){socket.end(JSON.stringify({error:error.message})+'\n');}});});

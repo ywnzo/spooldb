@@ -16,7 +16,7 @@ export function migrateMemoryOnly(directory,backupDirectory){
    fresh.transaction(()=>{const batch={schema:2,room:project.room,parents:[],root:null,metadata:null,updates:[]};fresh.publish(branch,project.room,[fresh.putBatch(batch)],null);});
    for(const row of old.db.prepare('SELECT id,data FROM memory_docs WHERE room=? ORDER BY seq,rowid').all(project.room)){
     const doc=old.doc(version,'m:'+row.id);let value;try{value=JSON.parse(JSON.stringify(doc.messages[row.id]));}finally{old.documents.release(doc);}
-    let text=value.text;try{const event=JSON.parse(text);if(event.protocol==='spool-memory/1'){event.files=(event.files??[]).map(file=>({path:file.path.replace(/^@machines\/[^/]+\//,''),legacySnapshotReference:true}));text=JSON.stringify(event);}}catch{}
+    let text=value.text;try{const event=JSON.parse(text);if(value.role==='system'&&event.protocol==='spool-memory/1'){event.files=(event.files??[]).map(file=>({path:file.path.replace(/^@machines\/[^/]+\//,''),legacySnapshotReference:true}));text=JSON.stringify(event);}}catch{}
     const source=JSON.parse(row.data).source??{};fresh.submit(branch,{actor:source.actor??'memory-migration',harness:'memory-only-migration',sessionId:source.sessionId??'migration',evidence:'retained-memory',requestId:'migration-'+row.id,expectedHeads:fresh.ref(branch).heads,operations:[{type:'message.add',messageId:row.id,role:value.role,text}]});result.messages++;
    }
   }

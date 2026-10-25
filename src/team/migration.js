@@ -20,7 +20,7 @@ export function planMemoryMigration({remote,local}){
  const taskAliases=new Map();for(const record of remote){const match=matches.get(record.id);if(match){try{const a=JSON.parse(record.text),b=JSON.parse(match.text);if(a.taskId&&b.taskId)taskAliases.set(a.taskId,b.taskId);}catch{}}}
  const records=remote.map(record=>{
   let text=record.text,event;try{event=JSON.parse(text);}catch{}
-  if(event?.protocol==='spool-memory/1'){
+  if(record.role==='system'&&event?.protocol==='spool-memory/1'){
    event.files=(event.files??[]).map(sharedFileReference);event.refs=(event.refs??[]).map(id=>aliases.get(id)??id);if(event.resolveIds)event.resolveIds=event.resolveIds.map(id=>aliases.get(id)??id);if(event.taskId)event.taskId=taskAliases.get(event.taskId)??event.taskId;text=JSON.stringify(event);
   }
   return {kind:'message',id:aliases.get(record.id)??record.id,role:record.role,text,...(record.provenance?{provenance:record.provenance}:{})};

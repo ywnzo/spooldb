@@ -13,24 +13,29 @@ function normalized(vector){
 }
 export class SemanticIndex {
  constructor(store,provider,{batchSize=8,maxChunks=64,minScore=0.25}={}){
-  this.store=store;this.provider=provider;this.batchSize=batchSize;this.maxChunks=maxChunks;this.minScore=provider?.minScore??minScore;this.pending=new Map();this.lookups=new Map();this.queries=new Map();this.retryAt=0;this.timers=new Map();this.closed=false;
+  this.store=store;this.provider=provider;this.batchSize=batchSize;this.maxChunks=maxChunks;this.minScore=provider?.minScore??minScore;this.pending=new Map();this.lookups=new Map();this.inference=Promise.resolve();this.queries=new Map();this.retryAt=0;this.timers=new Map();this.closed=false;
   store.engine.db.exec('CREATE TABLE IF NOT EXISTS memory_vectors(room TEXT NOT NULL,id TEXT NOT NULL,model TEXT NOT NULL,fingerprint TEXT NOT NULL,chunk INTEGER NOT NULL,vector BLOB NOT NULL,PRIMARY KEY(room,id,model,chunk)); CREATE INDEX IF NOT EXISTS memory_vectors_room_model ON memory_vectors(room,model);');
  }
  async lookup(room,input,version,{waitMs=1200}={}){
   if(this.closed)return {results:[],status:'disabled'};
   const key=hash(JSON.stringify([room,input.query,input.taskId,input.kinds]));let job=this.lookups.get(key);
+  if(!job&&this.lookups.size>=32)return {results:[],status:'busy'};
   if(!job){job=this.search(room,input,version).finally(()=>this.lookups.delete(key));this.lookups.set(key,job);}
   let timer;try{return await Promise.race([job,new Promise(resolve=>{timer=setTimeout(()=>resolve({results:[],status:'warming'}),waitMs);})]);}finally{clearTimeout(timer);}
  }
  async close(){this.closed=true;for(const timer of this.timers.values())clearTimeout(timer);this.timers.clear();await Promise.allSettled([...this.lookups.values(),...this.pending.values()]);}
  remaining(room){return this.store.engine.db.prepare('SELECT count(*) AS n FROM memory_docs d WHERE d.room=? AND '+visibleMemory('d')+' AND NOT EXISTS(SELECT 1 FROM memory_vectors v WHERE v.room=d.room AND v.id=d.id AND v.model=? AND v.fingerprint=d.fingerprint)').get(room,this.provider.id).n;}
- schedule(room){
+ schedule(room,delayMs=100){
   if(this.closed||this.timers.has(room)||!this.remaining(room))return;
-  const timer=setTimeout(()=>{this.timers.delete(room);if(!this.closed&&Date.now()>=this.retryAt)this.prepare(room).catch(()=>{this.retryAt=Date.now()+30000;});},100);timer.unref?.();this.timers.set(room,timer);
+  const timer=setTimeout(()=>{this.timers.delete(room);if(!this.closed&&Date.now()>=this.retryAt)this.prepare(room).catch(()=>{this.retryAt=Date.now()+30000;});},delayMs);timer.unref?.();this.timers.set(room,timer);
  }
  async prepare(room){
   if(this.pending.has(room))return this.pending.get(room);
+  if(this.pending.size>=2){this.schedule(room,1000);return Promise.resolve();}
   const job=this.build(room).finally(()=>{this.pending.delete(room);this.schedule(room);});this.pending.set(room,job);return job;
+ }
+ async embed(texts,options){
+  const job=this.inference.then(()=>{if(this.closed)throw Error('Embedding index is closed');return this.provider.embed(texts,options);});this.inference=job.catch(()=>{});return job;
  }
  async build(room){
   const db=this.store.engine.db,model=this.provider.id;
@@ -41,7 +46,7 @@ export class SemanticIndex {
   for(const row of rows){
    if(this.closed||processed>=this.maxChunks)break;
    const parts=chunks(row),vectors=[];
-   for(let i=0;i<parts.length;i+=this.batchSize){const batch=parts.slice(i,i+this.batchSize),out=await this.provider.embed(batch.map(part=>part.text));if(out.length!==batch.length)throw Error('Embedding count mismatch');vectors.push(...out.map(normalized));}
+   for(let i=0;i<parts.length;i+=this.batchSize){const batch=parts.slice(i,i+this.batchSize),out=await this.embed(batch.map(part=>part.text));if(out.length!==batch.length)throw Error('Embedding count mismatch');vectors.push(...out.map(normalized));}
    // No await inside the transaction; discard results if deletion or another write occurred meanwhile.
    if(this.closed)return;this.store.index(room);
    this.store.engine.transaction(()=>{
@@ -57,7 +62,7 @@ export class SemanticIndex {
   try{
    await this.prepare(room);if(this.closed)return {results:[],status:'disabled'};
    const cacheKey=hash(this.provider.id+'\0'+input.query);let query=this.queries.get(cacheKey);
-   if(!query){query=normalized((await this.provider.embed([input.query],{type:'query'}))[0]);if(this.queries.size>=64)this.queries.delete(this.queries.keys().next().value);this.queries.set(cacheKey,query);}
+   if(!query){query=normalized((await this.embed([input.query],{type:'query'}))[0]);if(this.queries.size>=64)this.queries.delete(this.queries.keys().next().value);this.queries.set(cacheKey,query);}
    // Filters apply before vector scoring: one project's vectors never participate in another's search.
    const where=['d.room=?',visibleMemory('d'),'v.model=?','v.fingerprint=d.fingerprint'],params=[room,this.provider.id];
    if(input.taskId){where.push('d.task_id=?');params.push(input.taskId);}

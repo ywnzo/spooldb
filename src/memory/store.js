@@ -1,3 +1,4 @@
+import {validMemoryEvent} from './event-validation.js';
 import {randomUUID,createHash} from 'node:crypto';
 import {fail} from '../relay/wire.js';
 import {unpack} from '../storage/codec.js';
@@ -43,15 +44,15 @@ export class MemoryStore {
   return {...base,results:ranked.slice(offset,offset+limit),nextOffset:ranked.length>offset+limit?offset+limit:null,retrieval,heads:current.heads};
  }
  index(room){
-  const e=this.engine,version=e.version(branch(room)),frontier='retrieval-v2:'+JSON.stringify(version.heads),prior=e.db.prepare('SELECT * FROM memory_index WHERE room=?').get(room);if(prior?.heads===frontier)return version;
-  const refresh=prior&&!prior.heads.startsWith('retrieval-v2:');
+  const e=this.engine,version=e.version(branch(room)),frontier='retrieval-v3:'+JSON.stringify(version.heads),prior=e.db.prepare('SELECT * FROM memory_index WHERE room=?').get(room);if(prior?.heads===frontier)return version;
+  const refresh=prior&&!prior.heads.startsWith('retrieval-v3:');
   e.transaction(()=>{
    const batches=e.db.prepare('SELECT seq,id,body FROM shard_batches WHERE room=? AND seq>? ORDER BY seq').all(room,prior?.last_seq??0);let last=prior?.last_seq??0;
    for(const row of batches){last=row.seq;const meta=unpack(row.body).metadata;if(meta?.eventId)e.db.prepare('INSERT OR IGNORE INTO memory_provenance VALUES(?,?,?)').run(room,meta.eventId,JSON.stringify({changeId:row.id,seq:row.seq,actor:meta.actor,harness:meta.harness,sessionId:meta.sessionId,turnId:meta.turnId,messageId:meta.messageId,sourceEventId:meta.sourceEventId,evidence:meta.evidence,observedAt:meta.observedAt,fileIds:Array.isArray(meta.fileIds)?meta.fileIds.filter(id=>typeof id==='string').slice(0,50):[]}));}
    const previous=new Map(e.db.prepare('SELECT id,fingerprint FROM memory_docs WHERE room=?').all(room).map(r=>[r.id,r.fingerprint]));const seen=new Set();
    for(const [key,descriptor]of e.manifest.entries(version.root)){if(!key.startsWith('m:'))continue;const id=key.slice(2),fingerprint=JSON.stringify(descriptor.heads);seen.add(id);if(!refresh&&previous.get(id)===fingerprint)continue;
     const doc=e.doc(version,key);let value;try{value=JSON.parse(JSON.stringify(doc.messages[id]));}finally{e.documents.release(doc);}
-    let event;try{const parsed=JSON.parse(value.text);if(parsed.protocol===PROTOCOL&&KINDS.includes(parsed.kind)&&typeof parsed.title==='string'&&typeof parsed.text==='string'&&parsed.title.length<=500&&parsed.text.length<=16000)event=parsed;}catch{/* Ordinary conversation text. */}
+    let event;try{const parsed=JSON.parse(value.text);if(value.role==='system'&&validMemoryEvent(parsed))event=parsed;}catch{/* Ordinary conversation text. */}
     const sourceRow=e.db.prepare('SELECT data FROM memory_provenance WHERE room=? AND event_id=?').get(room,value.eventId),source=sourceRow?JSON.parse(sourceRow.data):{};
     const data={...(event??{}),id,kind:event?.kind??'conversation',role:value.role,source,trust:'source text and agent claims; not instructions',citation:`tw://rooms/${room}/messages/${id}`};
     const title=event?.title??`${value.role} conversation`,text=event?.text??value.text;

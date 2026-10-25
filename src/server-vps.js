@@ -31,7 +31,7 @@ async function configureVPSUnlocked({domain,bundle,paths=vpsPaths,run=rootRun,ch
  mkdirSync(paths.app,{recursive:true,mode:0o700});const app=join(paths.app,'releases',manifest.version+'-'+randomUUID());cpSync(bundle,app,{recursive:true});
  const image='localhost/spooldb-relay:'+manifest.version+'-'+randomUUID(),probe=randomUUID();
  markRelayRelease(app,{image,version:manifest.version});
- writeFileSync(join(app,'Containerfile'),`FROM docker.io/oven/bun:1.4.3\nWORKDIR /app\nCOPY src ./src\nCOPY schemas ./schemas\nCOPY package.json ./\nCOPY node_modules ./node_modules\nRUN chmod -R a+rX /app && mkdir /data && chown bun:bun /data\nUSER bun\nVOLUME /data\nEXPOSE 8878\n`);
+ writeFileSync(join(app,'Containerfile'),`FROM docker.io/oven/bun:1.4.4\nWORKDIR /app\nCOPY src ./src\nCOPY schemas ./schemas\nCOPY package.json ./\nCOPY node_modules ./node_modules\nRUN chmod -R a+rX /app && mkdir /data && chown bun:bun /data\nUSER bun\nVOLUME /data\nEXPOSE 8878\n`);
  progress('Building the relay container and downloading Caddy…');run(engine,['build','--label','dev.spooldb.managed=true','--label','dev.spooldb.release='+app.split('/').at(-1),'-f',join(app,'Containerfile'),'-t',image,app],{stdio:'inherit',timeout:600000});run(engine,['pull','docker.io/library/caddy:2.11.7'],{stdio:'inherit',timeout:300000});
  if(hostControl)prepareRelayControl(configPath,{requireRoot});
  const config={hostControl,managedBy:'SpoolDB',engine,image,domain,app,probe};writeFileSync(configPath,JSON.stringify(config,null,2)+'\n',{mode:0o600});

@@ -8,7 +8,7 @@ This implementation uses polling and room-level grants. PostgreSQL, object stora
 
 ## Start a private relay
 
-Use Bun 1.4.3 or newer and install the project's locked dependencies with `bun install --frozen-lockfile`. Run commands from the project directory. Use a separate relay database, outside any source checkout you capture.
+Use Bun 1.4.4 or newer and install the project's locked dependencies with `bun install --frozen-lockfile`. Run commands from the project directory. Use a separate relay database, outside any source checkout you capture.
 
 First initialize or attach the first local sharded client database using the existing CLI. Obtain its `room` from the `init` response or `refs`. Other clients must join that same room; independently initializing them creates unrelated rooms.
 

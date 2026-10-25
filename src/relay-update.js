@@ -47,7 +47,7 @@ export async function applyRelayBundle(configPath,bundle,{run=rootRun,health=wai
  cpSync(bundle,app,{recursive:true});mkdirSync(backup,{recursive:true,mode:0o700});markRelayBackup(backup,{previous:old});
  const config={...old,app,...(hostControl?{hostControl:true}:{}),image:'localhost/spooldb-relay:'+manifest.version+'-'+id};
  markRelayRelease(app,{image:config.image,version:manifest.version});
- writeFileSync(join(app,'Containerfile'),`FROM docker.io/oven/bun:1.4.3\nWORKDIR /app\nCOPY src ./src\nCOPY schemas ./schemas\nCOPY package.json ./\nCOPY node_modules ./node_modules\nRUN chmod -R a+rX /app\nUSER bun\n`);
+ writeFileSync(join(app,'Containerfile'),`FROM docker.io/oven/bun:1.4.4\nWORKDIR /app\nCOPY src ./src\nCOPY schemas ./schemas\nCOPY package.json ./\nCOPY node_modules ./node_modules\nRUN chmod -R a+rX /app\nUSER bun\n`);
  run(old.engine,['build','--label','dev.spooldb.managed=true','--label','dev.spooldb.release='+app.split('/').at(-1),'-f',join(app,'Containerfile'),'-t',config.image,app],{stdio:'inherit',timeout:600000});
  if(hostControl)prepareRelayControl(configPath,{requireRoot});
  // Validate the old endpoint before beginning downtime.

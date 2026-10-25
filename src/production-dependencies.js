@@ -5,7 +5,7 @@ import {dirname,join,relative,resolve} from 'node:path';
 // This works offline in both a source checkout and an already bundled application.
 export function copyProductionDependencies(source,destination,{exclude=[]}={}){
  source=resolve(source);destination=resolve(destination);
- const visited=new Set();
+ const visited=new Set(),overrides=JSON.parse(readFileSync(join(source,'package.json'),'utf8')).overrides??{};
  function visit(directory){
   const manifest=JSON.parse(readFileSync(join(directory,'package.json'),'utf8'));
   const optional=manifest.optionalDependencies??{};
@@ -20,6 +20,8 @@ export function copyProductionDependencies(source,destination,{exclude=[]}={}){
     base=dirname(base);
    }
    if(!dependency){if(name in optional)continue;throw Error('Missing production dependency: '+name);}
+   const expected=overrides[name]??manifest.dependencies?.[name]??optional[name],installed=JSON.parse(readFileSync(join(dependency,'package.json'),'utf8'));
+   if(typeof expected==='string'&&/^\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?$/.test(expected)&&installed.version!==expected)throw Error('Installed dependency '+name+' does not match pinned version '+expected+'. Reinstall dependencies before packaging.');
    if(visited.has(dependency))continue;
    visited.add(dependency);
    const target=join(destination,relative(source,dependency));

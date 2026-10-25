@@ -45,24 +45,29 @@ export class SpoolWorkspace extends DurableObject {
   const input=await body(req,20000);const result=this.workspace.init(input.name);return json(result);
  }
  if(path.startsWith('/v1/workspace/')){
-  fail(req.method==='POST','METHOD','Use POST',405);const input=await body(req,20000),action=path.slice('/v1/workspace/'.length);let result;
+  fail(req.method==='POST','METHOD','Use POST',405);const action=path.slice('/v1/workspace/'.length);fail(['action','preview','enroll'].includes(action),'NOT_FOUND','Unknown workspace action',404);
+  if(action==='action')this.workspace.authorize(/^Workspace ([A-Za-z0-9_-]{43})$/.exec(req.headers.get('authorization')??'')?.[1]);else{const code=/^Invite ([A-Za-z0-9_-]{43})$/.exec(req.headers.get('authorization')??'')?.[1];fail(code,'INVITE_REQUIRED','Invite required',401);this.workspace.invitation(code);}
+  const input=await body(req,20000);let result;
   if(action==='action'){const token=/^Workspace ([A-Za-z0-9_-]{43})$/.exec(req.headers.get('authorization')??'')?.[1];result=await this.workspace.run(this.workspace.authorize(token),input);}
   else{const code=/^Invite ([A-Za-z0-9_-]{43})$/.exec(req.headers.get('authorization')??'')?.[1];fail(code,'INVITE_REQUIRED','Invite required',401);fail(['preview','enroll'].includes(action),'NOT_FOUND','Unknown workspace action',404);result=action==='preview'?this.workspace.preview(code):this.workspace.enroll(code,input);}
   return json(result);
  }
  if(['/v1/invites/preview','/v1/invites/redeem'].includes(path)){
-  fail(req.method==='POST','METHOD','Use POST',405);const code=/^Invite ([A-Za-z0-9_-]{43})$/.exec(req.headers.get('authorization')??'')?.[1];fail(code,'INVITE_REQUIRED','Invite required',401);const input=await body(req,20000);return json(path.endsWith('/preview')?this.invites.preview(code):this.invites.redeem(code,input));
+  fail(req.method==='POST','METHOD','Use POST',405);const code=/^Invite ([A-Za-z0-9_-]{43})$/.exec(req.headers.get('authorization')??'')?.[1];fail(code,'INVITE_REQUIRED','Invite required',401);this.invites.inspect(code);const input=await body(req,20000);return json(path.endsWith('/preview')?this.invites.preview(code):this.invites.redeem(code,input));
  }
  const match=/^\/v1\/rooms\/([A-Za-z0-9][A-Za-z0-9._-]{0,179})\/(state|memory|source|pull|push|review)$/.exec(path);fail(match,'NOT_FOUND','Unknown endpoint',404);
  const [,room,action]=match;fail(req.method===(action==='state'?'GET':'POST'),'METHOD','Unsupported method',405);
- // Read the body before rechecking current credentials, so revocation is honored.
- let input=action==='state'?{}:await body(req);const token=/^Bearer ([A-Za-z0-9_-]{32,128})$/.exec(req.headers.get('authorization')??'')?.[1];
- const member=token&&this.db.prepare('SELECT id,label,role FROM team_members WHERE room=? AND token_hash=? AND revoked=0').get(room,hash(token));fail(member,'UNAUTHORIZED','Project authentication required',401);
+ const token=/^Bearer ([A-Za-z0-9_-]{32,128})$/.exec(req.headers.get('authorization')??'')?.[1];
+ const authorize=()=>{const member=token&&this.db.prepare('SELECT id,label,role FROM team_members WHERE room=? AND token_hash=? AND revoked=0').get(room,hash(token));fail(member,'UNAUTHORIZED','Project authentication required',401);
  if(member.id.startsWith('workspace-')){const workspaceMember=this.db.prepare('SELECT * FROM workspace_members WHERE id=? AND revoked=0').get(member.id.slice(10));fail(workspaceMember,'UNAUTHORIZED','Workspace access revoked',401);const currentRole=this.workspace.projectRole(workspaceMember,room);fail(currentRole,'FORBIDDEN','Project access revoked',403);member.role=currentRole==='read'?'read':'write';}
+ return member;};
+ authorize(); // Reject anonymous callers before consuming a body.
+ let input=action==='state'?{}:await body(req);const member=authorize(); // Honor revocation during upload.
  const write=action==='source'||action==='push'||action==='memory'&&['remember','handoff','task_update'].includes(input.command);fail(!write||member.role==='write','FORBIDDEN','Write access required',403);
  fail(action!=='push','GIT_ONLY','Repository sync bundles are not accepted',403);
  const policy=this.workspace.projectSharing(room);if(action==='memory')input=sharedMemoryInput(input,policy.sharing);
  const stub=this.env.PROJECTS.get(this.env.PROJECTS.idFromName(room));const response=await stub.fetch(new Request('https://project.internal/'+action,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({room,principal:{id:member.id,label:member.label},input,policy})}));
+ authorize(); // Embedding/model work can yield while membership is revoked.
  if(action!=='memory'||!response.ok)return response;
  const result=await response.json(),labels=new Map(this.db.prepare('SELECT id,label FROM team_members WHERE room=?').all(room).map(m=>[m.id,m.label]));const decorate=value=>({...value,actorLabel:labels.get(value.actor?.split('/')[0])??value.actor});for(const key of ['tasks','notes','results','relatedConversations'])if(Array.isArray(result[key]))result[key]=result[key].map(decorate);return json({...decorate(result),workspaceSharing:policy.sharing});
  }catch(error){return fault(error);}}
