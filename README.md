@@ -52,4 +52,4 @@ The **management UI runs on clients**; the relay serves invitation, download and
 
 Early-stage software · MIT license · Linux x86-64/glibc installers; Codex plugin also supports Apple Silicon macOS 13+. Development: `bun install --frozen-lockfile` and `bun run test`.
 
-Git submodules are supported through commit references. See [submodules](docs/submodules.md). For opt-in daily updates, ask Codex **“Enable automatic SpoolDB updates”** or run `spool update enable`. See [updates](docs/updates.md). Managed VPS relays can opt in with `sudo spool update enable --target relay`; updates include health checks and database rollback.
+Git submodules are supported through commit references. See [submodules](docs/submodules.md). For opt-in daily updates, ask Codex **“Enable automatic SpoolDB updates”** or run `spool update enable`. See [updates](docs/updates.md). Managed VPS relays can opt in with `sudo spool update enable --target relay`; updates include health checks, database rollback and automatic backup retention.
