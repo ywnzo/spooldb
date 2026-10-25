@@ -5,6 +5,14 @@ on:
 permissions:
   contents: write
 jobs:
+  version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.3'
+      - run: bun scripts/verify-release-version.js
   containers:
     runs-on: ubuntu-latest
     strategy:
@@ -35,7 +43,7 @@ jobs:
       - run: bun run build:plugin
       - run: bun scripts/verify-plugin-bundle.js
   release:
-    needs: [apple-silicon, containers]
+    needs: [version, apple-silicon, containers]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
