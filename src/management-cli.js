@@ -19,7 +19,7 @@ Usage: spool COMMAND [--state DIR] [--json]
   init                                        Connect the current Git project interactively
   deploy cloudflare [--dry-run | --resume] [--name NAME] [--account-id ID]
   discovery enable | list
-  discovery propose|preview|approve|ignore FOLDER [--room ROOM] [--name NAME]
+  discovery propose|preview|approve|ignore FOLDER [--room ROOM | --create] [--name NAME]
   status                                      Local capture status
   workspace connect [--invite-file FILE | --invite-stdin] [--device NAME]
   workspace status | projects | members | saved | disconnect
@@ -139,7 +139,7 @@ export async function runManagement(args,{input=process.stdin,output=process.std
   if(action==='approve'){
    const preview=await local('discovery',{command:'preview',cwd});print(preview);
    if(!options.yes){if(!input.isTTY)throw new Error('Explicit approval required: use an interactive terminal or --yes after user confirmation');const rl=createInterface({input,output});let answer;try{answer=await rl.question('Connect this checkout and share its Codex conversations and memory? [y/N] ');}finally{rl.close();}if(!/^y(es)?$/i.test(answer.trim())){print({connected:false,cancelled:true});return;}}
-   print(await local('discovery',{command:'approve',cwd,confirm:true,...(options.room?{room:options.room}:{}),...(options.name?{name:options.name}:{})}));return;
+   print(await local('discovery',{command:'approve',cwd,confirm:true,...(options.create?{create:true}:{}),...(options.room?{room:options.room}:{}),...(options.name?{name:options.name}:{})}));return;
   }
   if(!['list','propose','preview','ignore'].includes(action))throw new Error('Use discovery enable|list|propose|preview|approve|ignore');print(await local('discovery',{command:action,...(cwd?{cwd}:{})}));return;
  }

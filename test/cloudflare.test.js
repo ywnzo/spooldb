@@ -73,4 +73,9 @@ test('Cloudflare real workerd: workspace invites, independent projects, memory c
  assert.equal((await mem(a,{command:'search',query:'zebraquartz'})).results.length,0);
  const members=await ws({command:'list'});const member=members.members.find(m=>m.label==='Bob');await ws({command:'revoke-member',memberId:member.id});await mem(b,{command:'context'},401);
  await mf.dispose();mf=start();assert.equal((await ws({command:'project-sharing',room:other.room})).sharing.conversations,false);assert.equal((await ws({command:'sharing'})).sharing.findings,false);assert.equal((await mem(a,{command:'context',taskId:'audit'})).tasks[0].status,'done');assert.equal((await mem(a,{command:'get',id:found.id})).id,found.id);assert.equal((await call('/v1/rooms/'+a.room+'/source','Bearer '+a.token,{requestId:'deleted-session-replay',records:[{kind:'message',id:'different-machine-copy',role:'assistant',text:'Real companion continuity proof',provenance:{sessionId:'real-companion-session',itemId:'new-id'}}]})).operations,0);
+ const repositoryKey='b'.repeat(64),first=(await ws({command:'repository-enroll',mode:'create',repositoryKey,name:'backend',requestId:'separate-backend'})).project;
+ const separateInput={command:'repository-enroll',mode:'create',repositoryKey,name:'GEREQ_PLATFORM',requestId:'separate-platform'},second=(await ws(separateInput)).project;assert.notEqual(first.room,second.room);assert.equal((await ws(separateInput)).project.room,second.room);
+ const ambiguous=await ws({command:'repository-match',repositoryKey});assert.equal(ambiguous.ambiguous,true);assert.equal(ambiguous.project,null);assert.equal(ambiguous.projects.length,2);
+ await ws({command:'repository-enroll',repositoryKey,name:'Unexpected'},409);assert.equal((await ws({command:'repository-enroll',mode:'join',repositoryKey,room:second.room})).project.name,'GEREQ_PLATFORM');
+
 });

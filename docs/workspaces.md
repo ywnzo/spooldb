@@ -54,3 +54,8 @@ bun src/team-host.js workspace-owner-invite /path/to/relay-state
 Project creation uses durable retry IDs; a repeated request cannot create duplicate projects. Enrollment retries reuse the same device claim, including after client restart. Project IDs, grants, invitations and workspace configuration persist across server restarts. Shared storage continues to contain conversations, decisions and handoffs with Git references, not repository files.
 
 Workspace invitations support `--role writer` (read/write access to all current and future projects) and `--role reader` (read only). These roles do not grant workspace administration. The default `member` role sees only explicitly granted projects. Use `--no-create` for a cloud memory connection. The UI offers the same choices under Workspace access.
+
+
+### Separate projects using the same repository
+
+A Git repository is a matching hint, not a unique shared-memory project. Choose **Create a new shared project** to keep its memory separate even if another project uses the same Git remote. Choose **Join** to share that existing project's memory. When several projects match, SpoolDB asks for a selection. `spool init`, Codex `spool_setup` with `create: true`, and web repository approval preserve that distinction. Existing approved checkouts keep their selected project.

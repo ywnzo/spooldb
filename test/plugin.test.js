@@ -18,6 +18,21 @@ function mcp(state,root){const child=spawn(process.execPath,[resolve('src/plugin
  const call=(method,params={})=>new Promise((resolve,reject)=>{const next=++id,timer=setTimeout(()=>reject(Error('MCP timeout: '+stderr)),30000);pending.set(next,{resolve,reject,timer});child.stdin.write(JSON.stringify({jsonrpc:'2.0',id:next,method,params})+'\n');});
  return {call,tool:async(name,args={})=>(await call('tools/call',{name,arguments:args})).result,close:async()=>{child.stdin.end();await new Promise(done=>child.once('exit',done));}};
 }
+test('explicit plugin creation separates projects sharing a Git remote, preserves memory and refuses ambiguous enrollment',async t=>{
+ const base=mkdtempSync(join(tmpdir(),'spool-plugin-separate-')),state=join(base,'state'),backendRoot=repository(base,'backend'),platformRoot=repository(base,'GEREQ_PLATFORM'),host=await startTeamHost(join(base,'host'),{port:0}),desktop=await startDesktop(state,{port:0}),clients=[];
+ t.after(async()=>{for(const c of clients)await c.close();await desktop.close();await host.close();rmSync(base,{recursive:true,force:true});});
+ const ws=new WorkspaceClient(state);await ws.run({command:'connect',link:host.command({command:'workspace-init',name:'Team'}).link,device:'Owner'});
+ const backend=mcp(state,backendRoot),platform=mcp(state,platformRoot);clients.push(backend,platform);await backend.call('initialize');await platform.call('initialize');
+ const original=(await backend.tool('spool_setup',{action:'connect',create:true,name:'backend',confirm:true})).structuredContent;assert.ok(original.room);
+ const memory=await backend.tool('remember',{kind:'finding',title:'Backend-only finding',text:'BACKEND-ISOLATION-938: preserve this finding'});assert.equal(memory.isError,false);
+ const connected=await platform.tool('spool_setup',{action:'connect',create:true,name:'GEREQ_PLATFORM',confirm:true});assert.equal(connected.isError,false);const separate=connected.structuredContent;assert.notEqual(separate.room,original.room);
+ assert.equal((await platform.tool('spool_setup',{action:'connect',create:true,name:'GEREQ_PLATFORM',confirm:true})).structuredContent.room,separate.room);assert.equal(host.command({command:'list'}).projects.length,2);
+ assert.equal((await backend.tool('memory_search',{query:'BACKEND-ISOLATION-938'})).structuredContent.results.length,1);assert.equal((await platform.tool('memory_search',{query:'BACKEND-ISOLATION-938'})).structuredContent.results.length,0);
+ const key=(await import('../src/repository.js')).repositoryAt(platformRoot).repositoryKey,match=await ws.run({command:'repository-match',repositoryKey:key});assert.equal(match.project,null);assert.equal(match.ambiguous,true);assert.equal(match.projects.length,2);
+ await assert.rejects(ws.run({command:'repository-enroll',repositoryKey:key,name:'Another name'}),/Explicitly choose create or join/);
+ const joining=await ws.run({command:'repository-enroll',repositoryKey:key,mode:'join',room:separate.room});assert.equal(joining.project.name,'GEREQ_PLATFORM');
+ const pendingRoot=repository(base,'third-checkout'),{discoveryRequest}=await import('../src/discovery.js');await assert.rejects(discoveryRequest(state,{command:'approve',cwd:pendingRoot,confirm:true}),/Several shared projects/);assert.equal(host.command({command:'list'}).projects.length,2);
+});
 test('plugin: consent before sharing, native capture, linked agent handoff, a separate client and pause',async t=>{
  const base=mkdtempSync(join(tmpdir(),'spool-plugin-')),state=join(base,'alice'),root=repository(base,'checkout'),host=await startTeamHost(join(base,'host'),{port:0}),desktops=[],clients=[];const oldHome=process.env.CODEX_HOME;process.env.CODEX_HOME=join(base,'codex');mkdirSync(process.env.CODEX_HOME);
  t.after(async()=>{if(oldHome===undefined)delete process.env.CODEX_HOME;else process.env.CODEX_HOME=oldHome;for(const client of clients)await client.close();for(const service of desktops)await service.close();await host.close();rmSync(base,{recursive:true,force:true});});

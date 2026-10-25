@@ -32,8 +32,12 @@ export class RepositoryDiscovery{
   if(input.command==='ignore'){if(entry.status==='enrolled')throw new Error('This checkout is already connected. Pause its capture through project controls.');entry.status='ignored';this.save();return {...entry,origin:this.origin()};}
   if(input.command==='approve'){
    if(input.confirm!==true)throw new Error('Explicit user confirmation is required before connecting a repository');
+   if(input.create===true&&input.room)throw Error('Choose either creating a new project or joining an existing project');
    let room=input.room;
-   if(repo.repositoryKey){const result=await this.workspace.run({command:'repository-enroll',repositoryKey:repo.repositoryKey,name:input.name??repo.name,...(room?{room}:{})});room=result.project.room;}
+   if(repo.repositoryKey){
+    if(!room&&input.create!==true){const match=await this.workspace.run({command:'repository-match',repositoryKey:repo.repositoryKey});if(match.ambiguous)throw Error('Several shared projects use this repository. Choose a project or explicitly create a new one.');room=match.project?.room;}
+    const result=await this.workspace.run({command:'repository-enroll',repositoryKey:repo.repositoryKey,name:input.name??repo.name,...(room?{mode:'join',room}:{mode:'create',requestId:'discovery-'+digest(JSON.stringify([repo.root,repo.repositoryKey,scope,input.name??repo.name]))})});if(!room&&result.enrollmentMode!=='create')throw Error('Upgrade the relay before creating a separate repository project. No local connection was changed.');room=result.project.room;
+   }
    else if(!room)throw new Error('This repository has no supported origin remote. Choose an existing shared project explicitly.');
    // Global MCP/hooks handle the current checkout; do not install another project hook set.
    const result=await this.workspace.run({command:'join-local',room,root:repo.root,captureConversations:true,connectAgents:false});
@@ -41,9 +45,9 @@ export class RepositoryDiscovery{
    Object.assign(entry,{status:'enrolled',room,projectId:result.project.id,approvedAt:new Date().toISOString()});this.save();
   }
   if(input.command==='preview'){
-   const workspace=await this.workspace.run({command:'list'});let match=null;
-   if(workspace.connected&&repo.repositoryKey)match=(await this.workspace.run({command:'repository-match',repositoryKey:repo.repositoryKey})).project;
-   return {...entry,origin:this.origin(),match,projects:workspace.projects??[],canCreate:workspace.member?.canCreate??false,connected:workspace.connected};
+   const workspace=await this.workspace.run({command:'list'});let match=null,matches=[],ambiguous=false;
+   if(workspace.connected&&repo.repositoryKey){const result=await this.workspace.run({command:'repository-match',repositoryKey:repo.repositoryKey});match=result.project;matches=result.projects??(match?[match]:[]);ambiguous=Boolean(result.ambiguous);}
+   return {...entry,origin:this.origin(),match,matches,ambiguous,projects:workspace.projects??[],canCreate:workspace.member?.canCreate??false,connected:workspace.connected};
   }
   if(!['propose','resolve','preview','approve'].includes(input.command))throw new Error('Unknown discovery command');
   return {...entry,origin:this.origin(),controlDirectory:this.controlDirectory};

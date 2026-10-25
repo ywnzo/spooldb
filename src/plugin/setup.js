@@ -54,10 +54,11 @@ export async function pluginSetup(state,input,{cwd=process.cwd(),pluginRoot,trus
   const existing=await discovery({command:'resolve'});
   if(existing.status==='enrolled'&&!input.project&&!input.create&&!input.name){await localCommand(state,'codex/connect',{}, {project:existing.projectId});return status();}
   const data=await workspace.run({command:'list'});if(!data.connected)throw Error('Paste a project or workspace invitation to connect this machine first');
+  if(input.create===true&&input.project)throw Error('Choose either creating a new project or joining an existing project');
   let room;if(input.project){const matches=data.projects.filter(p=>p.name.toLowerCase()===input.project.toLowerCase());if(matches.length!==1)throw Error('Choose one available shared project by its unique name');room=matches[0].room;}
   else if(input.create!==true)throw Error('Choose an existing project or explicitly request creating one');
   if(!room&&!repo.repositoryKey){room=(await workspace.run({command:'create',name:input.name??repo.name,requestId:'plugin-'+createHash('sha256').update(JSON.stringify([root,data.relay,input.name??repo.name])).digest('hex')})).project.room;}
-  await discovery({command:'approve',confirm:true,...(room?{room}:{}),name:input.name??repo.name});
+  await discovery({command:'approve',confirm:true,...(room?{room}:{create:true}),name:input.name??repo.name});
  }
  return status();
 }

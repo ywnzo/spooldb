@@ -14,6 +14,8 @@ export class WorkspaceStore{
  this.db.exec(`CREATE TABLE IF NOT EXISTS project_sharing(room TEXT PRIMARY KEY,revision INTEGER NOT NULL,data TEXT NOT NULL);
  CREATE TABLE IF NOT EXISTS workspace_sharing(id INTEGER PRIMARY KEY,revision INTEGER NOT NULL,data TEXT NOT NULL);
  CREATE TABLE IF NOT EXISTS workspace_repositories(repository_key TEXT PRIMARY KEY,room TEXT NOT NULL);
+ CREATE TABLE IF NOT EXISTS workspace_repository_links(repository_key TEXT NOT NULL,room TEXT NOT NULL,PRIMARY KEY(repository_key,room));
+ INSERT OR IGNORE INTO workspace_repository_links SELECT repository_key,room FROM workspace_repositories;
  CREATE TABLE IF NOT EXISTS workspace_settings(id TEXT PRIMARY KEY,name TEXT);
  CREATE TABLE IF NOT EXISTS workspace_members(id TEXT PRIMARY KEY,label TEXT,role TEXT,can_create INTEGER,token_hash TEXT UNIQUE,revoked INTEGER DEFAULT 0);
  CREATE TABLE IF NOT EXISTS workspace_grants(member TEXT,room TEXT,role TEXT,PRIMARY KEY(member,room));
@@ -37,14 +39,25 @@ export class WorkspaceStore{
   if(input.command==='list')return {workspace:this.info(),member:{id:member.id,label:member.label,role:member.role,canCreate:this.admin(member)||Boolean(member.can_create)},projects:this.projects().filter(p=>this.projectRole(member,p.room)).map(p=>({...p,role:this.projectRole(member,p.room)})),members:this.admin(member)?this.db.prepare('SELECT id,label,role,can_create AS canCreate,revoked FROM workspace_members').all():[]};
   if(['repository-match','repository-enroll'].includes(input.command)){
    fail(typeof input.repositoryKey==='string'&&/^[a-f0-9]{64}$/.test(input.repositoryKey),'REPOSITORY_KEY','Invalid repository identity');
-   const existing=this.db.prepare('SELECT room FROM workspace_repositories WHERE repository_key=?').get(input.repositoryKey);
-   if(existing){fail(this.projectRole(member,existing.room),'WORKSPACE_FORBIDDEN','Repository project access required',403);if(input.room)fail(input.room===existing.room,'REPOSITORY_CONFLICT','Repository is already linked to another project',409);return {project:this.projects().find(p=>p.room===existing.room),matched:true};}
-   if(input.command==='repository-match')return {project:null,matched:false};
-   let project;
-   if(input.room){fail(this.projectRole(member,input.room)==='admin','WORKSPACE_FORBIDDEN','Project admin access required to link its repository',403);project=this.projects().find(p=>p.room===input.room);fail(project,'WORKSPACE_FORBIDDEN','Project access required',403);}
-   else{fail(this.admin(member)||member.can_create,'WORKSPACE_FORBIDDEN','You cannot create workspace projects',403);const result=this.command({command:'create',name:input.name,creator:member.id,requestId:'repository-'+input.repositoryKey,repositoryKey:input.repositoryKey});project=result.project;this.db.prepare("INSERT OR IGNORE INTO workspace_grants VALUES(?,?,'admin')").run(member.id,project.room);}
-   if(input.room)this.db.prepare('INSERT INTO workspace_repositories VALUES(?,?)').run(input.repositoryKey,project.room);
-   return {project,matched:false};
+   fail(input.mode===undefined||['create','join'].includes(input.mode),'REPOSITORY_MODE','Choose create or join');
+   const linked=this.db.prepare('SELECT room FROM workspace_repository_links WHERE repository_key=?').all(input.repositoryKey),available=linked.filter(p=>this.projectRole(member,p.room)).map(p=>this.projects().find(project=>project.room===p.room)).filter(Boolean);
+   if(input.command==='repository-match'){fail(!linked.length||available.length,'WORKSPACE_FORBIDDEN','Repository project access required',403);return {project:available.length===1?available[0]:null,projects:available,matched:available.length===1,ambiguous:available.length>1};}
+   if(input.mode==='create'){
+    fail(!input.room,'REPOSITORY_MODE','Creating a project cannot select an existing project');
+    fail(typeof input.requestId==='string'&&input.requestId.length>0&&input.requestId.length<=120,'REQUEST_ID','Project creation needs a retry key');
+    fail(this.admin(member)||member.can_create,'WORKSPACE_FORBIDDEN','You cannot create workspace projects',403);
+    const result=this.command({command:'create',name:input.name,creator:member.id,requestId:input.requestId,repositoryKey:input.repositoryKey});fail(this.db.prepare('SELECT 1 FROM workspace_repository_links WHERE repository_key=? AND room=?').get(input.repositoryKey,result.project.room),'REQUEST_CONFLICT','Project creation retry changed repository identity',409);this.db.prepare("INSERT OR IGNORE INTO workspace_grants VALUES(?,?,'admin')").run(member.id,result.project.room);return {...result,matched:false,enrollmentMode:'create'};
+   }
+   if(input.room){
+    const existing=linked.some(p=>p.room===input.room),role=this.projectRole(member,input.room),project=this.projects().find(p=>p.room===input.room);
+    fail(project&&role,'WORKSPACE_FORBIDDEN','Project access required',403);
+    if(!existing){fail(role==='admin','WORKSPACE_FORBIDDEN','Project admin access required to link its repository',403);this.db.prepare('INSERT INTO workspace_repository_links VALUES(?,?)').run(input.repositoryKey,project.room);}
+    return {project,matched:existing};
+   }
+   fail(input.mode!=='join','REPOSITORY_CHOICE_REQUIRED','Choose the shared project to join',409);
+   if(linked.length){fail(available.length,'WORKSPACE_FORBIDDEN','Repository project access required',403);fail(false,'REPOSITORY_CHOICE_REQUIRED','This repository already has a shared project. Explicitly choose create or join; no connection was changed.',409);}
+   fail(this.admin(member)||member.can_create,'WORKSPACE_FORBIDDEN','You cannot create workspace projects',403);
+   const result=this.command({command:'create',name:input.name,creator:member.id,requestId:'repository-'+input.repositoryKey,repositoryKey:input.repositoryKey});this.db.prepare("INSERT OR IGNORE INTO workspace_grants VALUES(?,?,'admin')").run(member.id,result.project.room);return {project:result.project,matched:false};
   }
   if(input.command==='create'){
    fail(this.admin(member)||member.can_create,'WORKSPACE_FORBIDDEN','You cannot create workspace projects',403);fail(typeof input.requestId==='string'&&input.requestId.length>0&&input.requestId.length<=120,'REQUEST_ID','Project creation needs a retry key');const result=this.command({command:'create',name:input.name,creator:member.id,requestId:input.requestId});this.db.prepare("INSERT OR IGNORE INTO workspace_grants VALUES(?,?,'admin')").run(member.id,result.project.room);return result;

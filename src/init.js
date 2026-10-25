@@ -36,7 +36,7 @@ export async function initializeCheckout({cwd=process.cwd(),state,options={},ask
   if(repo.repositoryKey)try{match=(await workspace({command:'repository-match',repositoryKey:repo.repositoryKey})).project;}catch(error){if(error.code!=='WORKSPACE_FORBIDDEN')throw error;say('This repository needs a project invitation before you can join it.');}
   const choices=[];
   if(match)choices.push({kind:'join',project:match,label:'Join '+match.name+' (matches this repository)'});
-  if(!match&&data.member?.canCreate)choices.push({kind:'create',label:'Create a shared project'});
+  if(data.member?.canCreate)choices.push({kind:'create',label:'Create a shared project'});
   if(projects.length)choices.push({kind:'choose',label:'Choose an existing shared project'});
   choices.push({kind:'invitation',label:'Join using an invitation'});
   say('\nWorkspace: '+data.workspace.name);choices.forEach((item,index)=>say(`${index+1}. ${item.label}`));
@@ -47,7 +47,6 @@ export async function initializeCheckout({cwd=process.cwd(),state,options={},ask
    plan=await invitePlan();if(!plan)return {cancelled:true};if(plan==='workspace'){plan=null;continue;}
   }else{
    let project=choice.project;if(!project){projects.forEach((p,index)=>say(`${index+1}. ${p.name}`));project=projects[Number(await ask('Choose a project','1'))-1];if(!project)throw Error('Choose one of the numbered projects. Nothing was connected.');}
-   if(match&&match.room!==project.room)throw Error('This Git repository is already linked to '+match.name+'. Choose that project or use another checkout.');
    plan={kind:'join',room:project.room,name:project.name,relay:data.relay};
   }
  }
@@ -59,8 +58,8 @@ export async function initializeCheckout({cwd=process.cwd(),state,options={},ask
   await local('codex/connect',{}, {project:plan.project.id});joined={project:plan.project};
  }else{
   let project;
-  if(repo.repositoryKey)project=(await workspace({command:'repository-enroll',repositoryKey:repo.repositoryKey,name:plan.name,...(plan.room?{room:plan.room}:{})})).project;
-  else if(plan.kind==='create')project=(await workspace({command:'create',name:plan.name,requestId:'init-'+createHash('sha256').update(JSON.stringify([repo.root,plan.relay,plan.name])).digest('hex')})).project;
+  if(repo.repositoryKey){const enrollment=await workspace({command:'repository-enroll',repositoryKey:repo.repositoryKey,name:plan.name,...(plan.room?{mode:'join',room:plan.room}:{mode:'create',requestId:'init-'+createHash('sha256').update(JSON.stringify([repo.root,repo.repositoryKey,plan.relay,plan.name])).digest('hex')})});if(plan.kind==='create'&&enrollment.enrollmentMode!=='create')throw Error('Upgrade the relay before creating a separate repository project. No local connection was changed.');project=enrollment.project;}
+  else if(plan.kind==='create')project=(await workspace({command:'create',name:plan.name,requestId:'init-'+createHash('sha256').update(JSON.stringify([repo.root,repo.repositoryKey,plan.relay,plan.name])).digest('hex')})).project;
   else project={room:plan.room,name:plan.name};
   joined=await local('workspace',{command:'join-local',room:project.room,root:repo.root,captureConversations:true,connectAgents:false});
  }
