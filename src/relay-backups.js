@@ -12,8 +12,8 @@ export function backupRetention(configPath){
  if(!Number.isInteger(policy.keep)||policy.keep<1||policy.keep>100||!Number.isInteger(policy.maxAgeDays)||policy.maxAgeDays<1||policy.maxAgeDays>3650)throw Error('Backup retention requires keep=1–100 and maxAgeDays=1–3650');
  return policy;
 }
-export function markRelayBackup(path,{createdAt=new Date().toISOString()}={}){
- writeFileSync(join(path,'backup.json'),JSON.stringify({managedBy:'SpoolDB',kind:'relay-update-backup',id:basename(path),createdAt})+'\n',{mode:0o600});
+export function markRelayBackup(path,{createdAt=new Date().toISOString(),previous}={}){
+ writeFileSync(join(path,'backup.json'),JSON.stringify({managedBy:'SpoolDB',kind:'relay-update-backup',id:basename(path),createdAt,...(previous?{previous}:{})})+'\n',{mode:0o600});
 }
 // Called only while holding the relay operation lock. Never follow directory symlinks.
 export function pruneRelayBackups(configPath,{now=Date.now(),dryRun=false}={}){

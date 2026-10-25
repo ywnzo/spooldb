@@ -3,11 +3,13 @@ import assert from 'node:assert/strict';
 import {mkdtempSync,readFileSync,writeFileSync,rmSync,mkdirSync,existsSync} from 'node:fs';
 import {join,resolve} from 'node:path';
 import {tmpdir} from 'node:os';
+import {randomUUID} from 'node:crypto';
 import {request} from 'node:https';
 import {setTimeout as delay} from 'node:timers/promises';
 import {configureVPS,containerRequest} from '../src/server-vps.js';
 import {markRelayBackup} from '../src/relay-backups.js';
-import {applyRelayBundle} from '../src/relay-update.js';
+import {markRelayRelease} from '../src/relay-artifacts.js';
+import {applyRelayBundle,cleanupRelayBackups} from '../src/relay-update.js';
 import {rootRun} from '../src/server-caddy.js';
 const engine=process.env.SPOOL_TEST_CONTAINER_ENGINE;
 test('real engine runs relay and verified HTTPS, retains memory across installer rerun',{skip:!engine,timeout:600000},async()=>{
@@ -23,9 +25,15 @@ test('real engine runs relay and verified HTTPS, retains memory across installer
   let checks=0;await assert.rejects(applyRelayBundle(configPath,bundle,{run,cli:paths.cli,health:async(...args)=>{if(++checks===2){containerRequest(configPath,{command:'create',name:'Must be rolled back'},{run});throw Error('injected candidate failure');}await checkHTTPS(...args);}}),/Previous relay and memory restored/);
   assert(JSON.stringify(containerRequest(configPath,{command:'list'},{run})).includes('Persistent project'));assert(!JSON.stringify(containerRequest(configPath,{command:'list'},{run})).includes('Must be rolled back'));
   const expired=join(paths.app,'relay-backups','00000000-0000-4000-8000-000000000001');mkdirSync(expired,{recursive:true});markRelayBackup(expired,{createdAt:'2000-01-01T00:00:00Z'});
+  const settings=join(paths.app,'relay-updates.json');writeFileSync(settings,JSON.stringify({...JSON.parse(readFileSync(settings)),artifactRetention:{keep:1,maxAgeDays:30}}));
+  const makeArtifact=()=>{const id=randomUUID(),version='0.0.2',app=join(paths.app,'releases',version+'-'+id),image='localhost/spooldb-relay:'+version+'-'+id;mkdirSync(app);markRelayRelease(app,{image,version,createdAt:'2000-01-01T00:00:00Z'});writeFileSync(join(app,'Containerfile'),'FROM '+installed.image+'\nLABEL dev.spooldb.managed=true dev.spooldb.release='+version+'-'+id+'\n');run(engine,['build','-f',join(app,'Containerfile'),'-t',image,app],{timeout:120000});return {app,image};};
+  const orphan=makeArtifact(),stopped=makeArtifact();run(engine,['create','--name','spool-retention-stopped',stopped.image,'bun','--version']);run(engine,['tag',installed.image,'localhost/spool-retention-unrelated:fixture']);
   const updated=await applyRelayBundle(configPath,bundle,{run,cli:paths.cli,health:checkHTTPS});
   assert(!existsSync(expired));assert(existsSync(join(updated.backup,'data','shared.sqlite')));assert(updated.backupCleanup.removed.length>=1);
   assert(JSON.stringify(containerRequest(configPath,{command:'list'},{run})).includes('Persistent project'));
   assert.equal(JSON.parse(readFileSync(configPath)).app===installed.app,false);
- }finally{for(const name of ['spool-caddy','spool-relay'])try{rootRun(engine,['rm','-f',name]);}catch{}for(const name of ['spool-relay-data','spool-caddy-data','spool-caddy-config'])try{rootRun(engine,['volume','rm',name]);}catch{}try{rootRun(engine,['network','rm','spool-network']);}catch{}rmSync(dir,{recursive:true,force:true});}
+  assert.deepEqual(updated.backupCleanup.artifacts.errors,[]);assert(!existsSync(orphan.app));assert.throws(()=>run(engine,['image','inspect',orphan.image]));assert(existsSync(stopped.app));run(engine,['image','inspect',stopped.image]);run(engine,['image','inspect',installed.image]);assert(existsSync(installed.app));run(engine,['image','inspect','localhost/spool-retention-unrelated:fixture']);
+  run(engine,['rm','spool-retention-stopped']);const cleaned=cleanupRelayBackups(configPath,{run});assert.deepEqual(cleaned.artifacts.errors,[]);assert(!existsSync(stopped.app));assert.throws(()=>run(engine,['image','inspect',stopped.image]));assert(existsSync(installed.app));run(engine,['image','inspect',installed.image]);
+
+ }finally{for(const name of ['spool-retention-stopped','spool-caddy','spool-relay'])try{rootRun(engine,['rm','-f',name]);}catch{}try{rootRun(engine,['image','rm','localhost/spool-retention-unrelated:fixture']);}catch{}for(const name of ['spool-relay-data','spool-caddy-data','spool-caddy-config'])try{rootRun(engine,['volume','rm',name]);}catch{}try{rootRun(engine,['network','rm','spool-network']);}catch{}rmSync(dir,{recursive:true,force:true});}
 });

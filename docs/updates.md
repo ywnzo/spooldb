@@ -38,7 +38,7 @@ sudo spool update status
 sudo spool update check
 sudo spool update --yes
 sudo spool update disable
-sudo spool update cleanup --dry-run  # Preview backup retention
+sudo spool update cleanup --dry-run  # Preview backup/image/release cleanup
 sudo spool update cleanup            # Apply retention now
 ```
 
@@ -50,6 +50,17 @@ There is a brief maintenance window and disk space is needed for both images and
 
 `sudo spool update status` shows the effective policy and last cleanup result. To change the limits, set `"backupRetention": {"keep": 3, "maxAgeDays": 30}` in `/opt/spooldb/relay-updates.json`, keeping its existing settings. Supported ranges are 1–100 backups and 1–3650 days. No extra configuration is needed for the defaults.
 
-Cleanup recognizes legacy v0.4.13/v0.4.14 snapshots, skips unknown folders and directory symlinks, and refuses deletion when recovery references are corrupt. Cleanup failures are recorded without undoing a healthy update. Retention covers relay memory backups; it does not remove repository files, active volumes, container images or application releases.
+Cleanup recognizes legacy v0.4.13/v0.4.14 snapshots, skips unknown folders and directory symlinks, and refuses deletion when recovery references are corrupt. Cleanup failures are recorded without undoing a healthy update. Backup retention runs before the image and application retention below; repository files and active data/certificate volumes are untouched.
+
+
+### Relay images and application releases
+
+The same automatic cleanup also retains up to three recent relay images and application releases for 30 days, **plus every protected version**. It always preserves the current installation, the previous manual installation, all versions referenced by retained backups or an update/recovery transaction, the running updater and installed CLI, and images used by any running or stopped container. Retained image/release pairs stay together. Bind-mounted releases are protected too.
+
+`sudo spool update cleanup --dry-run` previews backup, image and release cleanup together; omit `--dry-run` to apply it. `sudo spool update status` includes `artifactRetention` and the last `artifactCleanup` result. Optional limits use `"artifactRetention": {"keep": 3, "maxAgeDays": 30}` in `/opt/spooldb/relay-updates.json`, with the same ranges as backup retention.
+
+Only SpoolDB relay tags and recognized installer release directories are eligible. Cleanup never runs engine-wide prune, forces image removal, or removes Caddy/base images, unrelated tags, data volumes or unknown directories. Engine inventory or reference errors stop artifact cleanup without rolling back a healthy update.
+
+New backups record their original release and image. Older retained backups may lack that association; if it cannot be recovered from existing rollback records, image/release cleanup waits until backup retention expires those backups. This preserves rollback resources rather than guessing. Details appear in `artifactCleanup.errors`. Legacy image names and self-contained release layouts are recognized conservatively, and directory symlinks are skipped.
 
 A power loss or forced process termination leaves a transaction journal and blocks further updates. Run `sudo spool update recover` to restore an unfinished transaction, or finish an already committed update without discarding accepted writes. Inspect `/opt/spooldb/relay-updates.json` and the journal before retrying a quarantined release. This updater covers the managed VPS relay; Cloudflare deployments and separately managed installations keep their own deployment process.
