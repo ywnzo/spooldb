@@ -19,6 +19,7 @@ test('offline packaging preserves hoisted and nested production dependencies and
  assert.deepEqual(copyProductionDependencies(source,out).sort(),['node_modules/a','node_modules/a/node_modules/b','node_modules/shared']);
  assert.equal(JSON.parse(readFileSync(join(out,'node_modules/a/node_modules/b/package.json'))).version,'1');
  for(const path of ['node_modules/dev','node_modules/b','node_modules/a/node_modules/unused'])assert.equal(existsSync(join(out,path)),false);
+ const client=join(base,'client');assert.deepEqual(copyProductionDependencies(source,client,{exclude:['a']}),[]);assert.equal(existsSync(join(client,'node_modules/a')),false);
  pkg('node_modules/shared',{dependencies:{missing:'1'}});
  assert.throws(()=>copyProductionDependencies(source,join(base,'broken')),/Missing production dependency: missing/);
 });

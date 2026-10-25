@@ -224,6 +224,7 @@ function memoryCard(item){
  const card=node('article','memory-card memory-row');card.dataset.noteId=item.id;
  const labels={handoff:'Handoff',decision:'Decision',finding:'Finding',blocker:'Blocker',task:'Task',conversation:'Conversation'};
  const meta=node('div','memory-meta');const badge=node('span','memory-kind',labels[item.kind]??'Note');badge.dataset.kind=item.kind;meta.append(badge);
+ if(item.lifecycle?.status&&item.lifecycle.status!=='active')meta.append(node('span','task-state',item.lifecycle.status));
  if(item.status)meta.append(node('span','task-state',item.status.replaceAll('_',' ')));
  if(item.sharing?.mode==='local')meta.append(node('span','memory-author','Local only'));
  const actor=item.actorLabel??item.actor;if(actor){const label=node('span','memory-author',/^(machine-|workspace-)/.test(actor)?'Agent':actor);label.title=actor;meta.append(label);}
@@ -234,18 +235,18 @@ function memoryCard(item){
  if(item.conflicts?.length)card.append(node('p','error','Conflicting task updates. Open this task before continuing.'));
  return card;
 }
-let memoryKind='latest';
+let memoryKind='latest',memoryIncludeArchived=false,memoryArchiveTarget=null;
 function updateMemoryFilters(){for(const button of $('memory-filters').querySelectorAll('button'))button.setAttribute('aria-pressed',String(button.dataset.kind===memoryKind));}
-function showMemoryBrowse(){ $('memory-home').querySelector('.home-foot').hidden=false;$('memory-browse').hidden=false;$('memory-detail').hidden=true;$('memory-search-form').hidden=false;$('memory-home').querySelector('.page-heading').hidden=false; }
+function showMemoryBrowse(){ $('memory-archive-filter').hidden=false; $('memory-home').querySelector('.home-foot').hidden=false;$('memory-browse').hidden=false;$('memory-detail').hidden=true;$('memory-search-form').hidden=false;$('memory-home').querySelector('.page-heading').hidden=false; }
 async function showMemory({record=true,note=null}={}){
  setPage('memory',{record});showMemoryBrowse();updateMemoryFilters();await loadMemory();if(note&&document.body.dataset.page==='memory')await readMemory(note,false,false);
 }
 async function loadMemory(more=false){
  const epoch=++memoryEpoch,projectId=state.project?.id;$('memory-error').textContent='';$('memory-status').textContent='Loading memory…';$('memory-results').setAttribute('aria-busy','true');$('memory-reset').hidden=!memoryQuery;
  try{
-  const context=await localRequest('memory',{command:'context'});if(epoch!==memoryEpoch||projectId!==state.project?.id)return;memoryLastHeads=memoryFingerprint(context);
+  const context=await localRequest('memory',{command:'context',includeArchived:memoryIncludeArchived});if(epoch!==memoryEpoch||projectId!==state.project?.id)return;memoryLastHeads=memoryFingerprint(context);
   let items=[...context.tasks.filter(task=>task.status!=='done'),...context.notes];memoryPage=null;
-  if(memoryQuery||memoryKind!=='latest'){const result=await localRequest('memory',{command:'search',query:memoryQuery,...(memoryKind!=='latest'?{kinds:[memoryKind]}:{}),limit:20,offset:more?memoryPageOffset:0});if(epoch!==memoryEpoch||projectId!==state.project?.id)return;items=result.results;memoryPage=result.nextOffset;}
+  if(memoryQuery||memoryKind!=='latest'||memoryIncludeArchived){const result=await localRequest('memory',{command:'search',query:memoryQuery,includeArchived:memoryIncludeArchived,...(memoryKind!=='latest'?{kinds:[memoryKind]}:{}),limit:20,offset:more?memoryPageOffset:0});if(epoch!==memoryEpoch||projectId!==state.project?.id)return;items=result.results;memoryPage=result.nextOffset;}
   if(more)$('memory-results').append(...items.map(memoryCard));else $('memory-results').replaceChildren(...items.map(memoryCard));
   if(!items.length&&!more)$('memory-results').append(node('p','memory-empty',memoryQuery?'No matches. Try a different search.':'Nothing here yet. Your agents add memory as they work.'));
   $('memory-more').hidden=memoryPage===null;const titles={latest:'Recent notes & open tasks',handoff:'Handoffs',decision:'Decisions',finding:'Findings',task:'Tasks',conversation:'Conversations'};$('memory-results-title').textContent=memoryQuery?'Search results':titles[memoryKind];$('memory-status').textContent='';
@@ -256,7 +257,8 @@ let memoryPageOffset=0;
 async function readMemory(id,more=false,record=true){
  const projectId=state.project?.id,navigation=pageEpoch;
  try{const item=await localRequest('memory',{command:'get',id,offset:more?detailOffset:0,limit:12000});if(projectId!==state.project?.id||navigation!==pageEpoch)return;
- detailId=id;detailOffset=item.nextOffset;setPage('memory',{note:id,record});$('memory-home').querySelector('.home-foot').hidden=true;$('memory-browse').hidden=true;$('memory-search-form').hidden=true;$('memory-home').querySelector('.page-heading').hidden=true;$('memory-detail').hidden=false;$('memory-detail-title').textContent=item.title;
+ detailId=id;detailOffset=item.nextOffset;$('memory-archive-filter').hidden=true;
+ const actions=$('memory-detail-actions');actions.replaceChildren();if(!item.lifecycleControl){const archived=['archived','resolved','superseded'].includes(item.lifecycle?.status);const button=node('button','quiet',archived?'Restore to retrieval':'Archive record');button.onclick=()=>{memoryArchiveTarget={id:item.id,action:archived?'restore':'archive',expectedRevision:item.lifecycle?.revision??0};$('memory-archive-title').textContent=archived?'Restore memory':'Archive memory';$('memory-archive-reason').value='';$('memory-archive-error').textContent='';$('memory-archive-dialog').showModal();};actions.append(button);if(item.lifecycle?.replacementId){const replacement=node('button','quiet','Read replacement');replacement.onclick=()=>readMemory(item.lifecycle.replacementId);actions.append(replacement);}if(item.lifecycle?.status&&item.lifecycle.status!=='active')actions.append(node('span','subtle',item.lifecycle.status+' · '+(item.lifecycle.reason??'')));}setPage('memory',{note:id,record});$('memory-home').querySelector('.home-foot').hidden=true;$('memory-browse').hidden=true;$('memory-search-form').hidden=true;$('memory-home').querySelector('.page-heading').hidden=true;$('memory-detail').hidden=false;$('memory-detail-title').textContent=item.title;
  if(more)$('memory-detail-text').textContent+=item.text;else $('memory-detail-text').textContent=item.text;
  $('memory-detail-more').hidden=detailOffset===null;
  $('memory-detail-meta').textContent=[item.kind,item.sharing?.mode==='local'?'Local only':null,item.status?.replaceAll('_',' '),item.actorLabel??item.actor].filter(Boolean).join(' · ');
@@ -300,3 +302,7 @@ $('team-invite').onclick=async()=>{try{const result=await localRequest('team/hos
 $('team-join').onclick=async()=>{try{$('team-host-error').textContent='Connecting this folder…';const invite=await localRequest('team/host',{command:'invite',room:$('team-host-project').value,label:state.project.name+' on this computer',role:'write'});await localRequest('team/connect',invite.connection);$('team-host-error').textContent='Folder connected to the selected shared project.';await loadTeam();await loadMemory();}catch(error){$('team-host-error').textContent=error.message;}};
 
 document.addEventListener('spool-conversations-deleted',()=>{if(state.local){$('memory-detail').hidden=true;loadMemory().catch(error=>notice(error.message));}});
+
+$('memory-include-archived').onchange=()=>{memoryIncludeArchived=$('memory-include-archived').checked;loadMemory();};
+$('memory-archive-cancel').onclick=()=>$('memory-archive-dialog').close();
+$('memory-archive-confirm').onclick=async()=>{if(!memoryArchiveTarget)return;const reason=$('memory-archive-reason').value.trim();if(!reason){$('memory-archive-error').textContent='Add a short reason.';return;}const target=memoryArchiveTarget;$('memory-archive-confirm').disabled=true;try{await localRequest('memory/update',{...target,reason,requestId:crypto.randomUUID()});$('memory-archive-dialog').close();await readMemory(target.id);}catch(error){$('memory-archive-error').textContent=error.message;}finally{$('memory-archive-confirm').disabled=false;}};

@@ -7,6 +7,7 @@ import {createHash,randomBytes,randomUUID,timingSafeEqual} from 'node:crypto';
 import {DurableSqlite} from './sqlite.js';
 import {ShardedEngine} from '../sharded-engine.js';
 import {MemoryStore} from '../memory/store.js';
+import {workersEmbeddings} from '../memory/embeddings.js';
 import {ReviewStore} from '../review/store.js';
 import {WorkspaceStore} from '../team/workspace.js';
 import {InviteStore} from '../team/invites.js';
@@ -67,7 +68,7 @@ export class SpoolWorkspace extends DurableObject {
  }catch(error){return fault(error);}}
 }
 export class SpoolProject extends DurableObject {
- constructor(ctx,env){super(ctx,env);this.engine=new ShardedEngine(':memory:',{database:new DurableSqlite(ctx.storage)});this.memory=new MemoryStore(this.engine,{referencesOnly:true});this.review=new ReviewStore(this.engine);}
+ constructor(ctx,env){super(ctx,env);this.engine=new ShardedEngine(':memory:',{database:new DurableSqlite(ctx.storage)});this.memory=new MemoryStore(this.engine,{referencesOnly:true,embeddings:workersEmbeddings(env.AI,env.EMBEDDING_MODEL)});this.review=new ReviewStore(this.engine);}
  async fetch(req){try{
  const {room,principal,input,policy}=await body(req),action=new URL(req.url).pathname.slice(1),branch=`relay-${room}`;
  const existing=this.engine.refs();fail(existing.length===0||existing[0].room===room,'ROOM_MISMATCH','Project mismatch',403);
@@ -75,8 +76,8 @@ export class SpoolProject extends DurableObject {
  const actualBranch=branch;
  let result;
  if(action==='conversation-delete')result=deleteSharedConversations(this.engine,room,input);
- else if(action==='state')result={heads:this.engine.ref(actualBranch).heads,maxPageBytes:1500000,...policy};
- else if(action==='memory')result=this.memory.run(room,input,principal);
+ else if(action==='state')result={memoryLifecycle:1,heads:this.engine.ref(actualBranch).heads,maxPageBytes:1500000,...policy};
+ else if(action==='memory')result=await this.memory.retrieve(room,input,principal);
  else if(action==='source')result=ingestSource(this.engine,room,input,principal,policy?.sharing);
  else if(action==='review'){fail(input.command!=='publish','GIT_ONLY','Code stays in Git',403);result=this.review.run(room,input,principal);}
  else if(action==='pull'){heads(input.since);result=this.engine.exportPage(branch,input.since,{heads:input.heads,maxBytes:1500000});}

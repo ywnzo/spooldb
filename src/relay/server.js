@@ -17,12 +17,12 @@ export function createCredential(id,rooms) {
 const roomName = room => `relay-${room}`;
 
 export class RelayServer {
-  constructor(filename,{credentials=[],maxPageBytes=4*1024*1024,maxConnections=64,maxActiveRequests=16,tls,referencesOnly=false,maintenance=()=>false,version}={}) {
+  constructor(filename,{credentials=[],maxPageBytes=4*1024*1024,maxConnections=64,maxActiveRequests=16,tls,referencesOnly=false,maintenance=()=>false,version,embeddings=null}={}) {
     fail(Number.isSafeInteger(maxPageBytes)&&maxPageBytes>=1024&&maxPageBytes<=8*1024*1024,'INVALID_CONFIG','Invalid page size');
     fail([maxConnections,maxActiveRequests].every(n=>Number.isSafeInteger(n)&&n>0&&n<=1024),'INVALID_CONFIG','Invalid connection limits');
     this.maintenance=maintenance;this.version=version;this.setCredentials(credentials);this.maxPageBytes=maxPageBytes;this.active=0;this.maxActiveRequests=maxActiveRequests;
     this.engine=new ShardedEngine(filename);
-    this.referencesOnly=referencesOnly;this.review=new ReviewStore(this.engine);this.memory=new MemoryStore(this.engine,{referencesOnly});
+    this.referencesOnly=referencesOnly;this.review=new ReviewStore(this.engine);this.memory=new MemoryStore(this.engine,{referencesOnly,embeddings});
     this.engine.db.exec(`CREATE TABLE IF NOT EXISTS relay_audit(seq INTEGER PRIMARY KEY,room TEXT NOT NULL,principal TEXT NOT NULL,heads TEXT NOT NULL,accepted_at TEXT NOT NULL,UNIQUE(room,principal,heads))`);
     this.tls=Boolean(tls);this.server=(tls?createTlsServer:createServer)({...tls,headersTimeout:10000,requestTimeout:30000,maxHeaderSize:8192},(req,res)=>this.handle(req,res));
     this.server.maxConnections=maxConnections;this.server.maxRequestsPerSocket=100;this.server.keepAliveTimeout=1000;
@@ -45,7 +45,7 @@ export class RelayServer {
   }
   state(room) {
     const row=this.engine.db.prepare('SELECT heads FROM shard_refs WHERE name=?').get(roomName(room));
-    return { room,heads:row?JSON.parse(row.heads):[],maxPageBytes:this.maxPageBytes,...(this.sharingPolicy?.(room)??{}) };
+    return { memoryLifecycle:1,room,heads:row?JSON.parse(row.heads):[],maxPageBytes:this.maxPageBytes,...(this.sharingPolicy?.(room)??{}) };
   }
   send(res,status,value) {
     const body=JSON.stringify({...value,protocol:PROTOCOL});
@@ -62,7 +62,7 @@ export class RelayServer {
       if(this.inviteHandler&&await this.inviteHandler(req,res,reviewUrl.pathname))return;
       if(this.localHandler&&await this.localHandler(req,res,reviewUrl.pathname))return;
       if(reviewUrl.pathname==='/review'&&req.method==='GET') {res.writeHead(308,{location:`/review/${reviewUrl.search}`,'cache-control':'no-store'});res.end();return;}
-      const asset={'/review/':'index.html','/review/discovery.js':'discovery.js','/review/workspace.js':'workspace.js','/review/app.js':'app.js','/review/settings.js':'settings.js','/review/relay-settings.js':'relay-settings.js','/review/kiln.css':'kiln.css','/review/style.css':'style.css'}[reviewUrl.pathname];
+      const asset={'/review/':'index.html','/review/discovery.js':'discovery.js','/review/workspace.js':'workspace.js','/review/app.js':'app.js','/review/settings.js':'settings.js','/review/relay-settings.js':'relay-settings.js','/review/retrieval-settings.js':'retrieval-settings.js','/review/kiln.css':'kiln.css','/review/style.css':'style.css'}[reviewUrl.pathname];
       if(asset&&req.method==='GET') {
         const body=readFileSync(new URL(`../review/public/${asset}`,import.meta.url));const type=asset.endsWith('.html')?'text/html':asset.endsWith('.js')?'text/javascript':'text/css';
         res.writeHead(200,{'content-type':`${type}; charset=utf-8`,'cache-control':'no-store','content-security-policy':"default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",'x-content-type-options':'nosniff','referrer-policy':'no-referrer','content-length':body.length});res.end(body);return;
@@ -77,10 +77,10 @@ export class RelayServer {
       fail(!req.headers['content-length']||Number(req.headers['content-length'])<=MAX_BODY,'BODY_TOO_LARGE','Request exceeds byte limit',413);
       const input=await readJson(req);principal=this.authorize(req,room,['push','source'].includes(action)); // Revocation can occur while reading a body.
       fail(input&&typeof input==='object'&&!Array.isArray(input),'INVALID_REQUEST','Expected request object');
-      if(action==='source'){this.send(res,200,ingestSource(this.engine,room,input,principal,this.sharingPolicy?.(room).sharing??defaultSharing()));return;}
+      if(action==='source'){const result=ingestSource(this.engine,room,input,principal,this.sharingPolicy?.(room).sharing??defaultSharing());this.memory.index(room);this.memory.semantic?.schedule(room);this.send(res,200,result);return;}
       if(action==='memory') {
         principal=this.authorize(req,room,['remember','task_update','handoff'].includes(input.command));fail(this.state(room).heads.length,'ROOM_EMPTY','Sync this project before using memory',409);
-        const mapped=sharedMemoryInput(input,this.sharingPolicy?.(room).sharing??defaultSharing());const result=this.memory.run(room,mapped,principal);const labels=new Map([...this.credentials.values()].filter(c=>c.rooms.has(room)).map(c=>[c.id,c.label]));const decorate=item=>({...item,actorLabel:labels.get(item.actor?.split('/')[0])??item.actor});for(const key of ['tasks','notes','results','relatedConversations'])if(Array.isArray(result[key]))result[key]=result[key].map(decorate);this.send(res,200,{room,sourcePrefix:`@machines/${principal.id}/`,...decorate(result),workspaceSharing:this.sharingPolicy?.(room).sharing??defaultSharing()});return;
+        const mapped=sharedMemoryInput(input,this.sharingPolicy?.(room).sharing??defaultSharing());const result=await this.memory.retrieve(room,mapped,principal);principal=this.authorize(req,room,false);if(['remember','handoff','task_update'].includes(input.command)){this.memory.index(room);this.memory.semantic?.schedule(room);}const labels=new Map([...this.credentials.values()].filter(c=>c.rooms.has(room)).map(c=>[c.id,c.label]));const decorate=item=>({...item,actorLabel:labels.get(item.actor?.split('/')[0])??item.actor});for(const key of ['tasks','notes','results','relatedConversations'])if(Array.isArray(result[key]))result[key]=result[key].map(decorate);this.send(res,200,{room,sourcePrefix:`@machines/${principal.id}/`,...decorate(result),...(['search','context'].includes(input.command)?{retrieval:{...this.memory.retrievalSettings,...result.retrieval}}:{}),workspaceSharing:this.sharingPolicy?.(room).sharing??defaultSharing()});return;
       }
       if(action==='review') {
         fail(!this.referencesOnly||input.command!=='publish','GIT_ONLY','Code branches stay in Git',403);
@@ -130,6 +130,7 @@ export class RelayServer {
   }
   async close() {
     if(this.server.listening) await new Promise((resolve,reject)=>{this.server.close(error=>error?reject(error):resolve());this.server.closeAllConnections();});
-    this.engine.close();
+    while(this.active)await new Promise(resolve=>setTimeout(resolve,10));
+    await this.memory.semantic?.close();this.engine.close();
   }
 }

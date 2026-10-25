@@ -4,6 +4,8 @@ Shared project memory for AI coding agents. Preserve conversations, decisions, f
 
 One relay serves multiple projects and machines. Code stays in Git; memory references files and commits. Codex desktop, terminal and Codex in Zed are supported, with MCP access for other agents.
 
+Ask for context in natural language: self-hosted relays combine local semantic search with exact identifiers and return compact, cited evidence. [How retrieval works](docs/memory.md#semantic-retrieval).
+
 [Download installers](https://github.com/ywnzo/spooldb/releases/latest) · [Codex plugin](docs/codex-plugin.md)
 
 ## Get started

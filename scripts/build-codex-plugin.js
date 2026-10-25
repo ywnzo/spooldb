@@ -11,7 +11,9 @@ if(out===root||root.startsWith(out+'/'))throw Error('Build output must not conta
 rmSync(out,{recursive:true,force:true});const plugin=join(out,'plugins/spooldb'),app=join(plugin,'app');cpSync(join(root,'plugins/spooldb'),plugin,{recursive:true});mkdirSync(app,{recursive:true});
 for(const name of ['src','schemas','package.json','bun.lock','LICENSE'])cpSync(join(root,name),join(app,name),{recursive:true});
 cpSync(join(root,'plugins/spooldb'),join(app,'plugins/spooldb'),{recursive:true});
-copyProductionDependencies(root,app);
+// Shared semantic inference lives on the relay. Do not ship native inference/image
+// libraries (or platform-specific binaries) to every Codex client.
+copyProductionDependencies(root,app,{exclude:['@huggingface/transformers']});
 mkdirSync(join(app,'runtime'));
 for(const target of ['linux-x64','darwin-arm64']){
  const runtime=await fetchBunRuntime({target});

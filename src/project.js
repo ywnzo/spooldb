@@ -1,4 +1,5 @@
 import {localHistoryReader} from './local-history.js';
+import {defaultEmbeddings} from './memory/embeddings.js';
 import {repositoryAt} from './repository.js';
 import {projectRequest} from './project-request.js';
 import { mkdirSync, readFileSync, writeFileSync, renameSync, chmodSync, unlinkSync, existsSync } from 'node:fs';
@@ -44,7 +45,7 @@ export async function startProject(dir,{port=8787,intervalMs=2000,onEvent=()=>{}
     try {await projectRequest(dir,{command:'status'});throw new Error('Project service is already running');}
     catch(error){if(error.code!=='ECONNREFUSED')throw error;unlinkSync(socketPath);}
   }
-  const engine=new ShardedEngine(join(dir,'capture.sqlite')),bridge=new Bridge(engine),relay=new RelayServer(join(dir,'relay.sqlite'),{credentials:config.credentials});
+  const engine=new ShardedEngine(join(dir,'capture.sqlite')),bridge=new Bridge(engine),relay=new RelayServer(join(dir,'relay.sqlite'),{credentials:config.credentials,embeddings:await defaultEmbeddings()});
   const team=new TeamConnection(dir,relay.engine,config.room,config.root);
   let manager,discovery,closeDiscovery;const workspace=new WorkspaceClient(workspaceDirectory,{controlDirectory:dir,manager:async()=>manager});let lastSignature;let timer,busy=false,closing=false,cyclePromise=Promise.resolve(),runPromise=Promise.resolve(),activeRun;
   const integrationPath=join(dir,'integrations.json');
@@ -77,7 +78,7 @@ export async function startProject(dir,{port=8787,intervalMs=2000,onEvent=()=>{}
     await relay.close();engine.close();
   };
   try {
-    const app={state,teamConnect:input=>team.connect(input),teamState:()=>team.publicState(),localHistory:localHistoryReader(relay.memory,config.room,dir),memory:(input,actor='local-agent')=>team.config?team.memory(input):relay.memory.run(config.room,input,{id:actor}),getState:()=>({...state,team:team.publicState()}),review:input=>({protocol:'spool-relay/1',room:config.room,...relay.review.run(config.room,input,{id:'local-review'})}),connect:async()=>{state.codex.enabled=true;state.codex.status='connecting';save(integrationPath,{codex:true});lastNativePoll=0;await cycle();},disconnect:async()=>{state.codex.enabled=false;state.codex.status='disconnected';history.close();save(integrationPath,{codex:false});await cyclePromise;state.codex.status='disconnected';},capture:async()=>{lastNativePoll=0;return cycle();}};
+    const app={state,teamConnect:input=>team.connect(input),teamState:()=>team.publicState(),localHistory:localHistoryReader(relay.memory,config.room,dir),memory:(input,actor='local-agent')=>team.config?team.memory(input):(['search','context'].includes(input.command)&&input.query?relay.memory.retrieve(config.room,input,{id:actor}):relay.memory.run(config.room,input,{id:actor})),getState:()=>({...state,team:team.publicState()}),review:input=>({protocol:'spool-relay/1',room:config.room,...relay.review.run(config.room,input,{id:'local-review'})}),connect:async()=>{state.codex.enabled=true;state.codex.status='connecting';save(integrationPath,{codex:true});lastNativePoll=0;await cycle();},disconnect:async()=>{state.codex.enabled=false;state.codex.status='disconnected';history.close();save(integrationPath,{codex:false});await cyclePromise;state.codex.status='disconnected';},capture:async()=>{lastNativePoll=0;return cycle();}};
     if(manageProjects)manager=new ProjectManager(dir,{...app,state,close});
     relay.localHandler=localApp({discovery:input=>discoveryHandler?discoveryHandler(input):discovery.run(input),workspace:input=>workspace.run(input),invitePending:()=>readInbox(inviteInbox??join(dir,'pending-invite.json'))[0]??null,inviteDismiss:link=>dismissInvite(inviteInbox??join(dir,'pending-invite.json'),link),invitePreview:link=>previewInvite(link,{directory:dir}),inviteJoin:input=>joinInvite({directory:dir,manager,link:input.link,root:input.root,device:input.device,captureConversations:input.captureConversations!==false,connectAgents:input.connectAgents!==false}),teamHost:input=>hostRequest(process.env.SPOOL_TEAM_HOST??join(dirname(dir),'shared-relay'),input),connectAgents:project=>connectCodexMemory({directory:dir,discoveryDirectory:workspaceDirectory,room:project.id,root:project.root}),getAgentState:project=>codexMemoryState({directory:dir,discoveryDirectory:workspaceDirectory,root:project.root}),getOrigin:()=>state.origin,...app,projects:manager,memorySetup:project=>({mcpServers:{spool:{command:process.execPath,args:[fileURLToPath(new URL('./memory-mcp.js',import.meta.url)),dir,'--project',project.id]}}})});
     state.origin=await relay.listen({port});state.url=`${state.origin}/review/#room=${config.room}&branch=working&compare=main`;

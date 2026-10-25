@@ -25,6 +25,12 @@ test('local project opens without bearer credentials, blocks cross-site/rebindin
  const call=async(path,input)=>fetch(origin()+path,{method:'POST',headers,body:JSON.stringify(input)});
  assert.equal((await call('/local/review',{command:'branches'})).status,200);
  assert.equal((await call('/local/review',{command:'publish',name:'bad'})).status,403);
+ const saved=await service.app.memory({command:'remember',kind:'finding',title:'Local UI evidence',text:'Verified disposable evidence',requestId:'local-ui-note'});
+ assert.equal((await call('/local/memory',{command:'remember',kind:'finding',title:'Blocked',text:'Use agent tools'})).status,403);
+ assert.equal((await call('/local/memory/update',{id:saved.id,action:'archive',reason:'Replaced in this test',expectedRevision:0,requestId:'local-ui-archive'})).status,200);
+ assert.equal(service.app.memory({command:'get',id:saved.id}).lifecycle.status,'archived');
+ assert.equal((await call('/local/memory/update',{id:saved.id,action:'restore',reason:'Restore evidence',expectedRevision:1,requestId:'local-ui-restore'})).status,200);
+ assert.equal(service.app.memory({command:'get',id:saved.id}).lifecycle.status,'active');
  const connected=await call('/local/codex/connect',{});assert.equal(connected.status,200);assert.equal((await connected.json()).codex.status,'connected');assert.equal(polls,1);
  const timeline=await (await call('/local/review',{command:'timeline',branch:'working'})).json();assert.ok(timeline.entries.some(e=>e.messages.some(m=>m.text==='A captured native reply')));
  await service.close();service=await startProject(dir,{port:0,intervalMs:60000,history});assert.equal(service.state.codex.enabled,true);assert.ok(closed>0);

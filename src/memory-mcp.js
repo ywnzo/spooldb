@@ -5,6 +5,8 @@ import {readFileSync,readdirSync,realpathSync} from 'node:fs';
 import Ajv from 'ajv';
 import {discoveryRequest} from './discovery.js';
 import {projectRequest} from './project.js';
+import {updateMemoryInput} from './memory/lifecycle.js';
+import {compactMemory} from './memory/presentation.js';
 import {memoryTools,memoryCommands} from './memory/tools.js';
 import {digest} from './adapters/contract.js';
 const args=process.argv.slice(2),option=name=>{const index=args.indexOf(name);return index>=0?args[index+1]:undefined;};
@@ -37,12 +39,14 @@ async function handle(message){
   if(setupEnabled&&['history_read','history_complete'].includes(params.name)){const result=await setupModule.pluginSetup(directory,{...input,action:params.name==='history_read'?'history':'retrospective',...(params.name==='history_complete'?{confirm:true}:{})},{cwd:currentCwd,pluginRoot:process.env.SPOOL_PLUGIN_ROOT});return send({content:[{type:'text',text:JSON.stringify(result)}],structuredContent:result,isError:false});}
   if(setupEnabled&&params.name==='spool_setup'){const result=await setupModule.pluginSetup(directory,input,{cwd:currentCwd,pluginRoot:process.env.SPOOL_PLUGIN_ROOT});if(result.root)currentCwd=result.root;return send({content:[{type:'text',text:JSON.stringify(result)}],structuredContent:result,isError:false});}
   const command=memoryCommands[params.name],write=['remember','task_update','handoff'].includes(command);
+  if(write&&(params.name==='memory_update'||input.supersedes?.length||input.resolves?.length)){const scope=await request({command:'context'});if(!scope.memoryLifecycle)throw Error('Upgrade the relay to v0.4.27 or newer before changing memory lifecycle state. No cleanup was applied.');}
   let sessionId=process.env.CODEX_THREAD_ID??transportId;
   if(directory&&/^codex-[a-f0-9]{24}$/.test(input.taskId??'')){
    const resolved=args.includes('--discover')?await discoveryRequest(directory,{command:'resolve',cwd:currentCwd}):null;const folder=join(resolved?.controlDirectory??directory,'lifecycle');let candidates=[];try{candidates=readdirSync(folder).filter(name=>name.startsWith(input.taskId.slice(6))&&name.endsWith('.json'));}catch(error){if(error.code!=='ENOENT')throw error;}
    if(candidates.length===1){const state=JSON.parse(readFileSync(join(folder,candidates[0]),'utf8'));if(state.sessionId&&digestSession(state.sessionId).slice(0,24)===input.taskId.slice(6)&&realpathSync(state.root)===realpathSync(currentCwd)){if(state.ignored)throw new Error('Background suggestion sessions do not write project memory');sessionId=state.sessionId;}}
   }
-  const result=await request({...input,command,...(write?{sessionId,requestId:input.requestId??`mcp-${digest([transportId,id,params.name,input])}`}:{})});
+  let result=await request({...((params.name==='memory_update')?updateMemoryInput(input):input),command,...(write?{sessionId,requestId:input.requestId??`mcp-${digest([transportId,id,params.name,input])}`}:{})});
+  if(['search','context'].includes(command)&&input.compact!==false)result=compactMemory(result,{maxChars:input.maxChars??result.retrieval?.contextChars??6000,offset:input.offset??0});
   send({content:[{type:'text',text:JSON.stringify(result)}],structuredContent:result,isError:false});
  }catch(error){if(method==='tools/call')send({content:[{type:'text',text:error.message}],isError:true});else process.stdout.write(JSON.stringify({jsonrpc:'2.0',id,error:{code:-32602,message:error.message}})+'\n');}
 }

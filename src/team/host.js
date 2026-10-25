@@ -1,4 +1,6 @@
 import {relayAdminRequest} from './relay-admin.js';
+import {RetrievalSettings} from '../memory/settings.js';
+import {defaultEmbeddings} from '../memory/embeddings.js';
 import {deleteSharedConversations} from './conversation-deletion.js';
 import {mkdirSync,readFileSync,writeFileSync,renameSync,existsSync,chmodSync,unlinkSync} from 'node:fs';
 import {join,resolve} from 'node:path';
@@ -10,19 +12,23 @@ import {readJson,RelayError} from '../relay/wire.js';
 import {localCertificate} from './tls.js';
 import {RelayServer,createCredential} from '../relay/server.js';
 export function hostRequest(dir,input){return new Promise((resolve,reject)=>{const socket=createConnection(join(dir,'admin.sock'));let text='';const timer=setTimeout(()=>{socket.destroy();reject(new Error('Shared host request timed out'));},15000);socket.on('connect',()=>socket.write(JSON.stringify(input)+'\n'));socket.on('data',chunk=>{text+=chunk;if(text.length>1000000){socket.destroy();return reject(new Error('Host response too large'));}if(text.includes('\n')){clearTimeout(timer);socket.end();try{const value=JSON.parse(text.split('\n')[0]);value.error?reject(new Error(value.error)):resolve(value);}catch(error){reject(error);}}});socket.on('error',error=>{clearTimeout(timer);reject(error);});});}
-export async function startTeamHost(dir,{port=8878,host='127.0.0.1',publicOrigin,tls=false,relayAdmin=relayAdminRequest}={}){
+export async function startTeamHost(dir,{port=8878,host='127.0.0.1',publicOrigin,tls=false,relayAdmin=relayAdminRequest,embeddings}={}){
  dir=resolve(dir);mkdirSync(dir,{recursive:true,mode:0o700});const configPath=join(dir,'host.json'),socketPath=join(dir,'admin.sock');
  if(existsSync(socketPath)){try{await hostRequest(dir,{command:'list'});throw new Error('Shared relay already running');}catch(error){if(error.code!=='ECONNREFUSED')throw error;unlinkSync(socketPath);}}
- const config=existsSync(configPath)?JSON.parse(readFileSync(configPath)):{projects:[],credentials:[]};const certificate=tls?localCertificate(dir,{dnsNames:publicOrigin?[new URL(publicOrigin).hostname]:[]}):undefined;const relay=new RelayServer(join(dir,'shared.sqlite'),{credentials:config.credentials,tls:certificate,referencesOnly:true,version:JSON.parse(readFileSync(new URL('../../package.json',import.meta.url))).version,maintenance:()=>existsSync(join(dir,'.spool-update-gate'))});
+ const config=existsSync(configPath)?JSON.parse(readFileSync(configPath)):{projects:[],credentials:[]};const certificate=tls?localCertificate(dir,{dnsNames:publicOrigin?[new URL(publicOrigin).hostname]:[]}):undefined;const relay=new RelayServer(join(dir,'shared.sqlite'),{credentials:config.credentials,tls:certificate,referencesOnly:true,embeddings:embeddings===undefined?await defaultEmbeddings({cacheDir:join(dir,'models')}):embeddings,version:JSON.parse(readFileSync(new URL('../../package.json',import.meta.url))).version,maintenance:()=>existsSync(join(dir,'.spool-update-gate'))});
  if(relay.engine.db.prepare("SELECT 1 FROM shard_changes WHERE doc LIKE 'f:%' LIMIT 1").get()){await relay.close();throw new Error('Legacy source snapshots exist. Stop the relay and run src/team/migrate-memory-only.js with a backup directory outside relay storage.');}
  relay.engine.db.exec('CREATE TABLE IF NOT EXISTS team_projects(room TEXT PRIMARY KEY,name TEXT,creator TEXT,request_id TEXT,UNIQUE(creator,request_id))');
  for(const project of config.projects)relay.engine.db.prepare('INSERT OR IGNORE INTO team_projects VALUES(?,?,NULL,NULL)').run(project.room,project.name);
  const projectList=()=>relay.engine.db.prepare('SELECT room,name FROM team_projects ORDER BY rowid').all();config.projects=projectList();
+ // Existing history should be ready before the first chat asks for it. This is
+ // rebuildable background work; HTTP setup and ordinary writes do not wait for inference.
+ const retrieval=new RetrievalSettings(relay.memory,{projects:projectList,provider:options=>embeddings===undefined?defaultEmbeddings({...options,cacheDir:join(dir,'models')}):embeddings});
  const save=()=>{relay.setCredentials(config.credentials);writeFileSync(configPath+'.tmp',JSON.stringify(config,null,2)+'\n',{mode:0o600});renameSync(configPath+'.tmp',configPath);relay.setCredentials(config.credentials);};
  const origin=await relay.listen({port,host}),url=publicOrigin??origin;
  let invites;const refresh=()=>{config.credentials=invites.credentials();save();};invites=new InviteStore(relay.engine,dir,{legacy:config.credentials,projects:()=>config.projects,origin:()=>url,ca:certificate?.ca,onChange:refresh});refresh();
  relay.inviteHandler=async(req,res,path)=>{if(!['/v1/invites/preview','/v1/invites/redeem'].includes(path))return false;if(req.method!=='POST')throw new RelayError('METHOD','Use POST',405);const match=/^Invite ([-A-Za-z0-9_]{43})$/.exec(req.headers.authorization??'');if(!match)throw new RelayError('INVITE_REQUIRED','Invite required',401);const body=await readJson(req,10000);const result=path.endsWith('/preview')?invites.preview(match[1]):invites.redeem(match[1],body);relay.send(res,200,result);return true;};
  let workspace;const command=input=>{
+  if(input.command==='retrieval')return retrieval.run(input);
   if(input.command==='workspace-init')return workspace.init(input.name);
   if(input.command==='workspace-owner-invite')return workspace.invite({label:'Owner recovery',role:'owner',canCreate:true});
   if(input.command==='list')return {url,projects:config.projects.map(p=>({...p,members:config.credentials.filter(c=>c.rooms[p.room]).map(c=>({id:c.id,label:c.label,role:c.rooms[p.room]}))}))};
@@ -39,7 +45,7 @@ export async function startTeamHost(dir,{port=8878,host='127.0.0.1',publicOrigin
   if(input.command==='revoke'){invites.revoke(project.room,input.memberId);return {revoked:true};}
   throw new Error('Unknown shared host action');
  };
- workspace=new WorkspaceStore(relay.engine,dir,{projects:projectList,command,invites,origin:()=>url,ca:certificate?.ca,refresh,relayAdmin,conversationDeletion:(room,input)=>deleteSharedConversations(relay.engine,room,input)});
+ workspace=new WorkspaceStore(relay.engine,dir,{projects:projectList,command,invites,origin:()=>url,ca:certificate?.ca,refresh,relayAdmin,retrieval:input=>retrieval.run(input),conversationDeletion:(room,input)=>deleteSharedConversations(relay.engine,room,input)});
  relay.sharingPolicy=room=>workspace.projectSharing(room);
  const projectInvites=relay.inviteHandler;relay.inviteHandler=async(req,res,path)=>{
   if(!path.startsWith('/v1/workspace/'))return projectInvites(req,res,path);
@@ -58,5 +64,5 @@ export async function startTeamHost(dir,{port=8878,host='127.0.0.1',publicOrigin
  };
  const admin=createServer(socket=>{let text='',handled=false;socket.setTimeout(15000,()=>socket.destroy());socket.on('error',()=>{});socket.on('data',chunk=>{if(handled)return;text+=chunk;if(text.length>10000){socket.destroy();return;}if(!text.includes('\n'))return;handled=true;try{socket.end(JSON.stringify(command(JSON.parse(text.split('\n')[0])))+'\n');}catch(error){socket.end(JSON.stringify({error:error.message})+'\n');}});});
  await new Promise((resolve,reject)=>{admin.once('error',reject);admin.listen(socketPath,resolve);});chmodSync(socketPath,0o600);save();
- return {relay,origin:url,command,close:async()=>{await new Promise(r=>admin.close(r));if(existsSync(socketPath))unlinkSync(socketPath);await relay.close();}};
+ return {relay,origin:url,command,close:async()=>{await new Promise(r=>admin.close(r));if(existsSync(socketPath))unlinkSync(socketPath);await retrieval.close();await relay.close();}};
 }

@@ -1,3 +1,5 @@
+import {updateMemoryInput} from '../memory/lifecycle.js';
+import {compactMemory} from '../memory/presentation.js';
 import {memoryTools,memoryCommands} from '../memory/tools.js';
 import * as validators from '../memory/tool-validators.js';
 import {digest} from '../adapters/contract.js';
@@ -57,8 +59,9 @@ export async function remoteMcp(req,env,ctx){
   if(!joined.ok)return send({content:[{type:'text',text:'Project access was revoked or is unavailable'}],isError:true});
   target=(await joined.json()).connection;
  }
- const body={...input,command,...(write?{sessionId:'remote-mcp-'+ctx.auth.userId,requestId:input.requestId??'remote-mcp-'+digest([ctx.auth.userId,message.id,tool.name,input])}:{})};
- const response=await projectMemory(env,origin,target,body),data=await response.json();
+ const body={...(tool.name==='memory_update'?updateMemoryInput(input):input),command,...(write?{sessionId:'remote-mcp-'+ctx.auth.userId,requestId:input.requestId??'remote-mcp-'+digest([ctx.auth.userId,message.id,tool.name,input])}:{})};
+ const response=await projectMemory(env,origin,target,body);let data=await response.json();
  if(!response.ok)return send({content:[{type:'text',text:data.error?.message??'Project memory request failed'}],isError:true});
+ if(['search','context'].includes(command)&&input.compact!==false)data=compactMemory(data,{maxChars:input.maxChars??data.retrieval?.contextChars??6000,offset:input.offset??0});
  return send({content:[{type:'text',text:JSON.stringify(data)}],structuredContent:{...data,project:{id:selected.id,name:selected.name}},isError:false});
 }

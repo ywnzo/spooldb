@@ -47,7 +47,7 @@ test('remote OAuth MCP in workerd: consent, PKCE, context, handoffs, scope isola
  let tokens=await authorize();
  let id=0;const mcp=async(method,params={},access=tokens.access_token,status=200)=>(await request('/mcp',{jsonrpc:'2.0',id:++id,method,params},{authorization:'Bearer '+access},status)).data;
  const initialized=await mcp('initialize',{protocolVersion:'2025-11-25'});assert.equal(initialized.result.serverInfo.name,'spool-project-memory');
- const list=await mcp('tools/list');assert.equal(list.result.tools.length,8);assert.ok(!list.result.tools.some(t=>t.name==='file_read'));assert.equal(list.result.tools.find(t=>t.name==='handoff').securitySchemes[0].type,'oauth2');
+ const list=await mcp('tools/list');assert.equal(list.result.tools.length,9);assert.ok(!list.result.tools.some(t=>t.name==='file_read'));assert.equal(list.result.tools.find(t=>t.name==='handoff').securitySchemes[0].type,'oauth2');
  const tool=async(name,args={},access=tokens.access_token,status=200)=>mcp('tools/call',{name,arguments:args},access,status);
  const context=await tool('project_context');assert.match(JSON.stringify(context),/Shipping calculation/);
  const bad=await tool('project_context',{room:other.room});assert.equal(bad.error.code,-32602);

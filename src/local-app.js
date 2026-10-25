@@ -1,4 +1,5 @@
 import {randomBytes,timingSafeEqual} from 'node:crypto';
+import {updateMemoryInput} from './memory/lifecycle.js';
 import {readJson,RelayError} from './relay/wire.js';
 const fail=(ok,message,status=403)=>{if(!ok)throw new RelayError('LOCAL_ACCESS',message,status);};
 export function localApp({discovery,workspace,getOrigin,getState,review,connect,disconnect,capture,projects,memory,memorySetup,connectAgents,getAgentState,teamConnect,teamState,teamHost,invitePending,inviteDismiss,invitePreview,inviteJoin}){
@@ -47,6 +48,7 @@ export function localApp({discovery,workspace,getOrigin,getState,review,connect,
       const app=await selected(req,session);
       if(path==='/local/team/connect'){send(200,await action(()=>app.teamConnect(input)));}
       else if(path==='/local/agents/connect'&&connectAgents){send(200,await action(()=>connectAgents(app.getState())));}
+      else if(path==='/local/memory/update'){send(200,await action(()=>app.memory(updateMemoryInput(input),'web-user')));}
       else if(path==='/local/memory'){fail(!['remember','task_update','handoff'].includes(input.command),'Memory writes are available through the agent tools.');send(200,await app.memory(input));}
       else if(path==='/local/review'){fail(input?.command!=='publish','Local review is read-only.');send(200,app.review(input));}
       else if(path==='/local/codex/connect'){await app.connect();send(200,app.getState());}

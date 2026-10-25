@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+import {defaultEmbeddings} from './memory/embeddings.js';
 import { readFileSync } from 'node:fs';
 import { RelayServer,createCredential } from './relay/index.js';
 
@@ -17,7 +18,7 @@ if(process.argv[2]==='backup') {
   if(!filename||!configPath||args.some(a=>!/^--(?:host|port)=.+$/.test(a))) throw new Error('See --help for relay arguments');
   const value=(name,fallback)=>args.find(a=>a.startsWith(`--${name}=`))?.slice(name.length+3)??fallback;
   const port=Number(value('port','8787'));if(!Number.isSafeInteger(port)||port<0||port>65535) throw new Error('Invalid port');
-  const config=JSON.parse(readFileSync(configPath,'utf8'));const relay=new RelayServer(filename,config);
+  const config=JSON.parse(readFileSync(configPath,'utf8'));const relay=new RelayServer(filename,{...config,embeddings:await defaultEmbeddings()});
   let stopping=false;
   const stop=async()=>{if(stopping)return;stopping=true;await relay.close();};
   process.once('SIGINT',stop);process.once('SIGTERM',stop);

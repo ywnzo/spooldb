@@ -1,6 +1,6 @@
 {
   "name": "spooldb",
-  "version": "0.4.26",
+  "version": "0.4.27",
   "private": true,
   "description": "Local-first code and conversation history, independent of agent harnesses",
   "type": "module",
@@ -32,7 +32,7 @@
   },
   "scripts": {
     "build:installer": "bun scripts/build-linux-installer.js",
-    "test": "bun test --timeout 30000 test/",
+    "test": "SPOOL_EMBEDDINGS=off bun test --timeout 30000 test/",
     "demo": "bun examples/offline-merge.js",
     "demo:git": "bun examples/git-bridge.js",
     "demo:review": "bun examples/review-demo.js",
@@ -41,8 +41,9 @@
     "benchmark:large": "bun benchmarks/run.js --large --no-gc --output=benchmarks/large-results.json",
     "benchmark:million": "bun benchmarks/million.js",
     "benchmark:relay": "bun benchmarks/relay.js",
-    "test:bun": "bun test --timeout 30000 test/",
-    "test:cloudflare": "bun test --timeout 30000 test/cloudflare.test.js test/remote-mcp.test.js",
+    "benchmark:retrieval": "bun benchmarks/retrieval.js --output=work/retrieval-results.json",
+    "test:bun": "SPOOL_EMBEDDINGS=off bun test --timeout 30000 test/",
+    "test:cloudflare": "SPOOL_EMBEDDINGS=off bun test --timeout 30000 test/cloudflare.test.js test/remote-mcp.test.js",
     "deploy:cloudflare": "bun src/cli.js deploy cloudflare",
     "generate:schemas": "bun scripts/generate-event-validator.js",
     "build:cloudflare": "bun node_modules/wrangler/bin/wrangler.js deploy --dry-run --outdir work/cloudflare-build",
@@ -53,6 +54,7 @@
   "dependencies": {
     "@automerge/automerge": "3.5.0",
     "@cloudflare/workers-oauth-provider": "1.2.4",
+    "@huggingface/transformers": "3.8.1",
     "ajv": "8.20.0"
   },
   "devDependencies": {
@@ -61,6 +63,10 @@
     "wrangler": "4.152.0"
   },
   "imports": {
+    "#spool-local-embeddings": {
+      "workerd": "./src/memory/no-local-embeddings.js",
+      "default": "./src/memory/local-embeddings.js"
+    },
     "#spool-sqlite": {
       "workerd": "./src/cloudflare/no-node-sqlite.js",
       "default": "./src/sqlite.js"

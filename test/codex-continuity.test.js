@@ -48,3 +48,13 @@ test('app-generated composer requests neither create tasks nor trigger Stop chec
  await runHook({...options,event:'UserPromptSubmit',input:{...input,prompt:'This is an app-generated request for a suggested next user message. The user did not write this message.\nSuggest a reply.'}});
  assert.deepEqual(await runHook({...options,event:'Stop',input}),{});assert.equal(calls,0);
 });
+
+test('prompt retrieval runs once, stays compact, and sends unchanged evidence only once until resume',async t=>{
+ const base=mkdtempSync(join(tmpdir(),'spool-context-budget-'));t.after(()=>rmSync(base,{recursive:true,force:true}));const calls=[];
+ const request=async(_,message)=>{calls.push(message.input);if(message.input.command==='context')return {tasks:[],notes:[]};if(message.input.command==='task_update')return {revision:1};return {room:'test',results:[{id:'finding',kind:'finding',title:'Shipping calculation',text:'The delivery charge was added twice.',reconciliation:{status:'matching',message:'Check evidence'}}],retrieval:{mode:'hybrid',semanticStatus:'ready'}};};
+ const options={directory:base,room:'test',root:base,request},input={cwd:base,session_id:'session',turn_id:'turn'};
+ await runHook({...options,event:'SessionStart',input});assert.equal(calls.length,0);
+ const first=await runHook({...options,event:'UserPromptSubmit',input:{...input,prompt:'Why is the shipping total wrong?'}});assert.equal(calls.filter(call=>call.command==='context').length,1);assert.equal(calls.filter(call=>call.command==='search').length,1);assert.match(first.hookSpecificOutput.additionalContext,/added twice/);assert.ok(first.hookSpecificOutput.additionalContext.length<6000);
+ const second=await runHook({...options,event:'UserPromptSubmit',input:{...input,turn_id:'turn-2',prompt:'Continue checking'}});assert.ok(!second.hookSpecificOutput.additionalContext.includes('added twice'));
+ await runHook({...options,event:'SessionStart',input});const resumed=await runHook({...options,event:'UserPromptSubmit',input:{...input,turn_id:'turn-3',prompt:'Continue'}});assert.match(resumed.hookSpecificOutput.additionalContext,/added twice/);
+});
