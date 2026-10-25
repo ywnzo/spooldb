@@ -1,3 +1,4 @@
+import {relayAdminRequest} from './relay-admin.js';
 import {deleteSharedConversations} from './conversation-deletion.js';
 import {mkdirSync,readFileSync,writeFileSync,renameSync,existsSync,chmodSync,unlinkSync} from 'node:fs';
 import {join,resolve} from 'node:path';
@@ -9,7 +10,7 @@ import {readJson,RelayError} from '../relay/wire.js';
 import {localCertificate} from './tls.js';
 import {RelayServer,createCredential} from '../relay/server.js';
 export function hostRequest(dir,input){return new Promise((resolve,reject)=>{const socket=createConnection(join(dir,'admin.sock'));let text='';const timer=setTimeout(()=>{socket.destroy();reject(new Error('Shared host request timed out'));},15000);socket.on('connect',()=>socket.write(JSON.stringify(input)+'\n'));socket.on('data',chunk=>{text+=chunk;if(text.length>1000000){socket.destroy();return reject(new Error('Host response too large'));}if(text.includes('\n')){clearTimeout(timer);socket.end();try{const value=JSON.parse(text.split('\n')[0]);value.error?reject(new Error(value.error)):resolve(value);}catch(error){reject(error);}}});socket.on('error',error=>{clearTimeout(timer);reject(error);});});}
-export async function startTeamHost(dir,{port=8878,host='127.0.0.1',publicOrigin,tls=false}={}){
+export async function startTeamHost(dir,{port=8878,host='127.0.0.1',publicOrigin,tls=false,relayAdmin=relayAdminRequest}={}){
  dir=resolve(dir);mkdirSync(dir,{recursive:true,mode:0o700});const configPath=join(dir,'host.json'),socketPath=join(dir,'admin.sock');
  if(existsSync(socketPath)){try{await hostRequest(dir,{command:'list'});throw new Error('Shared relay already running');}catch(error){if(error.code!=='ECONNREFUSED')throw error;unlinkSync(socketPath);}}
  const config=existsSync(configPath)?JSON.parse(readFileSync(configPath)):{projects:[],credentials:[]};const certificate=tls?localCertificate(dir,{dnsNames:publicOrigin?[new URL(publicOrigin).hostname]:[]}):undefined;const relay=new RelayServer(join(dir,'shared.sqlite'),{credentials:config.credentials,tls:certificate,referencesOnly:true,version:JSON.parse(readFileSync(new URL('../../package.json',import.meta.url))).version,maintenance:()=>existsSync(join(dir,'.spool-update-gate'))});
@@ -38,7 +39,7 @@ export async function startTeamHost(dir,{port=8878,host='127.0.0.1',publicOrigin
   if(input.command==='revoke'){invites.revoke(project.room,input.memberId);return {revoked:true};}
   throw new Error('Unknown shared host action');
  };
- workspace=new WorkspaceStore(relay.engine,dir,{projects:projectList,command,invites,origin:()=>url,ca:certificate?.ca,refresh,conversationDeletion:(room,input)=>deleteSharedConversations(relay.engine,room,input)});
+ workspace=new WorkspaceStore(relay.engine,dir,{projects:projectList,command,invites,origin:()=>url,ca:certificate?.ca,refresh,relayAdmin,conversationDeletion:(room,input)=>deleteSharedConversations(relay.engine,room,input)});
  relay.sharingPolicy=room=>workspace.projectSharing(room);
  const projectInvites=relay.inviteHandler;relay.inviteHandler=async(req,res,path)=>{
   if(!path.startsWith('/v1/workspace/'))return projectInvites(req,res,path);
@@ -49,6 +50,11 @@ export async function startTeamHost(dir,{port=8878,host='127.0.0.1',publicOrigin
   if(path.endsWith('/action')){const match=/^Workspace ([A-Za-z0-9_-]{43})$/.exec(req.headers.authorization??'');result=await workspace.run(workspace.authorize(match?.[1]),body);}
   else{const match=/^Invite ([A-Za-z0-9_-]{43})$/.exec(req.headers.authorization??'');if(!match)throw new RelayError('INVITE_REQUIRED','Workspace invitation required',401);result=path.endsWith('/preview')?workspace.preview(match[1]):workspace.enroll(match[1],body);}
   relay.send(res,200,result);return true;
+ };
+ relay.maintenanceHandler=async(req,res,path)=>{
+  if(path!=='/v1/workspace/action'||req.method!=='POST')return false;
+  const body=await readJson(req,20000);if(body.command!=='relay-admin')throw new RelayError('UPDATING','Relay update in progress; retry shortly',503);
+  const match=/^Workspace ([A-Za-z0-9_-]{43})$/.exec(req.headers.authorization??'');relay.send(res,200,await workspace.run(workspace.authorize(match?.[1]),body));return true;
  };
  const admin=createServer(socket=>{let text='',handled=false;socket.setTimeout(15000,()=>socket.destroy());socket.on('error',()=>{});socket.on('data',chunk=>{if(handled)return;text+=chunk;if(text.length>10000){socket.destroy();return;}if(!text.includes('\n'))return;handled=true;try{socket.end(JSON.stringify(command(JSON.parse(text.split('\n')[0])))+'\n');}catch(error){socket.end(JSON.stringify({error:error.message})+'\n');}});});
  await new Promise((resolve,reject)=>{admin.once('error',reject);admin.listen(socketPath,resolve);});chmodSync(socketPath,0o600);save();

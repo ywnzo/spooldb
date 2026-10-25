@@ -40,6 +40,6 @@ export class WorkspaceClient{
    if(input.connectAgents!==false)try{await this.connector({directory:this.controlDirectory,room:added.project.id,root:added.project.root});}catch(error){agentError=error.message;}
    return {joined:true,project:added.project,existingConnection,captureError,agentError};
   }
-  let result;try{result=await workspaceRequest(this.connection,'action',input);}catch(error){if(input.command==='delete-conversations'&&error.code==='WORKSPACE_ACTION')throw new RelayError('UPDATE_REQUIRED','This relay needs v0.4.12 or newer for conversation deletion. No data was deleted.',426);throw error;}return {...result,connected:true,relay:this.connection.url};
+  let result;try{result=await workspaceRequest(this.connection,'action',input);}catch(error){if(input.command==='relay-admin'&&error.code==='WORKSPACE_ACTION')return {supported:false,message:'Upgrade the relay to v0.4.18 or newer to enable host maintenance.'};if(input.command==='delete-conversations'&&error.code==='WORKSPACE_ACTION')throw new RelayError('UPDATE_REQUIRED','This relay needs v0.4.12 or newer for conversation deletion. No data was deleted.',426);throw error;}return {...result,connected:true,relay:this.connection.url};
  }
 }

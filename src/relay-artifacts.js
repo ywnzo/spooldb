@@ -34,7 +34,7 @@ export function pruneRelayArtifacts(configPath,{run=rootRun,now=Date.now(),dryRu
   apps.add(resolve(value.app));tags.add(value.image);requiredTags.add(value.image);
  }
  protect(config);
- for(const name of ['last-relay-update.json','relay-update-journal.json','last-relay-install.json']){
+ for(const name of ['last-relay-update.json','relay-update-journal.json','last-relay-install.json','relay-control-runtime.json']){
   const ref=optional(join(root,name));if(!ref)continue;
   const previous=name==='relay-update-journal.json'?ref.old:ref.previous;
   protect(previous);if(ref.config)protect(ref.config);

@@ -185,6 +185,8 @@ export async function runManagement(args,{input=process.stdin,output=process.std
   const preferences=join(state,'cli.json'),projectId=options.project??(existsSync(preferences)?JSON.parse(readFileSync(preferences)).project:null),directory=existsSync(join(state,'project.json'))?state:join(state,'p');print(await projectRequest(directory,{command:'memory',projectId,actor:'spool-cli',input:body}));return;
  }
  if(group==='server'){
+  if(action==='control'){const {startRelayControl}=await import('./relay-control.js');await startRelayControl(process.env.SPOOL_CONTAINER_CONFIG??'/opt/spooldb/containers.json');return;}
+
   if(action==='setup'){const {interactiveServerSetup}=await import('./server-setup.js');await interactiveServerSetup();return;}
   let request;if(action==='status')request={command:'list'};
   if(action==='workspace'&&rest[0]==='init')request={command:'workspace-init',name:need(rest[1],'Specify the workspace name')};

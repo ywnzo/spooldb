@@ -64,3 +64,12 @@ Only SpoolDB relay tags and recognized installer release directories are eligibl
 New backups record their original release and image. Older retained backups may lack that association; if it cannot be recovered from existing rollback records, image/release cleanup waits until backup retention expires those backups. This preserves rollback resources rather than guessing. Details appear in `artifactCleanup.errors`. Legacy image names and self-contained release layouts are recognized conservatively, and directory symlinks are skipped.
 
 A power loss or forced process termination leaves a transaction journal and blocks further updates. Run `sudo spool update recover` to restore an unfinished transaction, or finish an already committed update without discarding accepted writes. Inspect `/opt/spooldb/relay-updates.json` and the journal before retrying a quarantined release. This updater covers the managed VPS relay; Cloudflare deployments and separately managed installations keep their own deployment process.
+
+
+### Manage the relay from Settings
+
+With a v0.4.18 or newer client and managed Docker/Podman VPS relay, open **Settings → Relay** while connected as a workspace owner. The page shows relay version, running status, free disk space, scheduled updates and recent maintenance results. Check for releases, install an update, enable or disable daily updates, and set backup and application/image retention limits there. These settings apply to the entire relay, across all workspaces and projects.
+
+**Preview cleanup** reports eligible backups, images and application releases before confirmation. The server checks the preview again under its maintenance lock; if eligible resources change, request another preview. Current and rollback resources remain protected regardless of retention limits. Interrupted updates offer recovery when no maintenance process is still running. Jobs run in the background and survive closing the browser.
+
+New managed installations include these controls. Existing managed VPS installations need one upgrade to v0.4.18 or newer to install the host controller; subsequent maintenance can be done in the UI. The container connects to a narrowly scoped root service over a Unix socket in a read-only directory mount. No container-engine socket is exposed. Only authenticated workspace owners can invoke its fixed maintenance actions; project tokens and other workspace roles cannot. Cloudflare and independently managed deployments show that host maintenance is unavailable and retain their existing deployment tools.

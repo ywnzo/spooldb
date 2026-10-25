@@ -58,11 +58,11 @@ export class RelayServer {
     try {
       if(req.url==='/healthz'&&req.method==='GET') {this.send(res,200,{ok:true,...(this.version?{version:this.version,updating:this.maintenance()}: {})});return;}
       const reviewUrl=new URL(req.url,'http://localhost');
-      if(this.maintenance()){res.setHeader('retry-after','30');this.send(res,503,{error:{code:'UPDATING',message:'Relay update in progress; retry shortly'}});return;}
+      if(this.maintenance()){if(this.maintenanceHandler&&await this.maintenanceHandler(req,res,reviewUrl.pathname))return;res.setHeader('retry-after','30');this.send(res,503,{error:{code:'UPDATING',message:'Relay update in progress; retry shortly'}});return;}
       if(this.inviteHandler&&await this.inviteHandler(req,res,reviewUrl.pathname))return;
       if(this.localHandler&&await this.localHandler(req,res,reviewUrl.pathname))return;
       if(reviewUrl.pathname==='/review'&&req.method==='GET') {res.writeHead(308,{location:`/review/${reviewUrl.search}`,'cache-control':'no-store'});res.end();return;}
-      const asset={'/review/':'index.html','/review/discovery.js':'discovery.js','/review/workspace.js':'workspace.js','/review/app.js':'app.js','/review/settings.js':'settings.js','/review/kiln.css':'kiln.css','/review/style.css':'style.css'}[reviewUrl.pathname];
+      const asset={'/review/':'index.html','/review/discovery.js':'discovery.js','/review/workspace.js':'workspace.js','/review/app.js':'app.js','/review/settings.js':'settings.js','/review/relay-settings.js':'relay-settings.js','/review/kiln.css':'kiln.css','/review/style.css':'style.css'}[reviewUrl.pathname];
       if(asset&&req.method==='GET') {
         const body=readFileSync(new URL(`../review/public/${asset}`,import.meta.url));const type=asset.endsWith('.html')?'text/html':asset.endsWith('.js')?'text/javascript':'text/css';
         res.writeHead(200,{'content-type':`${type}; charset=utf-8`,'cache-control':'no-store','content-security-policy':"default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",'x-content-type-options':'nosniff','referrer-policy':'no-referrer','content-length':body.length});res.end(body);return;
