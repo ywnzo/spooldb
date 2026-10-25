@@ -1,6 +1,6 @@
 {
   "name": "spooldb",
-  "version": "0.4.13",
+  "version": "0.4.14",
   "description": "Connect a project once. Automatically capture Codex conversations and share findings and handoffs with your team.",
   "license": "MIT",
   "skills": "./skills/",
