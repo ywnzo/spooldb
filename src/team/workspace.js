@@ -46,16 +46,19 @@ export class WorkspaceStore{
     fail(!input.room,'REPOSITORY_MODE','Creating a project cannot select an existing project');
     fail(typeof input.requestId==='string'&&input.requestId.length>0&&input.requestId.length<=120,'REQUEST_ID','Project creation needs a retry key');
     fail(this.admin(member)||member.can_create,'WORKSPACE_FORBIDDEN','You cannot create workspace projects',403);
+    const prior=this.db.prepare('SELECT room,name FROM team_projects WHERE creator=? AND request_id=?').get(member.id,input.requestId);
+    if(prior)fail(prior.name===input.name?.trim()&&linked.some(p=>p.room===prior.room),'REQUEST_CONFLICT','Project creation retry changed name or repository identity',409);
+    if(linked.length&&!prior){fail(available.length,'WORKSPACE_FORBIDDEN','This repository already has a shared project. Request an invitation to join it; no duplicate was created.',403);fail(false,'REPOSITORY_EXISTS','This repository already belongs to '+available.map(p=>JSON.stringify(p.name)).join(', ')+'. Ask to join the existing shared project; no duplicate was created.',409);}
     const result=this.command({command:'create',name:input.name,creator:member.id,requestId:input.requestId,repositoryKey:input.repositoryKey});fail(this.db.prepare('SELECT 1 FROM workspace_repository_links WHERE repository_key=? AND room=?').get(input.repositoryKey,result.project.room),'REQUEST_CONFLICT','Project creation retry changed repository identity',409);this.db.prepare("INSERT OR IGNORE INTO workspace_grants VALUES(?,?,'admin')").run(member.id,result.project.room);return {...result,matched:false,enrollmentMode:'create'};
    }
    if(input.room){
     const existing=linked.some(p=>p.room===input.room),role=this.projectRole(member,input.room),project=this.projects().find(p=>p.room===input.room);
     fail(project&&role,'WORKSPACE_FORBIDDEN','Project access required',403);
-    if(!existing){fail(role==='admin','WORKSPACE_FORBIDDEN','Project admin access required to link its repository',403);this.db.prepare('INSERT INTO workspace_repository_links VALUES(?,?)').run(input.repositoryKey,project.room);}
+    if(!existing){fail(!linked.length,'REPOSITORY_EXISTS','This repository already has a shared project. Join that project instead of linking another one.',409);fail(role==='admin','WORKSPACE_FORBIDDEN','Project admin access required to link its repository',403);this.db.prepare('INSERT INTO workspace_repository_links VALUES(?,?)').run(input.repositoryKey,project.room);}
     return {project,matched:existing};
    }
    fail(input.mode!=='join','REPOSITORY_CHOICE_REQUIRED','Choose the shared project to join',409);
-   if(linked.length){fail(available.length,'WORKSPACE_FORBIDDEN','Repository project access required',403);fail(false,'REPOSITORY_CHOICE_REQUIRED','This repository already has a shared project. Explicitly choose create or join; no connection was changed.',409);}
+   if(linked.length){fail(available.length,'WORKSPACE_FORBIDDEN','Repository project access required',403);fail(false,'REPOSITORY_CHOICE_REQUIRED','This repository already has a shared project. Ask to join it explicitly; no connection was changed.',409);}
    fail(this.admin(member)||member.can_create,'WORKSPACE_FORBIDDEN','You cannot create workspace projects',403);
    const result=this.command({command:'create',name:input.name,creator:member.id,requestId:'repository-'+input.repositoryKey,repositoryKey:input.repositoryKey});this.db.prepare("INSERT OR IGNORE INTO workspace_grants VALUES(?,?,'admin')").run(member.id,result.project.room);return {project:result.project,matched:false};
   }

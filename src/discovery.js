@@ -35,7 +35,7 @@ export class RepositoryDiscovery{
    if(input.create===true&&input.room)throw Error('Choose either creating a new project or joining an existing project');
    let room=input.room;
    if(repo.repositoryKey){
-    if(!room&&input.create!==true){const match=await this.workspace.run({command:'repository-match',repositoryKey:repo.repositoryKey});if(match.ambiguous)throw Error('Several shared projects use this repository. Choose a project or explicitly create a new one.');room=match.project?.room;}
+    if(!room){const match=await this.workspace.run({command:'repository-match',repositoryKey:repo.repositoryKey});if(match.ambiguous)throw Error('Several existing shared projects use this repository. Choose which one to join.');if(match.project){if(entry.status==='enrolled'&&entry.room===match.project.room&&input.create!==true)return {...entry,origin:this.origin(),controlDirectory:this.controlDirectory};throw Error('This repository already belongs to '+JSON.stringify(match.project.name)+'. Ask whether to join it, then approve with that project selected. No connection was changed.');}}
     const result=await this.workspace.run({command:'repository-enroll',repositoryKey:repo.repositoryKey,name:input.name??repo.name,...(room?{mode:'join',room}:{mode:'create',requestId:'discovery-'+digest(JSON.stringify([repo.root,repo.repositoryKey,scope,input.name??repo.name]))})});if(!room&&result.enrollmentMode!=='create')throw Error('Upgrade the relay before creating a separate repository project. No local connection was changed.');room=result.project.room;
    }
    else if(!room)throw new Error('This repository has no supported origin remote. Choose an existing shared project explicitly.');

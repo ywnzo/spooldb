@@ -6,6 +6,7 @@ import {randomBytes,createHash,randomUUID} from 'node:crypto';
 import {hostname} from 'node:os';
 import {parseWorkspaceLink} from './workspace.js';
 import {PROTOCOL,RelayError} from '../relay/wire.js';
+import {repositoryAt} from '../repository.js';
 import {connectCodexMemory} from '../codex-connection.js';
 const hash=value=>createHash('sha256').update(value).digest('hex');
 const save=(path,value)=>{const tmp=path+'.'+randomUUID()+'.tmp';try{writeFileSync(tmp,JSON.stringify(value)+'\n',{mode:0o600});renameSync(tmp,path);}finally{rmSync(tmp,{force:true});}};
@@ -34,6 +35,7 @@ export class WorkspaceClient{
   if(input.command==='disconnect'){this.connection=null;rmSync(this.path,{force:true});return {connected:false};}
   if(!this.connection){if(input.command==='list')return {connected:false};throw new Error('Connect to a workspace first');}
   if(input.command==='join-local'){
+   let repo;try{repo=repositoryAt(input.root);}catch{}if(repo?.repositoryKey)await workspaceRequest(this.connection,'action',{command:'repository-enroll',repositoryKey:repo.repositoryKey,mode:'join',room:input.room});
    const manager=await this.manager(input.root),added=await manager.add({root:input.root,connectCodex:false,captureFiles:false}),app=await manager.get(added.project.id);
    const grant=await workspaceRequest(this.connection,'action',{command:'join',room:input.room}),current=app.teamState(),existingConnection=current.configured&&current.url===this.connection.url&&current.room===input.room;if(!existingConnection)await app.teamConnect(grant.connection);let captureError=null,agentError=null;
    if(input.captureConversations!==false)try{await app.connect();}catch(error){captureError=error.message;}

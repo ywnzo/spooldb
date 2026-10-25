@@ -32,12 +32,12 @@ export async function initializeCheckout({cwd=process.cwd(),state,options={},ask
  }
  if(!plan&&!data.connected){plan=await invitePlan();if(plan===null)return {cancelled:true};if(plan==='workspace')plan=null;}
  while(!plan){
-  const projects=data.projects??[];let match=null;
-  if(repo.repositoryKey)try{match=(await workspace({command:'repository-match',repositoryKey:repo.repositoryKey})).project;}catch(error){if(error.code!=='WORKSPACE_FORBIDDEN')throw error;say('This repository needs a project invitation before you can join it.');}
+  const projects=data.projects??[];let match=null,matches=[],restricted=false;
+  if(repo.repositoryKey)try{const result=await workspace({command:'repository-match',repositoryKey:repo.repositoryKey});match=result.project;matches=result.projects??(match?[match]:[]);}catch(error){if(error.code!=='WORKSPACE_FORBIDDEN')throw error;restricted=true;say('This repository already has a shared project. Ask its administrator for an invitation.');}
   const choices=[];
-  if(match)choices.push({kind:'join',project:match,label:'Join '+match.name+' (matches this repository)'});
-  if(data.member?.canCreate)choices.push({kind:'create',label:'Create a shared project'});
-  if(projects.length)choices.push({kind:'choose',label:'Choose an existing shared project'});
+  for(const project of matches)choices.push({kind:'join',project,label:'Join '+project.name+' (matches this repository)'});
+  if(!matches.length&&!restricted&&data.member?.canCreate)choices.push({kind:'create',label:'Create a shared project'});
+  if(!matches.length&&!restricted&&projects.length)choices.push({kind:'choose',label:'Choose an existing shared project'});
   choices.push({kind:'invitation',label:'Join using an invitation'});
   say('\nWorkspace: '+data.workspace.name);choices.forEach((item,index)=>say(`${index+1}. ${item.label}`));
   const choice=choices[Number(await ask('Choose an option','1'))-1];if(!choice)throw Error('Choose one of the numbered options. Nothing was connected.');

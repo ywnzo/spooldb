@@ -56,6 +56,8 @@ Project creation uses durable retry IDs; a repeated request cannot create duplic
 Workspace invitations support `--role writer` (read/write access to all current and future projects) and `--role reader` (read only). These roles do not grant workspace administration. The default `member` role sees only explicitly granted projects. Use `--no-create` for a cloud memory connection. The UI offers the same choices under Workspace access.
 
 
-### Separate projects using the same repository
+### Joining the same repository
 
-A Git repository is a matching hint, not a unique shared-memory project. Choose **Create a new shared project** to keep its memory separate even if another project uses the same Git remote. Choose **Join** to share that existing project's memory. When several projects match, SpoolDB asks for a selection. `spool init`, Codex `spool_setup` with `create: true`, and web repository approval preserve that distinction. Existing approved checkouts keep their selected project.
+When a Git repository is already registered, Codex onboarding, `spool init`, and web approval show its existing shared project name and ask whether to join. A local folder name does not create a different shared project. Capture starts only after the user approves joining.
+
+The relay rejects duplicate repository registration, including requests from stale clients or simultaneous creation attempts. Access denial requires an invitation rather than creating a replacement. Existing duplicate associations are retained for recovery and require choosing an existing project; this update does not merge or delete history automatically. Without a supported Git origin, SpoolDB cannot detect repository identity and requires a manual project choice.

@@ -41,9 +41,10 @@ test('first-session discovery asks before capture; two independently approved cl
  const bproposal=await discoveryRequest(b.state,{command:'propose',cwd:broot});assert.equal(bproposal.status,'pending');assert.ok(!existsSync(join(b.state,'p/project.json')));
  // Membership is not implied by matching a Git remote. Grant Bob access using the existing invitation flow.
  await assert.rejects(()=>discoveryRequest(b.state,{command:'preview',cwd:broot}),/access required/);
+ await assert.rejects(()=>b.ws.run({command:'repository-enroll',mode:'create',repositoryKey:bproposal.repositoryKey,name:'Duplicate',requestId:'no-access-duplicate'}),/invitation/);assert.equal(host.command({command:'list'}).projects.length,1);
  await b.ws.run({command:'accept-project',link:(await a.ws.run({command:'invite-project',room:approved.room,label:'Bob'})).link});
  const preview=await discoveryRequest(b.state,{command:'preview',cwd:broot});assert.equal(preview.match.room,approved.room);
- const joined=await discoveryRequest(b.state,{command:'approve',cwd:broot,confirm:true});assert.equal(joined.room,approved.room);assert.equal(host.command({command:'list'}).projects.length,1);
+ const joined=await discoveryRequest(b.state,{command:'approve',cwd:broot,confirm:true,room:approved.room});assert.equal(joined.room,approved.room);assert.equal(host.command({command:'list'}).projects.length,1);
  const written=await mcp(a.state,aroot,[{name:'task_update',args:{taskId:'discovery-shared',title:'Continue',text:'Alice started',status:'in_progress',expectedRevision:0}},{name:'handoff',args:{taskId:'discovery-shared',title:'Alice handoff',text:'DISCOVERY-MCP-621 verified fixture marker',nextSteps:['Verify from Bob']}}]);assert.ok(written.slice(1).every(m=>m.result.isError===false));
  const retrieved=await mcp(b.state,broot,[{name:'project_context'}]);assert.equal(retrieved[1].result.isError,false);assert.match(JSON.stringify(retrieved[1]),/DISCOVERY-MCP-621/);
  assert.equal((await discoveryRequest(a.state,{command:'approve',cwd:aroot,confirm:true})).room,approved.room);
