@@ -13,6 +13,6 @@ export async function joinInvite({directory,manager,link,root,device,captureConv
  if(!attempt.connection){await inviteHttp(descriptor,'preview').catch(error=>{if(error.code!=='INVITE_USED')throw error;});const result=await inviteHttp(descriptor,'redeem',{claim:attempt.claim,device});attempt={...attempt,...result};save();}
  await app.teamConnect(attempt.connection);let captureError=null,agentError=null;
  if(captureConversations)try{await app.connect();}catch(error){captureError=error.message;}
- if(connectAgents)try{await connector({directory,room:added.project.id,root:added.project.root});}catch(error){agentError=error.message;}
+ if(connectAgents)try{const agents=await connector({directory,room:added.project.id,root:added.project.root});if(agents?.ready===false)agentError=agents.message;}catch(error){agentError=error.message;}
  attempt.projectId=added.project.id;save();return {joined:true,project:added.project,captureError,agentError};
 }

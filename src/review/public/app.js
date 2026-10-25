@@ -166,7 +166,7 @@ function setPage(page,{note=null,record=true}={}){
 }
 async function loadSettings(){
  document.dispatchEvent(new Event('spool-settings-open'));await loadTeam();
- try{const config=await localRequest('memory-setup');$('memory-setup').textContent=JSON.stringify(config,null,2);const agents=await localRequest('agents');$('memory-agents-status').textContent=agents.configured?'Connected. New Codex sessions can retrieve context and leave handoffs.':'Connect Codex once for automatic context and handoffs.';$('connect-memory-agents').textContent=agents.configured?'Reconnect Codex':'Connect Codex';}catch(error){$('memory-setup').textContent=error.message;}
+ try{const config=await localRequest('memory-setup');$('memory-setup').textContent=JSON.stringify(config,null,2);const agents=await localRequest('agents');$('memory-agents-status').textContent=agents.message??(agents.configured?'Connected. New Codex sessions can retrieve context and leave handoffs.':'Connect Codex once for automatic context and handoffs.');$('connect-memory-agents').textContent=agents.configured?'Check Codex connection':'Connect Codex';}catch(error){$('memory-setup').textContent=error.message;}
 }
 async function showProject(options={}){setPage('settings',options);await loadSettings();}
 async function showReview(options={}){setPage('activity',options);await refreshBranches(true);}
@@ -280,7 +280,7 @@ $('memory-detail-more').onclick=()=>readMemory(detailId,true);
 
 async function connectMemoryAgents(){
  const button=$('connect-memory-agents');button.disabled=true;$('memory-agents-status').textContent='Connecting Codex and Zed…';
- try{const result=await localRequest('agents/connect',{});$('memory-agents-status').textContent=result.trusted?'Connected. Automatic context and handoffs are enabled for new Codex sessions, including Codex in Zed. Reopen existing sessions to load the connection.':'Configuration saved. Hook trust still needs review.';button.textContent='Reconnect agents';}
+ try{const result=await localRequest('agents/connect',{});$('memory-agents-status').textContent=result.message??(result.trusted?'Connected. Automatic context and handoffs are enabled for new Codex sessions, including Codex in Zed. Reopen existing sessions to load the connection.':'Configuration saved. Hook trust still needs review.');button.textContent='Check Codex connection';}
  catch(error){$('memory-agents-status').textContent=error.message;}finally{button.disabled=false;}
 }
 $('connect-memory-agents').onclick=connectMemoryAgents;

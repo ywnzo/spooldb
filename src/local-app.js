@@ -27,7 +27,7 @@ export function localApp({discovery,workspace,getOrigin,getState,review,connect,
     const csrf=Buffer.from(req.headers['x-spool-csrf']??''),expected=Buffer.from(session.csrf);fail(csrf.length===expected.length&&timingSafeEqual(csrf,expected),'Invalid local session.');
     if(path==='/local/invites/pending'&&req.method==='GET'&&invitePending){send(200,{pending:invitePending()});return true;}
     if(path==='/local/projects'&&req.method==='GET'&&projects){send(200,{projects:projects.list()});return true;}
-    if(path==='/local/agents'&&req.method==='GET'&&getAgentState){send(200,getAgentState((await selected(req,session)).getState()));return true;}
+    if(path==='/local/agents'&&req.method==='GET'&&getAgentState){send(200,await getAgentState((await selected(req,session)).getState()));return true;}
     if(path==='/local/memory-setup'&&req.method==='GET'&&memorySetup){send(200,memorySetup((await selected(req,session)).getState()));return true;}
     if(path==='/local/status'&&req.method==='GET'){send(200,(await selected(req,session)).getState());return true;}
     fail(req.method==='POST','Unsupported method.',405);fail(/^application\/json(?:;|$)/.test(req.headers['content-type']??''),'Use JSON.',415);

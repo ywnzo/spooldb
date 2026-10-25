@@ -39,7 +39,7 @@ export class WorkspaceClient{
    const manager=await this.manager(input.root),added=await manager.add({root:input.root,connectCodex:false,captureFiles:false}),app=await manager.get(added.project.id);
    const grant=await workspaceRequest(this.connection,'action',{command:'join',room:input.room}),current=app.teamState(),existingConnection=current.configured&&current.url===this.connection.url&&current.room===input.room;if(!existingConnection)await app.teamConnect(grant.connection);let captureError=null,agentError=null;
    if(input.captureConversations!==false)try{await app.connect();}catch(error){captureError=error.message;}
-   if(input.connectAgents!==false)try{await this.connector({directory:this.controlDirectory,room:added.project.id,root:added.project.root});}catch(error){agentError=error.message;}
+   if(input.connectAgents!==false)try{const agents=await this.connector({directory:this.controlDirectory,discoveryDirectory:this.directory,room:added.project.id,root:added.project.root});if(agents?.ready===false)agentError=agents.message;}catch(error){agentError=error.message;}
    return {joined:true,project:added.project,existingConnection,captureError,agentError};
   }
   let result;try{result=await workspaceRequest(this.connection,'action',input);}catch(error){if(input.command==='relay-admin'&&['WORKSPACE_ACTION','WORKSPACE_FORBIDDEN'].includes(error.code))return {supported:false,message:'Upgrade the relay to v0.4.18 or newer to enable host maintenance.'};if(input.command==='delete-conversations'&&error.code==='WORKSPACE_ACTION')throw new RelayError('UPDATE_REQUIRED','This relay needs v0.4.12 or newer for conversation deletion. No data was deleted.',426);throw error;}return {...result,connected:true,relay:this.connection.url};

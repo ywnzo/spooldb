@@ -1,22 +1,29 @@
 import {CodexRpc} from './codex-rpc.js';
-import {realpathSync} from 'node:fs';
-import {join} from 'node:path';
-import {fileURLToPath} from 'node:url';
-import {installCodex} from './codex-install.js';
-export async function trustMemoryHooks({root,directory,room}){
-root=realpathSync(root);directory=realpathSync(directory);
+import {readFileSync,realpathSync} from 'node:fs';
+import {dirname,join} from 'node:path';
+import {homedir} from 'node:os';
+import {installDiscovery} from './discovery-install.js';
+import {legacyFiles} from './plugin/legacy.js';
+const events=new Set(['sessionStart','userPromptSubmit','stop','interrupt']);
 const shell=value=>"'"+value.replaceAll("'","'\\''")+"'";
-const prefix=[process.execPath,fileURLToPath(new URL('./codex-hooks.js',import.meta.url)),directory,room,root].map(shell).join(' ');
-const rpc=new CodexRpc({cwd:root});
-try{
- await rpc.start();const list=async()=>{const result=await rpc.request('hooks/list',{cwds:[root]});return result.data.find(e=>e.cwd===root);};
- const before=await list();if(before.errors?.length)throw new Error('Hook configuration has errors');
- const own=before.hooks.filter(h=>h.sourcePath===join(root,'.codex/config.toml')&&['sessionStart','userPromptSubmit','stop','interrupt'].includes(h.eventName)&&h.command===prefix+' '+shell({sessionStart:'SessionStart',userPromptSubmit:'UserPromptSubmit',stop:'Stop',interrupt:'Interrupt'}[h.eventName]));
- if(own.length!==4)throw new Error(`Expected exactly four matching SpoolDB hooks, found ${own.length}`);
- const edits=own.filter(h=>h.trustStatus!=='trusted').map(h=>({keyPath:`hooks.state.${JSON.stringify(h.key)}.trusted_hash`,value:h.currentHash,mergeStrategy:'replace'}));
- if(edits.length)await rpc.request('config/batchWrite',{edits,reloadUserConfig:true});
- const after=await list();const verified=own.every(h=>after.hooks.some(a=>a.key===h.key&&a.currentHash===h.currentHash&&a.trustStatus==='trusted'));if(!verified)throw new Error('Hook trust verification failed');
- return {trusted:verified,hooks:own.map(h=>({event:h.eventName,key:h.key,hash:h.currentHash})),project:root};
-}finally{rpc.close();}
+function spoolPlugin(hook){
+ if(hook.source!=='plugin'||!hook.sourcePath||!hook.sourcePath.endsWith('/hooks/hooks.json'))return false;
+ try{return JSON.parse(readFileSync(join(dirname(dirname(hook.sourcePath)),'.codex-plugin/plugin.json'),'utf8')).name==='spooldb';}catch{return false;}
 }
-export async function connectCodexMemory(options){const installed=installCodex(options);const trust=await trustMemoryHooks(options);return {...installed,trusted:trust.trusted};}
+export async function codexMemoryState({root,directory,discoveryDirectory=directory,codexHome=process.env.CODEX_HOME??join(homedir(),'.codex')},{rpcFactory=options=>new CodexRpc(options)}={}){
+ root=realpathSync(root);const rpc=rpcFactory({cwd:root});
+ try{
+  await rpc.start();const response=await rpc.request('hooks/list',{cwds:[root]}),data=response.data?.find(entry=>entry.cwd===root);
+  if(data?.errors?.length)return {configured:false,ready:false,trusted:false,configurationError:true,message:'Codex reports hook configuration errors. Review its hook settings before connecting SpoolDB.'};
+  const plugin=(data?.hooks??[]).filter(spoolPlugin),global=(data?.hooks??[]).filter(h=>h.sourcePath===join(codexHome,'config.toml')&&h.command?.includes('/discovery-hook.js')&&h.command.includes(shell(discoveryDirectory))),own=plugin.length?plugin:global,mode=plugin.length?'plugin':global.length?'shared':'none';
+  const complete=own.length===4&&new Set(own.map(h=>h.eventName)).size===4&&own.every(h=>events.has(h.eventName)),trusted=complete&&own.every(h=>h.trustStatus==='trusted'),legacy=legacyFiles(root,{codexHome}).filter(path=>mode!=='shared'||path!==join(codexHome,'config.toml')),needsMigration=legacy.length>0,ready=trusted&&!needsMigration;
+  let message=ready?'Connected through '+(mode==='plugin'?'the SpoolDB plugin':'the shared Codex integration')+'. New Codex sessions can retrieve context and leave handoffs.':mode==='none'?'No active SpoolDB plugin or shared Codex integration was found. Connect to set up agent memory.':!complete?'SpoolDB has an incomplete or duplicate hook configuration. Review the enabled plugin and hooks in Codex.':'Review the SpoolDB hooks in Codex, then check the connection again.';
+  if(needsMigration)message=trusted?'The plugin hooks are ready, but an older managed SpoolDB configuration is also present. Ask Codex to migrate it with backups before starting a new session.':'An older managed SpoolDB configuration is present. Review the plugin hooks, then ask Codex to migrate the old integration with backups.';
+  return {mode,configured:complete,ready,trusted,needsHookReview:complete&&!trusted,needsMigration,legacyConfiguration:legacy,message,restartRequired:needsMigration};
+ }finally{rpc.close();}
+}
+export async function connectCodexMemory(options,{inspect=codexMemoryState,installShared=installDiscovery}={}){
+ const state=await inspect(options);if(state.mode!=='none'||state.needsMigration||state.configurationError)return state;
+ const directory=realpathSync(options.discoveryDirectory??options.directory),installed=installShared(directory,{codexHome:options.codexHome});
+ return {...state,mode:'shared',configured:true,ready:false,trusted:false,needsHookReview:true,config:installed.path,changed:installed.changed,restartRequired:true,message:'Shared Codex connection saved. Review the SpoolDB hooks in Codex, then open a new session. No per-project hooks were added.'};
+}
