@@ -8,8 +8,8 @@
  const counts=plan=>({backups:plan?.removed?.length??0,images:plan?.artifacts?.removedImages?.length??0,releases:plan?.artifacts?.removedReleases?.length??0});
  function render(){
   if(!status?.supported)return;
-  $('controls').hidden=false;$('status').textContent='SpoolDB '+status.version+' · '+new URL(context.relay).host;$('health').textContent=status.needsRecovery?'Recovery needed':status.relayRunning===false?'Stopped':'Online';
-  $('health').classList.toggle('connected',!status.needsRecovery&&status.relayRunning!==false);
+  $('controls').hidden=false;$('status').textContent='SpoolDB '+status.version+' · '+new URL(context.relay).host;$('health').textContent=status.needsRecovery?'Recovery needed':status.relayRunning===false?'Stopped':status.relayRunning===true?'Online':'Unknown';
+  $('health').classList.toggle('connected',!status.needsRecovery&&status.relayRunning===true);
   $('disk').textContent=status.disk?`${(status.disk.availableBytes/1073741824).toFixed(1)} GB available of ${(status.disk.totalBytes/1073741824).toFixed(1)} GB`:'';
   if(!dirty){$('automatic').checked=status.automatic;for(const [prefix,policy]of [['backup',status.backupRetention],['artifact',status.artifactRetention]]){$(prefix+'-keep').value=policy.keep;$(prefix+'-days').value=policy.maxAgeDays;}loadedRevision=status.revision;}
   $('next').textContent=status.automatic?'Daily automatic updates are enabled. Next server check: '+(status.timerNext??'scheduled'):'Automatic updates are off. Manual updates still include protected storage cleanup.';
