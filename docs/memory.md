@@ -89,7 +89,7 @@ Checks happen on every retrieval; they do not rely on capture polling, Git hooks
 
 ## Model settings and reversible cleanup
 
-Workspace owners can use **Settings → Relay → Memory retrieval** to enable local inference, choose a pinned multilingual or smaller English model, set CPU threads, adjust the relevance threshold and bound context size. The relay downloads weights automatically on startup and shows download progress and errors. Servers with less than 1.5 GiB effective memory default to the smaller English model; mixed-language teams should select the multilingual model if memory permits. Changing models rebuilds derived vectors without changing source records. Keyword retrieval remains available during loading.
+Workspace owners can use **Settings → Search & memory** to enable local inference, choose a pinned multilingual or smaller English model, set CPU threads, adjust the relevance threshold and bound context size. The relay downloads weights automatically on startup and shows download progress and errors. Servers with less than 1.5 GiB effective memory default to the smaller English model; mixed-language teams should select the multilingual model if memory permits. Changing models rebuilds derived vectors without changing source records. Keyword retrieval remains available during loading.
 
 New evidence can supply `resolves` or `supersedes` record IDs. Agents must verify that relationship; age or similarity alone does not justify cleanup. `memory_update` supports archive, restore, resolve and supersede with an expected lifecycle revision. Conflicting concurrent changes remain visible until explicitly reconciled. These operations follow existing sharing permissions.
 
