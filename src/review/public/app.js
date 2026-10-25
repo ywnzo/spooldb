@@ -147,7 +147,7 @@ function renderProject(project){
   $('codex-connect').hidden=codex.enabled;$('codex-disconnect').hidden=!codex.enabled;
   $('codex-detail').textContent=codex.error??(codex.status==='connected'?`${codex.threads} project chats found. New completed replies appear automatically.`:'Local capture only. No new agent or model request.');
   $('project-error').textContent=project.lastError??'';$('workspace-label').textContent=project.name.toUpperCase();$('room-short').hidden=true;
-  $('connection-state').textContent=project.lastError?'Capture needs attention':'Capturing automatically';document.querySelector('.read-only').textContent=project.lastError?'Needs attention':project.team?.connected?'Shared memory':'Local memory';
+  $('connection-state').textContent=project.lastError?'Capture needs attention':'Capturing automatically';
 }
 async function renewLocalSession(){
   const response=await fetch('/local/session',{cache:'no-store',redirect:'error'});if(!response.ok)throw new Error('Unable to reconnect. Reload SpoolDB.');const data=await response.json();state.csrf=data.csrf;return data;
