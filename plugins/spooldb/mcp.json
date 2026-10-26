@@ -6,7 +6,7 @@
       "command": "sh",
       "args": [
         "-c",
-        "set -eu\nif [ -n \"${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-}}\" ]; then\n  exec sh \"${PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT}/scripts/spool.sh\" mcp\nfi\nbase=\"${CODEX_HOME:-$HOME/.codex}/plugins/cache\"\nfound=\nfor root in \"$base\"/*/spooldb/0.4.30 \"$base\"/*/spooldb/local; do\n  if [ -f \"$root/.codex-plugin/plugin.json\" ] && [ -f \"$root/scripts/spool.sh\" ]; then\n    if [ -n \"$found\" ]; then echo 'Several SpoolDB plugin copies are installed; keep one enabled copy.' >&2; exit 1; fi\n    found=\"$root\"\n  fi\ndone\nif [ -z \"$found\" ]; then echo 'SpoolDB plugin cache was not found. Reinstall the SpoolDB plugin in Codex.' >&2; exit 1; fi\nexec sh \"$found/scripts/spool.sh\" mcp"
+        "set -eu\nif [ -n \"${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-}}\" ]; then\n  exec sh \"${PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT}/scripts/spool.sh\" mcp\nfi\nbase=\"${CODEX_HOME:-$HOME/.codex}/plugins/cache\"\nfound=\nfor root in \"$base\"/*/spooldb/0.4.31 \"$base\"/*/spooldb/local; do\n  if [ -f \"$root/.codex-plugin/plugin.json\" ] && [ -f \"$root/scripts/spool.sh\" ]; then\n    if [ -n \"$found\" ]; then echo 'Several SpoolDB plugin copies are installed; keep one enabled copy.' >&2; exit 1; fi\n    found=\"$root\"\n  fi\ndone\nif [ -z \"$found\" ]; then echo 'SpoolDB plugin cache was not found. Reinstall the SpoolDB plugin in Codex.' >&2; exit 1; fi\nexec sh \"$found/scripts/spool.sh\" mcp"
       ],
       "startup_timeout_sec": 120,
       "tool_timeout_sec": 90,

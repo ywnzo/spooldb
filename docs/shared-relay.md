@@ -64,3 +64,12 @@ bun src/team/migrate-memory-only.js /path/to/relay-state /path/to/local-rollback
 The rollback directory must be outside relay storage. The migration preserves project IDs, message IDs, task revisions, grants, pending invites and write retry receipts. It rewrites storage heads and converts old machine-qualified file references into project-relative legacy references. The previous database is retained separately for rollback; it still contains old captured code. Keep backups outside the served relay state. Remove it according to your backup policy when rollback is no longer needed. Already-downloaded data on other machines cannot be recalled.
 
 New shared-project connections use memory-only local capture: enrollment does not snapshot or synchronize the checkout, so repository size cannot produce an oversized initial code batch. Existing local code-history projects retain their configured capture behavior.
+
+
+### Background request frequency
+
+The companion checks local capture on its normal cycle, but idle projects do not contact the relay on every cycle. Background state checks back off through 10, 20, 40, 80 and 160 seconds to a five-minute maximum. New or changed memory bypasses that timer on the next capture cycle; file-only changes do not wake remote memory sync. Failed checks also back off, preserving local capture. Explicit sync and agent memory requests bypass the idle timer.
+
+Reads use the current sharing metadata returned with their authorized memory response, avoiding a second state request. Writes still fetch fresh sharing policy before upload. Project credentials remain separate; one project's authorization result is never reused for another project.
+
+An open memory UI starts refreshing after 15 seconds and backs off to two minutes while unchanged. Hidden tabs stop scheduled polling and refresh on return. Stable retrieval/server settings refresh every two minutes; model loading and active maintenance keep two-second progress checks. These are refresh intervals, not a delay on agent queries or writes. With no UI open, a continuously idle project needs about 288 background state checks per day after backoff, plus startup/activity traffic; other clients contribute their own requests.

@@ -214,7 +214,20 @@ async function bootLocal(){
     const data=await response.json();state.local=true;state.csrf=data.csrf;state.room=data.project.room;state.mode='file';$('changed-only').checked=false;
     $('connect-screen').hidden=true;$('project-nav').hidden=false;$('review-nav').hidden=false;$('memory-nav').hidden=false;renderProject(data.project);await loadProjects();await restorePage();$('team-local-root').value=data.project.root;await loadPendingInvite();document.dispatchEvent(new Event('spool-ready'));
     document.querySelector('.brand').addEventListener('click',event=>{event.preventDefault();showMemory();});
-    const poll=async()=>{try{if(!localBusy&&!document.hidden){await loadPendingInvite();const epoch=state.epoch,project=await localRequest('status');if(epoch!==state.epoch)return;renderProject(project);if(!$('memory-home').hidden&&!memoryQuery&&memoryKind==='latest'&&!memoryIncludeArchived&&$('memory-detail').hidden){const latest=await localRequest('memory',{command:'context'});if(epoch===state.epoch&&memoryFingerprint(latest)!==memoryLastHeads)await loadMemory(false,latest);}if(!$('workspace').hidden&&!state.revision){const branches=await api({command:'branches'}),revision=JSON.stringify(branches.branches.map(b=>[b.name,b.heads]));if(revision!==lastReviewRevision){lastReviewRevision=revision;await refreshBranches();}}}}catch(error){if(error.name!=='AbortError'){$('project-error').textContent=error.message;$('connection-state').textContent='Reconnecting…';}}finally{localPoll=setTimeout(poll,4000);}};localPoll=setTimeout(poll,4000);
+    let idleDelay=15000,pollRunning=false,pollAgain=false;
+    const poll=async()=>{
+      clearTimeout(localPoll);if(document.hidden)return;if(pollRunning){pollAgain=true;return;}pollRunning=true;let changed=false;
+      try{if(!localBusy){
+        await loadPendingInvite();const epoch=state.epoch,project=await localRequest('status');if(epoch!==state.epoch)return;renderProject(project);
+        if(!$('memory-home').hidden&&!memoryQuery&&memoryKind==='latest'&&!memoryIncludeArchived&&$('memory-detail').hidden){const latest=await localRequest('memory',{command:'context'});if(epoch===state.epoch&&memoryFingerprint(latest)!==memoryLastHeads){changed=true;await loadMemory(false,latest);}}
+        if(!$('workspace').hidden&&!state.revision){const branches=await api({command:'branches'}),revision=JSON.stringify(branches.branches.map(b=>[b.name,b.heads]));if(revision!==lastReviewRevision){changed=true;lastReviewRevision=revision;await refreshBranches();}}
+      }}catch(error){if(error.name!=='AbortError'){$('project-error').textContent=error.message;$('connection-state').textContent='Reconnecting…';}}
+      finally{pollRunning=false;idleDelay=changed?15000:Math.min(idleDelay*2,120000);if(!document.hidden)localPoll=setTimeout(poll,pollAgain?0:idleDelay);pollAgain=false;}
+    };
+    const wake=()=>{idleDelay=15000;clearTimeout(localPoll);if(!document.hidden)poll();};
+    document.addEventListener('visibilitychange',wake);document.addEventListener('spool-project-changed',wake);
+    for(const id of ['memory-nav','review-nav'])$(id).addEventListener('click',()=>{idleDelay=15000;clearTimeout(localPoll);if(!document.hidden)localPoll=setTimeout(poll,idleDelay);});
+    if(!document.hidden)localPoll=setTimeout(poll,idleDelay);
   }catch(error){$('connect-screen').hidden=false;$('connect-error').textContent='Unable to reach the local app. Reload the page to reconnect.';}
 }
 bootLocal();

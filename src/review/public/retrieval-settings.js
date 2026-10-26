@@ -1,7 +1,7 @@
 (()=>{
  const $=id=>document.getElementById('retrieval-'+id);if(!$('panel'))return;
  let context={},epoch=0,timer,data,dirty=false,busy=false;
- const active=()=>window.spoolSettings?.current==='retrieval'&&!document.getElementById('project-home').hidden;
+ const active=()=>!document.hidden&&window.spoolSettings?.current==='retrieval'&&!document.getElementById('project-home').hidden;
  const api=input=>window.localRequest('workspace',{command:'retrieval',...input});
  const models=()=>($('provider').value==='cloudflare'?data.cloudflareModels:data.models)??[];
  function selectModels(selected){$('model').replaceChildren(...models().map(model=>{const option=document.createElement('option');option.value=model.key;option.textContent=model.name;return option;}));if(models().some(model=>model.key===selected))$('model').value=selected;}
@@ -17,7 +17,7 @@
   $('retry').hidden=data.status!=='error';for(const id of ['save','retry','test','disconnect'])$(id).disabled=busy;
   $('cleanup').textContent=`${data.cleanup.archived} ${data.cleanup.archived===1?'record':'records'} archived. Resolved and superseded records are excluded from normal retrieval; their history remains available in the project archive.`;
  }
- async function refresh(){clearTimeout(timer);if(!context.connected||!context.owner||!active())return;const current=epoch;try{const next=await api({action:'status'});if(current!==epoch)return;data=next;if(!data.supported){$('panel').hidden=true;$('access').hidden=false;$('access').textContent=data.message??'Retrieval settings are unavailable on this backend.';return;}render();}catch(error){if(current===epoch)$('error').textContent=error.message;}finally{if(current===epoch&&active())timer=setTimeout(refresh,data?.status==='loading'?2000:10000);}}
+ async function refresh(){clearTimeout(timer);if(!context.connected||!context.owner||!active())return;const current=epoch;try{const next=await api({action:'status'});if(current!==epoch)return;data=next;if(!data.supported){$('panel').hidden=true;$('access').hidden=false;$('access').textContent=data.message??'Retrieval settings are unavailable on this backend.';return;}render();}catch(error){if(current===epoch)$('error').textContent=error.message;}finally{if(current===epoch&&active())timer=setTimeout(refresh,data?.status==='loading'?2000:120000);}}
  async function change(input){if(busy)return;busy=true;$('error').textContent='';const current=epoch;render();try{const result=await api(input);if(current!==epoch)return;if(input.action==='test'){$('test-result').textContent=result.message;}else{data=result;dirty=false;$('token').value='';$('consent').checked=false;render();}}catch(error){if(current===epoch)$('error').textContent=error.message;}finally{busy=false;if(current===epoch)await refresh();}}
  function settings(){return {enabled:$('enabled').checked,provider:$('provider').value,accountId:$('account').value.trim(),model:$('model').value,threads:Number($('threads').value),minScore:Number($('min-score').value),contextChars:Number($('context-chars').value)};}
  $('form').addEventListener('input',()=>{dirty=true;$('test-result').textContent='';});$('model').onchange=()=>{dirty=true;render();};
@@ -28,5 +28,5 @@
  $('retry').onclick=()=>change({action:'retry'});
  document.addEventListener('spool-workspace-state',event=>{const next=event.detail;if(next.relay!==context.relay||next.owner!==context.owner||next.connected!==context.connected){epoch++;data=null;dirty=false;clearTimeout(timer);$('token').value='';$('account').value='';$('consent').checked=false;$('test-result').textContent='';$('panel').hidden=true;$('access').hidden=false;$('access').textContent='Workspace owner access is required to configure retrieval.';$('error').textContent='';}context=next;if(active())refresh();});
  document.addEventListener('spool-settings-section',()=>{clearTimeout(timer);if(active())refresh();});
- document.addEventListener('visibilitychange',()=>{if(!document.hidden&&active())refresh();});
+ document.addEventListener('visibilitychange',()=>{clearTimeout(timer);if(active())refresh();});
 })();

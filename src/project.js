@@ -71,7 +71,7 @@ export async function startProject(dir,{port=8787,intervalMs=2000,onEvent=()=>{}
     const result=signature===lastSignature?{operations:0,files:Object.keys(scan.entries).length}:bridge.captureScan(scan);lastSignature=signature;const observed={at:new Date().toISOString(),operations:result.operations,files:result.files};
     await publish('working');state.lastCapture=observed;state.lastError=null;if(result.operations)onEvent({event:'project.captured',...state.lastCapture});return state.lastCapture;
   }
-  const cycle=()=>{cyclePromise=cyclePromise.then(async()=>{if(!busy&&!closing){if(state.codex.enabled&&Date.now()-lastNativePoll>=10000)await syncCodex();await capture();if(team.config)try{await team.sync();}catch(error){onEvent({event:'team.sync-error',message:error.message});}}}).catch(error=>{state.lastError=error.message;onEvent({event:'project.error',message:error.message});});return cyclePromise;};
+  const cycle=()=>{cyclePromise=cyclePromise.then(async()=>{if(!busy&&!closing){if(state.codex.enabled&&Date.now()-lastNativePoll>=10000)await syncCodex();await capture();if(team.config)try{await team.sync({background:true});}catch(error){onEvent({event:'team.sync-error',message:error.message});}}}).catch(error=>{state.lastError=error.message;onEvent({event:'project.error',message:error.message});});return cyclePromise;};
   const close=async()=>{
     if(closing)return;closing=true;clearInterval(timer);history.close();activeRun?.abort();await Promise.allSettled([runPromise,cyclePromise,team.tail]);
     await closeDiscovery?.();await manager?.close();if(ownsSocket)await new Promise(resolve=>control.close(resolve));if(ownsSocket&&existsSync(socketPath))unlinkSync(socketPath);

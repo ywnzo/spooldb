@@ -1,7 +1,7 @@
 (()=>{
  const $=id=>document.getElementById('relay-'+id);if(!$('controls'))return;
  let context={},epoch=0,poll,busy=false,dirty=false,loadedRevision,status,watched,handled,confirmation,connectionError=false;
- const active=()=>window.spoolSettings?.current==='relay'&&!document.getElementById('project-home').hidden;
+ const active=()=>!document.hidden&&window.spoolSettings?.current==='relay'&&!document.getElementById('project-home').hidden;
  const message=(text,error=false)=>{$('message').textContent=text;$('message').classList.toggle('error',error);};
  const api=input=>window.localRequest('workspace',{command:'relay-admin',...input});
  const errors=plan=>[...(plan?.errors??[]),...(plan?.artifacts?.errors??[])];
@@ -32,7 +32,7 @@
   clearTimeout(poll);if(!context.connected||!context.owner||!active())return;
   const current=epoch;try{const next=await api({action:'status'});if(current!==epoch)return;const initial=!status?.supported;status=next;if(status.supported&&(initial||connectionError)){message('');connectionError=false;}if(!status.supported){$('controls').hidden=true;message(status.message??'Host maintenance is unavailable on this backend.');return;}render();}
   catch(error){if(current!==epoch)return;connectionError=true;message((status?.busy?'Maintenance is running. Waiting for the relay to reconnect… ': '')+error.message,true);}
-  finally{if(current===epoch&&active())poll=setTimeout(refresh,status?.busy?2000:10000);}
+  finally{if(current===epoch&&active())poll=setTimeout(refresh,status?.busy?2000:120000);}
  }
  async function start(action,extra={}){
   if(busy)return;busy=true;const current=epoch;message('Starting maintenance…');render();try{const result=await api({action,requestId:crypto.randomUUID(),...extra});if(current!==epoch)return;if(!result.accepted)throw Error(result.message??'Maintenance unavailable');watched=result.job.id;handled=null;}
@@ -46,5 +46,5 @@
  $('confirm-apply').onclick=()=>{const selected=confirmation;if(!selected)return;$('confirm-dialog').close();confirmation=null;start(selected.action,selected.previewId?{previewId:selected.previewId}:{});};
  document.addEventListener('spool-workspace-state',event=>{const next=event.detail;if(next.relay!==context.relay||next.owner!==context.owner||next.connected!==context.connected){epoch++;status=null;dirty=false;watched=null;handled=null;clearTimeout(poll);$('controls').hidden=true;if($('confirm-dialog').open)$('confirm-dialog').close();}context=next;if(!next.connected)message('Connect a workspace to manage its relay.');else if(!next.owner)message('Workspace owner access is required to manage the relay.');else if(active())refresh();});
  document.addEventListener('spool-settings-section',()=>{clearTimeout(poll);if(active())refresh();});
- document.addEventListener('visibilitychange',()=>{if(!document.hidden&&active())refresh();});
+ document.addEventListener('visibilitychange',()=>{clearTimeout(poll);if(active())refresh();});
 })();
