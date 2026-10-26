@@ -46,7 +46,7 @@ test('plugin: consent before sharing, native capture, linked agent handoff, a se
  const connected=await client.tool('spool_setup',{action:'connect',create:true,name:'Game',confirm:true});assert.equal(connected.isError,false);assert.equal(connected.structuredContent.status,'enrolled');assert.equal(connected.structuredContent.capture.enabled,true);assert.ok(!existsSync(join(root,'.codex/config.toml')));
  const capture=await client.tool('memory_search',{query:'PLUGIN-CAPTURE-582',kinds:['conversation']});assert.equal(capture.structuredContent.results[0].source.sessionId,'saved-session');assert.equal(capture.structuredContent.results.length,1);
  const prompted=await runDiscoveryHook({directory:state,event:'UserPromptSubmit',input,plugin:true}),taskId=/Task for this Codex session: ([\w-]+)/.exec(prompted.hookSpecificOutput.additionalContext)[1];
- assert.equal((await runDiscoveryHook({directory:state,event:'Stop',input,plugin:true})).decision,'block');
+ assert.deepEqual(await runDiscoveryHook({directory:state,event:'Stop',input,plugin:true}),{});
  const finding=(await client.tool('remember',{taskId,kind:'finding',title:'Shipping finding',text:'Verified fee fixture doubles the charge',refs:[capture.structuredContent.results[0].id]})).structuredContent;
  const handoff=(await client.tool('handoff',{taskId,title:'Continue shipping fix',text:'Check the cited finding and add a regression',nextSteps:['Write regression'],refs:[finding.id]})).structuredContent;
  assert.ok(handoff?.id);assert.deepEqual(await runDiscoveryHook({directory:state,event:'Stop',input,plugin:true}),{});

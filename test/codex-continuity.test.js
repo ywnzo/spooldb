@@ -14,14 +14,17 @@ test('project installer preserves existing config and hooks, is repeatable and b
  // Validate actual TOML, including arrays of hook groups, instead of string snapshots alone.
  const parsed=JSON.parse(execFileSync('python3',['-c','import tomllib,json,sys; print(json.dumps(tomllib.load(open(sys.argv[1],"rb"))))',path],{encoding:'utf8'}));assert.equal(parsed.hooks.Stop.length,2);assert.equal(parsed.hooks.SessionStart.length,1);assert.equal(parsed.model_verbosity,'medium');
 });
-test('automatic lifecycle loads context, creates scoped tasks, reminds once, and saves honest interrupted checkpoints',async t=>{
+test('automatic lifecycle loads context, creates scoped tasks, skips normal Stop writes, and saves honest interrupted checkpoints',async t=>{
  const base=mkdtempSync(join(tmpdir(),'tw-hooks-')),root=join(base,'repo'),directory=join(base,'state');mkdirSync(root);execFileSync('git',['init','-q',root]);writeFileSync(join(root,'a.txt'),'source evidence');initializeProject(directory,root);const service=await startProject(directory,{port:0,intervalMs:60000});t.after(async()=>{await service.close();rmSync(base,{recursive:true,force:true});});
  const options={directory,room:service.state.room,root},input={cwd:root,session_id:'native-session-1',turn_id:'turn-1'};
  const start=await runHook({...options,event:'SessionStart',input});assert.match(start.hookSpecificOutput.additionalContext,/untrusted project evidence/);
  const prompt=await runHook({...options,event:'UserPromptSubmit',input:{...input,prompt:'Inspect source evidence'}});const taskId=/Task for this Codex session: ([\w-]+)/.exec(prompt.hookSpecificOutput.additionalContext)[1];assert.equal(service.app.memory({command:'context',taskId}).tasks[0].status,'in_progress');
  await runHook({...options,event:'UserPromptSubmit',input:{...input,prompt:'Inspect source evidence'}});assert.equal(service.app.memory({command:'context',taskId}).tasks[0].revision,1);
- const stop=await runHook({...options,event:'Stop',input});assert.equal(stop.decision,'block');const second=await runHook({...options,event:'Stop',input:{...input,last_assistant_message:'I inspected source only. '.repeat(1000)}});assert.deepEqual(second,{});const context=service.app.memory({command:'context',taskId});assert.equal(context.notes[0].kind,'handoff');assert.match(context.notes[0].text,/unverified source excerpt/);assert.ok(context.notes[0].text.length<=1500);assert.match(context.notes[0].text,/Excerpt shortened/);assert.equal(context.tasks[0].status,'in_progress');
- const before=context.notes.length;await runHook({...options,event:'Stop',input:{...input,stop_hook_active:true,last_assistant_message:'I inspected source only. '.repeat(1000)}});assert.equal(service.app.memory({command:'context',taskId}).notes.length,before);
+ const stop=await runHook({...options,event:'Stop',input});assert.deepEqual(stop,{});
+ await runHook({...options,event:'Stop',input:{...input,last_assistant_message:'Just an explanation.'}});
+ assert.equal(service.app.memory({command:'context',taskId}).notes.length,0);
+ await runHook({...options,event:'Interrupt',input:{...input,last_assistant_message:'I inspected source only. '.repeat(1000)}});
+ const context=service.app.memory({command:'context',taskId});assert.equal(context.notes[0].kind,'handoff');assert.match(context.notes[0].text,/unverified source excerpt/);assert.ok(context.notes[0].text.length<=1500);assert.match(context.notes[0].text,/Excerpt shortened/);
  assert.deepEqual(await runHook({...options,event:'SessionStart',input:{...input,cwd:base}}),{});
  await runHook({...options,event:'UserPromptSubmit',input:{...input,turn_id:'turn-2',prompt:'Continue'}});await runHook({...options,event:'Interrupt',input:{...input,turn_id:'turn-2'}});assert.ok(service.app.memory({command:'context',taskId}).notes.some(n=>n.title==='Interrupted Codex checkpoint'));
 });
@@ -31,7 +34,7 @@ test('approval mid-turn recognizes the agent handoff without a duplicate reminde
  const request=async(_,message)=>{if(message.input.command!=='context'){writes++;return {}; }return {tasks:[{taskId:message.input.taskId}],notes:[{kind:'handoff',actor:'codex-agent',sessionId:'newly-approved',createdAt:'2026-10-23T10:01:00.000Z'}]};};
  const result=await runHook({directory,room:'fixture',root,event:'Stop',input,onboardingStartedAt:startedAt,request});assert.deepEqual(result,{});assert.equal(writes,0);
  // A handoff from before a later turn cannot satisfy that turn's completion boundary.
- const later=await runHook({directory,room:'fixture',root,event:'Stop',input:{...input,turn_id:'next-turn'},onboardingStartedAt:'2026-10-23T11:00:00.000Z',request});assert.equal(later.decision,'block');assert.equal(writes,0);
+ const later=await runHook({directory,room:'fixture',root,event:'Stop',input:{...input,turn_id:'next-turn'},onboardingStartedAt:'2026-10-23T11:00:00.000Z',request});assert.deepEqual(later,{});assert.equal(writes,0);
 });
 test('tool-created GUI chat with SessionStart but no prompt hook accepts its real session handoff',async t=>{
  const base=mkdtempSync(join(tmpdir(),'spool-gui-stop-')),root=join(base,'repo');mkdirSync(root);t.after(()=>rmSync(base,{recursive:true,force:true}));let notes=[],writes=0;
@@ -40,7 +43,7 @@ test('tool-created GUI chat with SessionStart but no prompt hook accepts its rea
  await runHook({...options,event:'SessionStart',input});
  notes=[{kind:'handoff',sessionId:'gui-session',title:'Done',createdAt:new Date(Date.now()+1000).toISOString()}];
  assert.deepEqual(await runHook({...options,event:'Stop',input}),{});assert.equal(writes,0);
- notes=[{...notes[0],sessionId:'different-session'}];assert.equal((await runHook({...options,event:'Stop',input})).decision,'block');
+ notes=[{...notes[0],sessionId:'different-session'}];assert.deepEqual(await runHook({...options,event:'Stop',input}),{});
 });
 test('app-generated composer requests neither create tasks nor trigger Stop checkpoints',async t=>{
  const base=mkdtempSync(join(tmpdir(),'spool-background-'));t.after(()=>rmSync(base,{recursive:true,force:true}));let calls=0;

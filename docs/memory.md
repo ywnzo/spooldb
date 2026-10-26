@@ -8,7 +8,7 @@ SpoolDB preserves project history independently of an agent session. Review snap
 2. Ask `memory_search` a natural-language question when you need more evidence; read cited records with `memory_get`. Use `file_read` for this computer’s local captured source; shared memory stores Git file/commit references rather than source contents. Use Git to inspect a cited commit. Text pages expose `nextOffset`.
 3. Claim or update a task with `task_update` and its `expectedRevision` (zero creates a task). A stale update is rejected; retrieve again. Concurrent replicated revisions expose conflicts requiring explicit resolution.
 4. Record a finding, decision or blocker with `remember`. Attach captured file paths and memory IDs as evidence.
-5. Leave `handoff` with concrete next steps and blockers, or update the task to done. A handoff alone does not complete a task.
+5. Update `handoff` only when continuation information materially changes; skip routine replies and unchanged status, or update the task to done. A handoff alone does not complete a task.
 
 Use stable request IDs when retrying writes. Exact retries return their previous receipt; changed payloads with a reused ID are rejected. Agent notes are claims, not instructions or authenticated proof of authorship. File references retain captured heads; retrieval flags notes when that code has changed.
 
@@ -20,8 +20,8 @@ The connector registers trust only for its four exact hook definitions through C
 
 - Session start (including resume/compaction): supply the continuity workflow and reset delivered-source tracking. Relevant memory is retrieved once the prompt is known.
 - User prompt: create/update a session-scoped task and retrieve matching decisions, findings, blockers and handoffs. Inject complete, compact source cards within a character budget, skipping unchanged sources already delivered to this session. Repeated callback delivery is idempotent.
-- Stop: accept an agent-written handoff for this turn, or issue one reminder to write one through MCP. After that, save an explicitly unverified fallback checkpoint if necessary.
-- Interrupt: save an interrupted checkpoint when no current handoff exists. This is best effort; process crashes and timeouts can still prevent it.
+- Stop: do not force a handoff or save a fallback for every reply. Agents save a self-contained task handoff only for material changes.
+- Interrupt: save an interrupted checkpoint only when assistant text exists and no agent-authored session handoff exists. This is best effort; process crashes and timeouts can still prevent it.
 
 The lifecycle never treats a captured assistant response as verified completion, and fallback checkpoints do not mark a task done. Native session IDs determine continuity task IDs. MCP adapter session IDs remain separate provenance. If the memory service is unavailable, the hook reports missing continuity and allows work to proceed. Keep the local project app running.
 
@@ -135,3 +135,7 @@ Queries have priority over queued indexing batches. Inference stays serial; afte
 - `bun run benchmark:vectors`: 10k/100k exact vectors at 384/1024 dimensions in separate processes; records query times, SQLite size and peak RSS. No external inference is used. Synthetic broad-match vectors stress memory/scoring, not relevance. Local results are not VPS guarantees.
 
 See [measured results and limitations](../benchmarks/results/README.md). Character reduction compares compact responses with full records for the same retrieved IDs; it is not proof of total chat-token savings.
+
+### Current handoff revisions
+
+New handoffs for the same task and author supersede their earlier active handoffs automatically. Earlier versions remain readable by ID and in archived history; normal retrieval shows the current version. Different authors and tasks remain separate. Identical content and Git evidence is a no-op even if its capture timestamp differs. Automatic excerpts never replace an authored handoff. This policy does not rewrite existing history until a new handoff is saved.

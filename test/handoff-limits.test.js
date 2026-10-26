@@ -16,3 +16,18 @@ test('relay memory enforces the limit atomically for tool and direct API handoff
 test('desktop and standalone cloud validators expose the same concise handoff schema',()=>{
  const schema=memoryTools.find(tool=>tool.name==='handoff').inputSchema,validate=new Ajv().compile(schema);assert.equal(validate(base),true);assert.equal(validators.handoff(base),true);for(const value of [{...base,text:'x'.repeat(1501)},{...base,nextSteps:Array(4).fill('step')}]){assert.equal(validate(value),false);assert.equal(validators.handoff(value),false);}
 });
+
+test('handoffs revise the current task snapshot without duplicates or crossing author boundaries',t=>{
+ const engine=new ShardedEngine(':memory:'),ref=engine.create('new');engine.db.prepare('UPDATE shard_refs SET name=? WHERE name=?').run('relay-'+ref.room,'new');const store=new MemoryStore(engine,{referencesOnly:true});t.after(()=>engine.close());
+ const run=(input,actor='alice')=>store.run(ref.room,{requestId:crypto.randomUUID(),...input},{id:actor});
+ run({command:'task_update',taskId:'work',title:'Delivery',text:'Fix delivery',status:'in_progress',expectedRevision:0});
+ const first=run({command:'handoff',...base,git:{branch:'main',capturedAt:'2026-10-26T09:00:00Z'}});
+ const same=run({command:'handoff',...base,git:{capturedAt:'2026-10-26T10:00:00Z',branch:'main'}});assert.equal(same.id,first.id);assert.equal(same.unchanged,true);
+ const other=run({command:'handoff',...base,text:'Independent investigation'},'bob');
+ const updated=run({command:'handoff',...base,text:'Fixed and deployed. No remaining blockers.'});
+ const active=run({command:'search',kinds:['handoff']}).results;assert.deepEqual(new Set(active.map(r=>r.id)),new Set([other.id,updated.id]));
+ const history=run({command:'get',id:first.id});assert.equal(history.lifecycle.status,'superseded');assert.equal(history.lifecycle.replacementId,updated.id);
+ const fallback=run({command:'handoff',...base,title:'Automatic Codex checkpoint',text:'Unverified excerpt'});assert.equal(fallback.id,updated.id);assert.equal(fallback.unchanged,true);
+ assert.equal(run({command:'search',kinds:['handoff'],includeArchived:true}).results.length,3);
+ const unscoped=run({command:'handoff',title:'Independent',text:'No task'});assert.ok(unscoped.id);
+});

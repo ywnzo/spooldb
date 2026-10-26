@@ -11,6 +11,10 @@ import {queryTokens} from './query.js';
 import {visibleMemory,lifecycleState,rebuildLifecycle,lifecycleChanges} from './lifecycle.js';
 const PROTOCOL='spool-memory/1',KINDS=['task','finding','decision','blocker','handoff'];
 const branch=room=>`relay-${room}`;
+// Observation timestamps do not change the evidence itself. Canonicalize keys
+// so a caller's JSON property order cannot manufacture another revision.
+const handoffValue=value=>Array.isArray(value)?value.map(handoffValue):value&&typeof value==='object'?Object.fromEntries(Object.keys(value).filter(key=>key!=='capturedAt').sort().map(key=>[key,handoffValue(value[key])])):value;
+
 const str=(value,name,max=8000)=>{fail(typeof value==='string'&&value.trim().length>0&&value.length<=max,'INVALID_MEMORY',`Invalid ${name}`);return value;};
 const taskId=value=>{str(value,'task ID',160);fail(/^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(value),'INVALID_TASK','Use a short task identifier');return value;};
 const array=(value,max=30)=>{fail(Array.isArray(value)&&value.length<=max&&value.every(v=>typeof v==='string'&&v.length<=1000),'INVALID_MEMORY','Invalid list');return value;};
@@ -116,7 +120,23 @@ export class MemoryStore {
     const entry=[...e.manifest.entries(version.root)].find(([key,value])=>key.startsWith('f:')&&value.path===path&&!value.deleted);fail(entry,'SOURCE_NOT_FOUND',`File is not captured in this project: ${path}`,404);event.files.push({path,fileId:entry[0].slice(2),heads:entry[1].heads});
    }
    for(const ref of array(input.refs??[])){fail(e.db.prepare('SELECT 1 FROM memory_docs WHERE room=? AND id=?').get(room,ref),'SOURCE_NOT_FOUND','Referenced memory is not in this project',404);event.refs.push(ref);}
-   const changes=lifecycleChanges(this,room,input,id);if(changes.length)event.lifecycleChanges=changes;if(input.lifecycle)event.lifecycleControl=true;
+   // A task has one current handoff per author. Keep immutable prior revisions
+   // available through history, without mixing parallel authors or unrelated tasks.
+   let handoffInput=input;
+   if(kind==='handoff'&&event.taskId&&!input.lifecycle){
+    const rows=e.db.prepare("SELECT d.* FROM memory_docs d WHERE d.room=? AND d.kind='handoff' AND d.task_id=? AND "+visibleMemory('d')+" ORDER BY d.seq DESC").all(room,event.taskId);
+    const previous=rows.filter(row=>JSON.parse(row.data).actor===principal.id);
+    const automatic=title==='Automatic Codex checkpoint'||title==='Interrupted Codex checkpoint';
+    const authored=previous.find(row=>!['Automatic Codex checkpoint','Interrupted Codex checkpoint'].includes(row.title));
+    const equivalent=previous.find(row=>{const old=JSON.parse(row.data);return ['title','text','nextSteps','blockers','files','refs','git','commits'].every(key=>JSON.stringify(handoffValue(old[key]??null))===JSON.stringify(handoffValue(event[key]??null)));});
+    const retained=automatic&&authored?authored:!input.supersedes?.length&&!input.resolves?.length&&previous.length===1?equivalent:null;
+    if(retained){
+     const result={id:retained.id,kind,taskId:event.taskId,revision:null,heads:version.heads,citation:`tw://rooms/${room}/messages/${retained.id}`,unchanged:true};
+     e.db.prepare('INSERT INTO memory_write_receipts VALUES(?,?,?,?,?)').run(room,principal.id,requestId,encoded,JSON.stringify(result));return result;
+    }
+    handoffInput={...input,supersedes:[...new Set([...(input.supersedes??[]),...previous.map(row=>row.id)])]};
+   }
+   const changes=lifecycleChanges(this,room,handoffInput,id);if(changes.length)event.lifecycleChanges=changes;if(input.lifecycle)event.lifecycleControl=true;
    const receipt=e.submit(branch(room),{actor:principal.id,harness:'spool-memory',sessionId:input.sessionId??'memory-api',evidence:'agent-claimed-memory',requestId:`memory-${digest([principal.id,requestId])}`,expectedHeads:e.ref(branch(room)).heads,operations:[{type:'message.add',messageId:id,role:'system',text:JSON.stringify(event)}]});
    const result={id,kind,taskId:event.taskId,revision:event.revision??null,heads:receipt.heads,citation:`tw://rooms/${room}/messages/${id}`};
    e.db.prepare('INSERT INTO memory_write_receipts VALUES(?,?,?,?,?)').run(room,principal.id,requestId,encoded,JSON.stringify(result));return result;
