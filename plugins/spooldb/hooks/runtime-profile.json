@@ -1,5 +1,5 @@
 {
   "protocol": "spool-hooks/1",
-  "fingerprint": "700b7cf3458b45c7bf40f0657927a53f126c068225eefc7edbbb9058d14e639c",
+  "fingerprint": "b8cfeb6e491c65da16f69d2ec4d1af19d3064f9553544a0e442941ab7a496c5a",
   "runtime": "app/runtime/bun"
 }
