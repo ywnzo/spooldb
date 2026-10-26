@@ -10,7 +10,7 @@ SpoolDB stores project conversations, agent claims, decisions, tasks, handoffs a
 - Sharing switches govern new records by category. They do not retract existing history, revoke downloaded copies, or automatically redact credentials and sensitive text.
 - Archiving excludes records from ordinary retrieval and retains history. It is not secure erasure.
 - SQLite data, vectors and backups are not encrypted by the application. Protect the server, disks, backup destinations and operating-system accounts.
-- Local embedding models are selected from pinned revisions. Inference stays on the relay. Downloading model weights requires access to the model distributor.
+- Local embedding models are selected from pinned revisions. Local inference stays on the relay. Downloading model weights requires access to the model distributor. Workspace owners may explicitly opt into Cloudflare embeddings, which send indexed passages and queries to Cloudflare. Cloudflare credentials stay in private relay settings tables, are never returned by the API or replicated with projects, and are included in relay backups; protect those backups. Hosted model aliases are upstream-managed.
 - Updates trust the official GitHub repository and its release administrators. Checksums detect corrupted downloads, but are not independent release signatures. Maintain protected branches, strong maintainer authentication and protected release credentials.
 
 ## Reporting

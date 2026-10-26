@@ -1,5 +1,7 @@
+import {cloudflareEmbeddings} from './cloudflare-embeddings.js';
 export async function defaultEmbeddings(options){
  if(typeof process!=='undefined'&&process.env.SPOOL_EMBEDDINGS==='off')return null;
+ if(options?.provider==='cloudflare')return cloudflareEmbeddings(options);
  const {localEmbeddings}=await import('#spool-local-embeddings');return localEmbeddings(options);
 }
 
