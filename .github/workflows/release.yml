@@ -62,6 +62,10 @@ jobs:
       - run: bun audit
       - run: bun run test
       - run: bun run typecheck
+      - name: Verify multilingual retrieval quality
+        run: bun run benchmark:quality --check
+        env:
+          SPOOL_MODEL_CACHE: ${{ runner.temp }}/spool-models
       - run: bun scripts/build-codex-plugin.js
       - run: bun scripts/build-codex-marketplace.js
       - run: bun scripts/build-linux-installer.js

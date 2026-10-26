@@ -55,7 +55,7 @@ test('workspace HTTP and admin socket support async tests; only owners can read 
  await owner.run({command:'connect',link:host.command({command:'workspace-init',name:'Synthetic embeddings test'}).link,device:'Owner'});
  const invite=await owner.run({command:'invite-member',label:'Member'});await member.run({command:'connect',link:invite.link,device:'Member'});
  const initial=await owner.run({command:'retrieval',action:'status'}),remote={...initial.settings,enabled:true,provider:'cloudflare',model,accountId};
- for(const action of ['status','test','configure','retry'])await assert.rejects(()=>member.run({command:'retrieval',action,settings:remote,token,accountId,model}),error=>error.code==='WORKSPACE_ROLE');assert.equal(requests,0);
+ for(const action of ['status','test','configure','retry','limits'])await assert.rejects(()=>member.run({command:'retrieval',action,settings:remote,token,accountId,model}),error=>error.code==='WORKSPACE_ROLE');assert.equal(requests,0);
  const tested=await owner.run({command:'retrieval',action:'test',accountId,token,model});assert.equal(tested.ok,true);assert.equal(requests,1);
  assert.equal((await hostRequest(join(base,'host'),{command:'retrieval',action:'test',accountId,token,model})).ok,true);
  await owner.run({command:'retrieval',action:'configure',expectedRevision:0,settings:remote,token,externalProcessingApproved:true});

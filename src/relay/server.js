@@ -113,7 +113,7 @@ export class RelayServer {
       }
       if(!res.headersSent&&!res.destroyed) this.send(res,fault.status,{error:{code:fault.code,message:fault.message}});
       req.resume();
-    } finally {this.active--;}
+    } finally {this.active--;const path=(req.url??'').split('?')[0],match=/^\/v1\/rooms\/([A-Za-z0-9._-]+)\/(state|memory|source|pull|push|review)$/.exec(path);const room=match&&this.engine.db.prepare('SELECT 1 FROM shard_refs WHERE room=? LIMIT 1').get(match[1])?match[1]:undefined;this.memory.usage.note(room,'http_requests');this.memory.usage.note(room,'http_'+(match?.[2]??'workspace_or_other'));if(res.statusCode>=400)this.memory.usage.note(room,'http_failures');}
   }
   async listen({host='127.0.0.1',port=0}={}) {
     await new Promise((resolve,reject)=>{this.server.once('error',reject);this.server.listen(port,host,()=>{this.server.removeListener('error',reject);resolve();});});

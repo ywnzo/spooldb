@@ -24,6 +24,7 @@ Usage: spool COMMAND [--state DIR] [--json]
   workspace connect [--invite-file FILE | --invite-stdin] [--device NAME]
   workspace status | projects | members | saved | disconnect
   project sharing [NAME]                     Guided per-project category overrides
+  workspace usage [limits]                   View usage or configure external embedding limits
   workspace sharing                          Guided category sharing settings
   workspace switch NAME
   workspace create NAME [--request-id KEY]
@@ -144,6 +145,13 @@ export async function runManagement(args,{input=process.stdin,output=process.std
   if(!['list','propose','preview','ignore'].includes(action))throw new Error('Use discovery enable|list|propose|preview|approve|ignore');print(await local('discovery',{command:action,...(cwd?{cwd}:{})}));return;
  }
  if(group==='workspace'){
+  if(action==='usage'){
+   const current=await ws({command:'retrieval',action:'status'});if(!current.usage)throw Error(current.message??'This relay does not expose usage statistics yet');
+   if(rest[0]!=='limits'){print(current.usage);return;}
+   if(!input.isTTY)throw Error('Run spool workspace usage limits in an interactive terminal');
+   const rl=createInterface({input,output});try{const limits={};for(const [key,label]of [['dailyCharacters','Daily external characters'],['dailyRequests','Daily external requests'],['projectDailyCharacters','Daily external characters per project']]){const answer=(await rl.question(`${label} (0 = unlimited) [${current.usage.limits[key]}]: `)).trim();limits[key]=answer?Number(answer):current.usage.limits[key];if(!Number.isSafeInteger(limits[key])||limits[key]<0||limits[key]>1000000000)throw Error('Enter a whole number from 0 to 1,000,000,000; limits were not changed');}print((await ws({command:'retrieval',action:'limits',expectedRevision:current.usage.limits.revision,limits})).usage);}finally{rl.close();}return;
+  }
+
   if(action==='connect'){const link=await invite(options,{input,output});print(await ws({command:'connect',link,device:options.device}));return;}
   if(['status','projects','members'].includes(action)){const result=await ws({command:'list'});print(action==='projects'?result.projects??[]:action==='members'?result.members??[]:result);return;}
   if(action==='sharing'){const current=await ws({command:'sharing'});if(!input.isTTY||options.json){print(current);return;}const rl=createInterface({input,output});try{const sharing={};for(const [key,value]of Object.entries(current.sharing)){const answer=(await rl.question(`Share ${key}? (${value?'Y/n':'y/N'}): `)).trim().toLowerCase();if(answer&&!['y','yes','n','no'].includes(answer))throw Error('Answer yes or no; settings were not changed');sharing[key]=answer?['y','yes'].includes(answer):value;}print(await ws({command:'sharing',sharing,expectedRevision:current.sharingRevision}));}finally{rl.close();}return;}

@@ -1,3 +1,5 @@
+import {RetrievalUsage} from './usage.js';
+import {assertHandoff} from './handoff-limits.js';
 import {validMemoryEvent} from './event-validation.js';
 import {randomUUID,createHash} from 'node:crypto';
 import {fail} from '../relay/wire.js';
@@ -21,7 +23,7 @@ export class MemoryStore {
  CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(room UNINDEXED,id UNINDEXED,title,text,tokenize='unicode61');
  CREATE TABLE IF NOT EXISTS memory_index(room TEXT PRIMARY KEY,heads TEXT NOT NULL,last_seq INTEGER NOT NULL);
  CREATE TABLE IF NOT EXISTS memory_provenance(room TEXT NOT NULL,event_id TEXT NOT NULL,data TEXT NOT NULL,PRIMARY KEY(room,event_id));
- CREATE TABLE IF NOT EXISTS memory_write_receipts(room TEXT NOT NULL,principal TEXT NOT NULL,request_id TEXT NOT NULL,input TEXT NOT NULL,result TEXT NOT NULL,PRIMARY KEY(room,principal,request_id));`);this.semantic=embeddings?new SemanticIndex(this,embeddings):null;}
+ CREATE TABLE IF NOT EXISTS memory_write_receipts(room TEXT NOT NULL,principal TEXT NOT NULL,request_id TEXT NOT NULL,input TEXT NOT NULL,result TEXT NOT NULL,PRIMARY KEY(room,principal,request_id));`);this.usage=new RetrievalUsage(engine);this.semantic=embeddings?new SemanticIndex(this,embeddings):null;}
  async retrieve(room,input,principal={id:'local-agent'}){
   if(!input||!['search','context'].includes(input.command)||typeof input.query!=='string'||!input.query.trim())return this.run(room,input,principal);
   // Validate through the synchronous API before performing any model work.
@@ -95,6 +97,7 @@ export class MemoryStore {
    const prior=e.db.prepare('SELECT input,result FROM memory_write_receipts WHERE room=? AND principal=? AND request_id=?').get(room,principal.id,requestId);
    if(prior){fail(prior.input===encoded,'REQUEST_CONFLICT','Request ID reused with different memory',409);return JSON.parse(prior.result);}
    const kind=input.command==='task_update'?'task':input.command==='handoff'?'handoff':input.kind;fail(KINDS.includes(kind),'INVALID_KIND','Choose finding, decision, blocker, handoff or task');
+   if(kind==='handoff')assertHandoff(input);
    const title=str(input.title,'title',300),text=str(input.text,'memory text',12000),id=`memory-${randomUUID()}`;if(input.taskId)taskId(input.taskId);
    const event={protocol:PROTOCOL,kind,title,text,taskId:input.taskId??null,actor:principal.id,sessionId:input.sessionId??null,createdAt:new Date().toISOString(),files:[],refs:[]};
    if(input.sessionId!==undefined)str(input.sessionId,'session identity',200);

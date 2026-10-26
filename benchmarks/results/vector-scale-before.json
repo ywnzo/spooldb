@@ -1,0 +1,73 @@
+{
+  "version": 1,
+  "runtime": "bun 1.4.4",
+  "cpus": 12,
+  "memoryBytes": 33510481920,
+  "results": [
+    {
+      "records": 10000,
+      "dimensions": 384,
+      "indexingMs": 123,
+      "queryMs": [
+        178,
+        200,
+        229
+      ],
+      "peakRssKiB": 157888,
+      "rssBeforeBytes": 73306112,
+      "rssAfterBytes": 157122560,
+      "sqliteBytes": 25628672,
+      "returned": 100,
+      "conditions": "Synthetic dense vectors with broad matches, exact scan, cached query embedding; no external inference."
+    },
+    {
+      "records": 100000,
+      "dimensions": 384,
+      "indexingMs": 1511,
+      "queryMs": [
+        1470,
+        1240,
+        1814
+      ],
+      "peakRssKiB": 802336,
+      "rssBeforeBytes": 75264000,
+      "rssAfterBytes": 647176192,
+      "sqliteBytes": 254943232,
+      "returned": 100,
+      "conditions": "Synthetic dense vectors with broad matches, exact scan, cached query embedding; no external inference."
+    },
+    {
+      "records": 10000,
+      "dimensions": 1024,
+      "indexingMs": 249,
+      "queryMs": [
+        239,
+        227,
+        213
+      ],
+      "peakRssKiB": 285324,
+      "rssBeforeBytes": 69222400,
+      "rssAfterBytes": 292171776,
+      "sqliteBytes": 51216384,
+      "returned": 100,
+      "conditions": "Synthetic dense vectors with broad matches, exact scan, cached query embedding; no external inference."
+    },
+    {
+      "records": 100000,
+      "dimensions": 1024,
+      "indexingMs": 1765,
+      "queryMs": [
+        1560,
+        1967,
+        1889
+      ],
+      "peakRssKiB": 1741716,
+      "rssBeforeBytes": 74686464,
+      "rssAfterBytes": 1411026944,
+      "sqliteBytes": 510816256,
+      "returned": 100,
+      "conditions": "Synthetic dense vectors with broad matches, exact scan, cached query embedding; no external inference."
+    }
+  ],
+  "decision": "Use measured latency and memory against deployment SLOs before adopting ANN. This measures exact retrieval, not storage operation throughput or relevance."
+}

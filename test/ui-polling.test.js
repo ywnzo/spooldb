@@ -1,9 +1,9 @@
 import {test} from 'node:test';import assert from 'node:assert/strict';import {readFileSync} from 'node:fs';import {runInNewContext} from 'node:vm';
 function fixture(){
  const elements=new Map(),listeners=new Map(),timers=new Map();let serial=0,calls=0;
- const element=id=>{if(!elements.has(id))elements.set(id,{hidden:id==='project-home'?false:true,value:'',checked:false,replaceChildren(){},addEventListener(){},removeAttribute(){}});return elements.get(id);};
+ const element=id=>{if(!elements.has(id))elements.set(id,{hidden:id==='project-home'?false:true,value:'',checked:false,replaceChildren(){},addEventListener(){},removeAttribute(){},querySelectorAll(){return [];},reportValidity(){return true;}});return elements.get(id);};
  const document={hidden:false,getElementById:element,createElement:()=>({}),addEventListener:(event,fn)=>listeners.set(event,fn)};
- const data={supported:true,revision:0,settings:{provider:'local',accountId:'',enabled:true,model:'mini',threads:2,minScore:0.25,contextChars:6000},models:[{key:'mini',name:'Mini',description:'Local'}],cloudflareModels:[],cleanup:{archived:0},status:'ready',activeModel:'mini'};
+ const data={supported:true,revision:0,settings:{provider:'local',accountId:'',enabled:true,model:'mini',threads:2,minScore:0.25,contextChars:6000},models:[{key:'mini',name:'Mini',description:'Local'}],cloudflareModels:[],cleanup:{archived:0},status:'ready',activeModel:'mini',usage:{totals:{http_requests:12,external_requests:2,query_cache_hits:3},backlog:[],limits:{revision:0,dailyCharacters:0,dailyRequests:0,projectDailyCharacters:0}}};
  const window={spoolSettings:{current:'retrieval'},localRequest:async()=>{calls++;return structuredClone(data);}};
  runInNewContext(readFileSync(new URL('../src/review/public/retrieval-settings.js',import.meta.url),'utf8'),{window,document,setTimeout:(fn,delay)=>{const id=++serial;timers.set(id,{fn,delay});return id;},clearTimeout:id=>timers.delete(id)});
  return {document,data,timers,element,calls:()=>calls,event:async(name,detail)=>{await listeners.get(name)?.({detail});await new Promise(resolve=>setImmediate(resolve));}};

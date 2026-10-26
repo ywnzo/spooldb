@@ -1,0 +1,830 @@
+{
+  "version": "retrieval-v2",
+  "model": "Xenova/paraphrase-multilingual-MiniLM-L12-v2@2c4055b12046f11709e9df2c122e59ffbdc2f900:q8:mean:256:plain",
+  "records": 42,
+  "queries": 50,
+  "positiveQueries": 42,
+  "negativeQueries": 8,
+  "indexingMs": 1624,
+  "recallAt3": 0.8809523809523809,
+  "mrr": 0.7896825396825398,
+  "negativeEmptyRate": 0.75,
+  "staleLeaks": 0,
+  "crossProjectLeaks": 0,
+  "contextCharacterReduction": 0.6911475822293616,
+  "contextComparison": "Compact response versus full records for the same retrieved IDs; characters, not total chat tokens.",
+  "p50Ms": 7,
+  "p95Ms": 9,
+  "results": [
+    {
+      "query": "How should delivery be counted when several items share one order?",
+      "key": "shipping",
+      "language": "en",
+      "expected": "memory-fff2a3d9-4ace-47f7-9d38-f0723b1a1b6b",
+      "rank": 1,
+      "returned": [
+        "memory-fff2a3d9-4ace-47f7-9d38-f0723b1a1b6b",
+        "memory-43883197-3c36-45ca-a5c2-b75079ca2f99",
+        "memory-3a8fcbd5-dcc6-42bb-8543-a58146cdea61"
+      ],
+      "latencyMs": 11,
+      "compactChars": 3135,
+      "expandedChars": 10732,
+      "staleLeaks": 0,
+      "foreignLeaks": 0
+    },
+    {
+      "query": "M\u00e1 se doprava zapo\u010d\u00edtat do ceny ka\u017ed\u00e9 polo\u017eky, nebo jednou za objedn\u00e1vku?",
+      "key": "shipping",
+      "language": "cs",
+      "expected": "memory-fff2a3d9-4ace-47f7-9d38-f0723b1a1b6b",
+      "rank": 1,
+      "returned": [
+        "memory-fff2a3d9-4ace-47f7-9d38-f0723b1a1b6b"
+      ],
+      "latencyMs": 9,
+      "compactChars": 1784,
+      "expandedChars": 3558,
+      "staleLeaks": 0,
+      "foreignLeaks": 0
+    },
+    {
+      "query": "What is the contract of ShippingCost.calculate?",
+      "key": "shipping",
+      "language": "en",
+      "expected": "memory-fff2a3d9-4ace-47f7-9d38-f0723b1a1b6b",
+      "rank": 1,
+      "returned": [
+        "memory-fff2a3d9-4ace-47f7-9d38-f0723b1a1b6b",
+        "memory-8a5cfd5e-c359-4929-9c88-86d49917aedf",
+        "memory-996a10db-e9ac-4792-b2de-fa402f880497"
+      ],
+      "latencyMs": 7,
+      "compactChars": 3132,
+      "expandedChars": 10719,
+      "staleLeaks": 0,
+      "foreignLeaks": 0
+    },
+    {
+      "query": "What checks stop a user downloading another company\u2019s attachment?",
+      "key": "access",
+      "language": "en",
+      "expected": "memory-8a5cfd5e-c359-4929-9c88-86d49917aedf",
+      "rank": null,
+      "returned": [
+        "memory-6cc53981-cd39-4ba1-9bef-b000a255cd58",
+        "memory-176522d8-af56-49a8-a9f5-019abe5754c2",
+        "memory-73a0912e-c6f4-46b9-af73-41ef39a6e991"
+      ],
+      "latencyMs": 7,
+      "compactChars": 3131,
+      "expandedChars": 10767,
+      "staleLeaks": 0,
+      "foreignLeaks": 0
+    },
+    {
+      "query": "Jak\u00e9 kontroly mus\u00ed proj\u00edt sta\u017een\u00ed dokumentu jin\u00e9 firmy?",
+      "key": "access",
+      "language": "cs",
+      "expected": "memory-8a5cfd5e-c359-4929-9c88-86d49917aedf",
+      "rank": 1,
+      "returned": [
+        "memory-8a5cfd5e-c359-4929-9c88-86d49917aedf",
+        "memory-176522d8-af56-49a8-a9f5-019abe5754c2",
+        "memory-27b946e8-b3c2-427a-9b49-ddcf56fe198e"
+      ],
+      "latencyMs": 7,
+      "compactChars": 3122,
+      "expandedChars": 10775,
+      "staleLeaks": 0,
+      "foreignLeaks": 0
+    },
+    {
+      "query": "When does DocumentPolicy.canDownload reject access?",
+      "key": "access",
+      "language": "en",
+      "expected": "memory-8a5cfd5e-c359-4929-9c88-86d49917aedf",
+      "rank": 1,
+      "returned": [
+        "memory-8a5cfd5e-c359-4929-9c88-86d49917aedf",
+        "memory-6cc53981-cd39-4ba1-9bef-b000a255cd58"
+      ],
+      "latencyMs": 6,
+      "compactChars": 3139,
+      "expandedChars": 7161,
+      "staleLeaks": 0,
+      "foreignLeaks": 0
+    },
+    {
+      "query": "A worker died mid-job. Can another worker resume it, and when?",
+      "key": "lease",
+      "language": "en",
+      "expected": "memory-68717643-176c-4d52-b8c8-6f6090df55a2",
+      "rank": 2,
+      "returned": [
+        "memory-73a0912e-c6f4-46b9-af73-41ef39a6e991",
+        "memory-68717643-176c-4d52-b8c8-6f6090df55a2",
+        "memory-43883197-3c36-45ca-a5c2-b75079ca2f99"
+      ],
+      "latencyMs": 7,
+      "compactChars": 3125,
+      "expandedChars": 10723,
+      "staleLeaks": 0,
+      "foreignLeaks": 0
+    },
+    {
+      "query": "Co se stane s rozpracovanou \u00falohou po p\u00e1du workeru?",
+      "key": "lease",
+      "language": "cs",
+      "expected": "memory-68717643-176c-4d52-b8c8-6f6090df55a2",
+      "rank": 2,
+      "returned": [
+        "memory-43883197-3c36-45ca-a5c2-b75079ca2f99",
+        "memory-68717643-176c-4d52-b8c8-6f6090df55a2",
+        "memory-d4fab079-3944-4826-9d50-aef3bb6701fa"
+      ],
+      "latencyMs": 7,
+      "compactChars": 2953,
+      "expandedChars": 10721,
+      "staleLeaks": 0,
+      "foreignLeaks": 0
+    },
+    {
+      "query": "Explain JobRunner.claim lease expiry.",
+      "key": "lease",
+      "language": "en",
+      "expected": "memory-68717643-176c-4d52-b8c8-6f6090df55a2",
+      "rank": 1,
+      "returned": [
+        "memory-68717643-176c-4d52-b8c8-6f6090df55a2",
+        "memory-73a0912e-c6f4-46b9-af73-41ef39a6e991",
+        "memory-8a5cfd5e-c359-4929-9c88-86d49917aedf"
+      ],
+      "latencyMs": 7,
+      "compactChars": 3135,
+      "expandedChars": 10718,
+      "staleLeaks": 0,
+      "foreignLeaks": 0
+    },
+    {
+      "query": "Is the parent repository commit enough to reproduce a nested-module fix?",
+      "key": "submodules",
+      "language": "en",
+      "expected": "memory-62bef774-c890-4e7f-bf79-75a0ef2d88c4",
+      "rank": 1,
+      "returned": [
+        "memory-62bef774-c890-4e7f-bf79-75a0ef2d88c4",
+        "memory-996a10db-e9ac-4792-b2de-fa402f880497",
+        "memory-b016d208-ad83-47ca-8384-bc673908a039"
+      ],
+      "latencyMs": 8,
+      "compactChars": 3149,
+      "expandedChars": 10769,
+      "staleLeaks": 0,
+      "foreignLeaks": 0
+    },
+    {
+      "query": "Sta\u010d\u00ed pro p\u0159ed\u00e1n\u00ed zm\u011bn v submodulu jen commit hlavn\u00edho repozit\u00e1\u0159e?",
+      "key": "submodules",
+      "language": "cs",
+      "expected": "memory-62bef774-c890-4e7f-bf79-75a0ef2d88c4",
+      "rank": 1,
+      "returned": [
+        "memory-62bef774-c890-4e7f-bf79-75a0ef2d88c4",
+        "memory-996a10db-e9ac-4792-b2de-fa402f880497",
+        "memory-43883197-3c36-45ca-a5c2-b75079ca2f99"
+      ],
+      "latencyMs": 8,
+      "compactChars": 3149,
+      "expandedChars": 10775,
+      "staleLeaks": 0,
+      "foreignLeaks": 0
+    },
+    {
+      "query": "Which revisions belong in SubmoduleCheckpoint?",
+      "key": "submodules",
+      "language": "en",
+      "expected": "memory-62bef774-c890-4e7f-bf79-75a0ef2d88c4",
+      "rank": null,
+      "returned": [
+        "memory-43883197-3c36-45ca-a5c2-b75079ca2f99",
+        "memory-996a10db-e9ac-4792-b2de-fa402f880497",
+        "memory-27b946e8-b3c2-427a-9b49-ddcf56fe198e"
+      ],
+      "latencyMs": 8,
+      "compactChars": 3136,
+      "expandedChars": 10777,
+      "staleLeaks": 0,
+      "foreignLeaks": 0
+    },
+    {
+      "query": "How do we update a live database without erasing existing records?",
+      "key": "migration",
+      "language": "en",
+      "expected": "memory-996a10db-e9ac-4792-b2de-fa402f880497",
+      "rank": 2,
+      "returned": [
+        "memory-b016d208-ad83-47ca-8384-bc673908a039",
+        "memory-996a10db-e9ac-4792-b2de-fa402f880497",
+        "memory-27b946e8-b3c2-427a-9b49-ddcf56fe198e"
+      ],
+      "latencyMs": 7,
+      "compactChars": 3148,
+      "expandedChars": 10771,
+      "staleLeaks": 0,
+      "foreignLeaks": 0
+    },
+    {
+      "query": "Jak prov\u00e9st zm\u011bnu sch\u00e9matu v produkci bez ztr\u00e1ty ulo\u017een\u00fdch dat?",
+      "key": "migration",
+      "language": "cs",
+      "expected": "memory-996a10db-e9ac-4792-b2de-fa402f880497",
+      "rank": 1,
+      "returned": [
+        "memory-996a10db-e9ac-4792-b2de-fa402f880497",
+        "memory-b016d208-ad83-47ca-8384-bc673908a039",
+        "memory-43883197-3c36-45ca-a5c2-b75079ca2f99"
+      ],
+      "latencyMs": 7,
+      "compactChars": 3128,
+      "expandedChars": 10743,
+      "staleLeaks": 0,
+      "foreignLeaks": 0
+    },
+    {
+      "query": "What does SchemaMigrator.upgrade require?",
+      "key": "migration",
+      "language": "en",
+      "expected": "memory-996a10db-e9ac-4792-b2de-fa402f880497",
+      "rank": 1,
+      "returned": [
+        "memory-996a10db-e9ac-4792-b2de-fa402f880497",
+        "memory-43883197-3c36-45ca-a5c2-b75079ca2f99",
+        "memory-b016d208-ad83-47ca-8384-bc673908a039"
+      ],
+      "latencyMs": 6,
+      "compactChars": 3146,
+      "expandedChars": 10743,
+      "staleLeaks": 0,
+      "foreignLeaks": 0
+    },
+    {
+      "query": "Can an attachment still use its old clean scan after its contents change?",
+      "key": "scan",
+      "language": "en",
+      "expected": "memory-6cc53981-cd39-4ba1-9bef-b000a255cd58",
+      "rank": null,
+      "returned": [
+        "memory-27b946e8-b3c2-427a-9b49-ddcf56fe198e",
+        "memory-14f37ea0-156a-4354-922b-8648503b4f1b",
+        "memory-0005589a-d78d-42f6-8b12-b90850bb4212"
+      ],
+      "latencyMs": 8,
+      "compactChars": 2614,
+      "expandedChars": 6013,
+      "staleLeaks": 0,
+      "foreignLeaks": 0
+    },
+    {
+      "query": "Plat\u00ed p\u016fvodn\u00ed v\u00fdsledek antiviru i po zm\u011bn\u011b obsahu p\u0159\u00edlohy?",
+      "key": "scan",
+      "language": "cs",
+      "expected": "memory-6cc53981-cd39-4ba1-9bef-b000a255cd58",
+      "rank": 2,
+      "returned": [
+        "memory-27b946e8-b3c2-427a-9b49-ddcf56fe198e",
+        "memory-6cc53981-cd39-4ba1-9bef-b000a255cd58"
+      ],
+      "latencyMs": 7,
+      "compactChars": 3124,
+      "expandedChars": 7194,
+      "staleLeaks": 0,
+      "foreignLeaks": 0
+    },
+    {
+      "query": "What does AttachmentScan.verify compare?",
+      "key": "scan",
+      "language": "en",
+      "expected": "memory-6cc53981-cd39-4ba1-9bef-b000a255cd58",
+      "rank": 1,
+      "returned": [
+        "memory-6cc53981-cd39-4ba1-9bef-b000a255cd58",
+        "memory-479bce1c-5649-4b0a-bfe2-5a998f66224d",
+        "memory-6e1a162d-b866-40d3-98e7-542f1e0ed71b"
+      ],
+      "latencyMs": 6,
+      "compactChars": 2618,
+      "expandedChars": 5987,
+      "staleLeaks": 0,
+      "foreignLeaks": 0
+    },
+    {
+      "query": "Two agents updated the same task. How do we avoid overwriting the newer result?",
+      "key": "revision",
+      "language": "en",
+      "expected": "memory-43883197-3c36-45ca-a5c2-b75079ca2f99",
+      "rank": 1,
+      "returned": [
+        "memory-43883197-3c36-45ca-a5c2-b75079ca2f99",
+        "memory-73a0912e-c6f4-46b9-af73-41ef39a6e991",
+        "memory-3a8fcbd5-dcc6-42bb-8543-a58146cdea61"
+      ],
+      "latencyMs": 8,
+      "compactChars": 3146,
+      "expandedChars": 10771,
+      "staleLeaks": 0,
+      "foreignLeaks": 0
+    },
+    {
+      "query": "Jak zabr\u00e1n\u00edme p\u0159eps\u00e1n\u00ed \u00fakolu soub\u011b\u017enou zm\u011bnou jin\u00e9ho agenta?",
+      "key": "revision",
+      "language": "cs",
+      "expected": "memory-43883197-3c36-45ca-a5c2-b75079ca2f99",
+      "rank": 3,
+      "returned": [
+        "memory-73a0912e-c6f4-46b9-af73-41ef39a6e991",
+        "memory-d4fab079-3944-4826-9d50-aef3bb6701fa",
+        "memory-43883197-3c36-45ca-a5c2-b75079ca2f99"
+      ],
+      "latencyMs": 7,
+      "compactChars": 3119,
+      "expandedChars": 10773,
+      "staleLeaks": 0,
+      "foreignLeaks": 0
+    },
+    {
+      "query": "Why can TaskStore.update return a conflict?",
+      "key": "revision",
+      "language": "en",
+      "expected": "memory-43883197-3c36-45ca-a5c2-b75079ca2f99",
+      "rank": 1,
+      "returned": [
+        "memory-43883197-3c36-45ca-a5c2-b75079ca2f99",
+        "memory-27b946e8-b3c2-427a-9b49-ddcf56fe198e",
+        "memory-b016d208-ad83-47ca-8384-bc673908a039"
+      ],
+      "latencyMs": 6,
+      "compactChars": 3145,
+      "expandedChars": 10769,
+      "staleLeaks": 0,
+      "foreignLeaks": 0
+    },
+    {
+      "query": "Can findings be shared while whole conversations stay private?",
+      "key": "privacy",
+      "language": "en",
+      "expected": "memory-d4fab079-3944-4826-9d50-aef3bb6701fa",
+      "rank": 1,
+      "returned": [
+        "memory-d4fab079-3944-4826-9d50-aef3bb6701fa",
+        "memory-176522d8-af56-49a8-a9f5-019abe5754c2",
+        "memory-6cc53981-cd39-4ba1-9bef-b000a255cd58"
+      ],
+      "latencyMs": 7,
+      "compactChars": 3138,
+      "expandedChars": 10765,
+      "staleLeaks": 0,
+      "foreignLeaks": 0
+    },
+    {
+      "query": "M\u016f\u017eeme sd\u00edlet poznatky a ponechat cel\u00e9 rozhovory soukrom\u00e9?",
+      "key": "privacy",
+      "language": "cs",
+      "expected": "memory-d4fab079-3944-4826-9d50-aef3bb6701fa",
+      "rank": 1,
+      "returned": [
+        "memory-d4fab079-3944-4826-9d50-aef3bb6701fa",
+        "memory-176522d8-af56-49a8-a9f5-019abe5754c2"
+      ],
+      "latencyMs": 6,
+      "compactChars": 3121,
+      "expandedChars": 7182,
+      "staleLeaks": 0,
+      "foreignLeaks": 0
+    },
+    {
+      "query": "Describe ConversationSharingPolicy for new records.",
+      "key": "privacy",
+      "language": "en",
+      "expected": "memory-d4fab079-3944-4826-9d50-aef3bb6701fa",
+      "rank": 1,
+      "returned": [
+        "memory-d4fab079-3944-4826-9d50-aef3bb6701fa",
+        "memory-73a0912e-c6f4-46b9-af73-41ef39a6e991",
+        "memory-176522d8-af56-49a8-a9f5-019abe5754c2"
+      ],
+      "latencyMs": 6,
+      "compactChars": 3129,
+      "expandedChars": 10778,
+      "staleLeaks": 0,
+      "foreignLeaks": 0
+    },
+    {
+      "query": "Why must a production build avoid opening our live database?",
+      "key": "build",
+      "language": "en",
+      "expected": "memory-b016d208-ad83-47ca-8384-bc673908a039",
+      "rank": 1,
+      "returned": [
+        "memory-b016d208-ad83-47ca-8384-bc673908a039",
+        "memory-996a10db-e9ac-4792-b2de-fa402f880497",
+        "memory-43883197-3c36-45ca-a5c2-b75079ca2f99"
+      ],
+      "latencyMs": 6,
+      "compactChars": 3148,
+      "expandedChars": 10743,
+      "staleLeaks": 0,
+      "foreignLeaks": 0
+    },
+    {
+      "query": "Pro\u010d sestaven\u00ed aplikace nesm\u00ed inicializovat skute\u010dnou datab\u00e1zi?",
+      "key": "build",
+      "language": "cs",
+      "expected": "memory-b016d208-ad83-47ca-8384-bc673908a039",
+      "rank": 1,
+      "returned": [
+        "memory-b016d208-ad83-47ca-8384-bc673908a039"
+      ],
+      "latencyMs": 6,
+      "compactChars": 1784,
+      "expandedChars": 3577,
+      "staleLeaks": 0,
+      "foreignLeaks": 0
+    },
+    {
+      "query": "What is isolated by BuildRunner.production?",
+      "key": "build",
+      "language": "en",
+      "expected": "memory-b016d208-ad83-47ca-8384-bc673908a039",
+      "rank": 1,
+      "returned": [
+        "memory-b016d208-ad83-47ca-8384-bc673908a039",
+        "memory-996a10db-e9ac-4792-b2de-fa402f880497",
+        "memory-43883197-3c36-45ca-a5c2-b75079ca2f99"
+      ],
+      "latencyMs": 7,
+      "compactChars": 3148,
+      "expandedChars": 10743,
+      "staleLeaks": 0,
+      "foreignLeaks": 0
+    },
+    {
+      "query": "The payment provider sent the same notification twice. How do we avoid a double charge?",
+      "key": "webhook",
+      "language": "en",
+      "expected": "memory-3a8fcbd5-dcc6-42bb-8543-a58146cdea61",
+      "rank": 1,
+      "returned": [
+        "memory-3a8fcbd5-dcc6-42bb-8543-a58146cdea61",
+        "memory-fff2a3d9-4ace-47f7-9d38-f0723b1a1b6b",
+        "memory-73a0912e-c6f4-46b9-af73-41ef39a6e991"
+      ],
+      "latencyMs": 7,
+      "compactChars": 3131,
+      "expandedChars": 10746,
+      "staleLeaks": 0,
+      "foreignLeaks": 0
+    },
+    {
+      "query": "Jak zabr\u00e1nit dvoj\u00edmu za\u00fa\u010dtov\u00e1n\u00ed opakovan\u00e9ho platebn\u00edho webhooku?",
+      "key": "webhook",
+      "language": "cs",
+      "expected": "memory-3a8fcbd5-dcc6-42bb-8543-a58146cdea61",
+      "rank": 1,
+      "returned": [
+        "memory-3a8fcbd5-dcc6-42bb-8543-a58146cdea61",
+        "memory-73a0912e-c6f4-46b9-af73-41ef39a6e991",
+        "memory-43883197-3c36-45ca-a5c2-b75079ca2f99"
+      ],
+      "latencyMs": 8,
+      "compactChars": 3122,
+      "expandedChars": 10771,
+      "staleLeaks": 0,
+      "foreignLeaks": 0
+    },
+    {
+      "query": "What makes PaymentWebhook.apply idempotent?",
+      "key": "webhook",
+      "language": "en",
+      "expected": "memory-3a8fcbd5-dcc6-42bb-8543-a58146cdea61",
+      "rank": 1,
+      "returned": [
+        "memory-3a8fcbd5-dcc6-42bb-8543-a58146cdea61",
+        "memory-b016d208-ad83-47ca-8384-bc673908a039",
+        "memory-8a5cfd5e-c359-4929-9c88-86d49917aedf"
+      ],
+      "latencyMs": 6,
+      "compactChars": 3131,
+      "expandedChars": 10746,
+      "staleLeaks": 0,
+      "foreignLeaks": 0
+    },
+    {
+      "query": "Should an old resolved blocker keep appearing as unfinished work?",
+      "key": "archive",
+      "language": "en",
+      "expected": "memory-2f4b80be-eeb2-4efc-b667-3c00f6a2332c",
+      "rank": 1,
+      "returned": [
+        "memory-2f4b80be-eeb2-4efc-b667-3c00f6a2332c",
+        "memory-43883197-3c36-45ca-a5c2-b75079ca2f99",
+        "memory-68717643-176c-4d52-b8c8-6f6090df55a2"
+      ],
+      "latencyMs": 7,
+      "compactChars": 3137,
+      "expandedChars": 10703,
+      "staleLeaks": 0,
+      "foreignLeaks": 0
+    },
+    {
+      "query": "M\u00e1 se ji\u017e vy\u0159e\u0161en\u00fd probl\u00e9m d\u00e1l nab\u00edzet jako otev\u0159en\u00e1 pr\u00e1ce?",
+      "key": "archive",
+      "language": "cs",
+      "expected": "memory-2f4b80be-eeb2-4efc-b667-3c00f6a2332c",
+      "rank": null,
+      "returned": [
+        "memory-43883197-3c36-45ca-a5c2-b75079ca2f99",
+        "memory-68717643-176c-4d52-b8c8-6f6090df55a2"
+      ],
+      "latencyMs": 7,
+      "compactChars": 3125,
+      "expandedChars": 7127,
+      "staleLeaks": 0,
+      "foreignLeaks": 0
+    },
+    {
+      "query": "What does MemoryLifecycle.resolve retain?",
+      "key": "archive",
+      "language": "en",
+      "expected": "memory-2f4b80be-eeb2-4efc-b667-3c00f6a2332c",
+      "rank": 1,
+      "returned": [
+        "memory-2f4b80be-eeb2-4efc-b667-3c00f6a2332c",
+        "memory-27b946e8-b3c2-427a-9b49-ddcf56fe198e",
+        "memory-73a0912e-c6f4-46b9-af73-41ef39a6e991"
+      ],
+      "latencyMs": 6,
+      "compactChars": 3129,
+      "expandedChars": 10783,
+      "staleLeaks": 0,
+      "foreignLeaks": 0
+    },
+    {
+      "query": "The first enrollment succeeded but its response was lost. Should we make a second account?",
+      "key": "invite",
+      "language": "en",
+      "expected": "memory-73a0912e-c6f4-46b9-af73-41ef39a6e991",
+      "rank": 3,
+      "returned": [
+        "memory-68717643-176c-4d52-b8c8-6f6090df55a2",
+        "memory-3a8fcbd5-dcc6-42bb-8543-a58146cdea61",
+        "memory-73a0912e-c6f4-46b9-af73-41ef39a6e991"
+      ],
+      "latencyMs": 8,
+      "compactChars": 3138,
+      "expandedChars": 10733,
+      "staleLeaks": 0,
+      "foreignLeaks": 0
+    },
+    {
+      "query": "Jak obnovit p\u0159ipojen\u00ed po ztracen\u00e9 odpov\u011bdi p\u0159i p\u0159ijet\u00ed pozv\u00e1nky?",
+      "key": "invite",
+      "language": "cs",
+      "expected": "memory-73a0912e-c6f4-46b9-af73-41ef39a6e991",
+      "rank": 2,
+      "returned": [
+        "memory-68717643-176c-4d52-b8c8-6f6090df55a2",
+        "memory-73a0912e-c6f4-46b9-af73-41ef39a6e991",
+        "memory-d4fab079-3944-4826-9d50-aef3bb6701fa"
+      ],
+      "latencyMs": 7,
+      "compactChars": 3115,
+      "expandedChars": 10735,
+      "staleLeaks": 0,
+      "foreignLeaks": 0
+    },
+    {
+      "query": "When is WorkspaceInvite.redeem recoverable?",
+      "key": "invite",
+      "language": "en",
+      "expected": "memory-73a0912e-c6f4-46b9-af73-41ef39a6e991",
+      "rank": 1,
+      "returned": [
+        "memory-73a0912e-c6f4-46b9-af73-41ef39a6e991",
+        "memory-68717643-176c-4d52-b8c8-6f6090df55a2",
+        "memory-43883197-3c36-45ca-a5c2-b75079ca2f99"
+      ],
+      "latencyMs": 6,
+      "compactChars": 3125,
+      "expandedChars": 10723,
+      "staleLeaks": 0,
+      "foreignLeaks": 0
+    },
+    {
+      "query": "Will work captured without a network connection be lost or uploaded twice later?",
+      "key": "offline",
+      "language": "en",
+      "expected": "memory-176522d8-af56-49a8-a9f5-019abe5754c2",
+      "rank": 1,
+      "returned": [
+        "memory-176522d8-af56-49a8-a9f5-019abe5754c2",
+        "memory-73a0912e-c6f4-46b9-af73-41ef39a6e991",
+        "memory-d4fab079-3944-4826-9d50-aef3bb6701fa"
+      ],
+      "latencyMs": 8,
+      "compactChars": 3128,
+      "expandedChars": 10778,
+      "staleLeaks": 0,
+      "foreignLeaks": 0
+    },
+    {
+      "query": "Ztrat\u00ed se pr\u00e1ce ulo\u017een\u00e1 bez p\u0159ipojen\u00ed, nebo se pozd\u011bji nahraje dvakr\u00e1t?",
+      "key": "offline",
+      "language": "cs",
+      "expected": "memory-176522d8-af56-49a8-a9f5-019abe5754c2",
+      "rank": null,
+      "returned": [
+        "memory-d4fab079-3944-4826-9d50-aef3bb6701fa",
+        "memory-68717643-176c-4d52-b8c8-6f6090df55a2",
+        "memory-73a0912e-c6f4-46b9-af73-41ef39a6e991"
+      ],
+      "latencyMs": 7,
+      "compactChars": 3115,
+      "expandedChars": 10735,
+      "staleLeaks": 0,
+      "foreignLeaks": 0
+    },
+    {
+      "query": "What guarantees does CaptureOutbox provide?",
+      "key": "offline",
+      "language": "en",
+      "expected": "memory-176522d8-af56-49a8-a9f5-019abe5754c2",
+      "rank": 1,
+      "returned": [
+        "memory-176522d8-af56-49a8-a9f5-019abe5754c2",
+        "memory-27b946e8-b3c2-427a-9b49-ddcf56fe198e",
+        "memory-3a8fcbd5-dcc6-42bb-8543-a58146cdea61"
+      ],
+      "latencyMs": 6,
+      "compactChars": 3127,
+      "expandedChars": 10790,
+      "staleLeaks": 0,
+      "foreignLeaks": 0
+    },
+    {
+      "query": "How do we recover when an automatic service upgrade fails its health check?",
+      "key": "rollback",
+      "language": "en",
+      "expected": "memory-27b946e8-b3c2-427a-9b49-ddcf56fe198e",
+      "rank": 1,
+      "returned": [
+        "memory-27b946e8-b3c2-427a-9b49-ddcf56fe198e",
+        "memory-996a10db-e9ac-4792-b2de-fa402f880497",
+        "memory-68717643-176c-4d52-b8c8-6f6090df55a2"
+      ],
+      "latencyMs": 7,
+      "compactChars": 3148,
+      "expandedChars": 10739,
+      "staleLeaks": 0,
+      "foreignLeaks": 0
+    },
+    {
+      "query": "Jak se vr\u00e1t\u00edme zp\u011bt, kdy\u017e po aktualizaci neprojde kontrola zdrav\u00ed?",
+      "key": "rollback",
+      "language": "cs",
+      "expected": "memory-27b946e8-b3c2-427a-9b49-ddcf56fe198e",
+      "rank": 1,
+      "returned": [
+        "memory-27b946e8-b3c2-427a-9b49-ddcf56fe198e",
+        "memory-68717643-176c-4d52-b8c8-6f6090df55a2",
+        "memory-2f4b80be-eeb2-4efc-b667-3c00f6a2332c"
+      ],
+      "latencyMs": 6,
+      "compactChars": 3114,
+      "expandedChars": 10731,
+      "staleLeaks": 0,
+      "foreignLeaks": 0
+    },
+    {
+      "query": "What happens after RelayUpdater.install health failure?",
+      "key": "rollback",
+      "language": "en",
+      "expected": "memory-27b946e8-b3c2-427a-9b49-ddcf56fe198e",
+      "rank": 1,
+      "returned": [
+        "memory-27b946e8-b3c2-427a-9b49-ddcf56fe198e",
+        "memory-43883197-3c36-45ca-a5c2-b75079ca2f99",
+        "memory-2f4b80be-eeb2-4efc-b667-3c00f6a2332c"
+      ],
+      "latencyMs": 9,
+      "compactChars": 3135,
+      "expandedChars": 10769,
+      "staleLeaks": 0,
+      "foreignLeaks": 0
+    },
+    {
+      "query": "What will the weather be tomorrow in Lisbon?",
+      "expected": null,
+      "language": "en",
+      "rank": null,
+      "returned": [],
+      "latencyMs": 5,
+      "compactChars": 449,
+      "expandedChars": 2,
+      "staleLeaks": 0,
+      "foreignLeaks": 0
+    },
+    {
+      "query": "Kdo vyhraje p\u0159\u00ed\u0161t\u00ed mistrovstv\u00ed sv\u011bta ve fotbale?",
+      "expected": null,
+      "language": "cs",
+      "rank": null,
+      "returned": [],
+      "latencyMs": 5,
+      "compactChars": 449,
+      "expandedChars": 2,
+      "staleLeaks": 0,
+      "foreignLeaks": 0
+    },
+    {
+      "query": "What is the office Wi-Fi password?",
+      "expected": null,
+      "language": "en",
+      "rank": null,
+      "returned": [],
+      "latencyMs": 5,
+      "compactChars": 449,
+      "expandedChars": 2,
+      "staleLeaks": 0,
+      "foreignLeaks": 0
+    },
+    {
+      "query": "Jak\u00fd je m\u016fj aktu\u00e1ln\u00ed z\u016fstatek na bankovn\u00edm \u00fa\u010dtu?",
+      "expected": null,
+      "language": "cs",
+      "rank": null,
+      "returned": [
+        "memory-27b946e8-b3c2-427a-9b49-ddcf56fe198e"
+      ],
+      "latencyMs": 6,
+      "compactChars": 1784,
+      "expandedChars": 3611,
+      "staleLeaks": 0,
+      "foreignLeaks": 0
+    },
+    {
+      "query": "Which restaurant should I book for dinner tonight?",
+      "expected": null,
+      "language": "en",
+      "rank": null,
+      "returned": [],
+      "latencyMs": 4,
+      "compactChars": 449,
+      "expandedChars": 2,
+      "staleLeaks": 0,
+      "foreignLeaks": 0
+    },
+    {
+      "query": "Napi\u0161 recept na narozeninov\u00fd dort.",
+      "expected": null,
+      "language": "cs",
+      "rank": null,
+      "returned": [],
+      "latencyMs": 5,
+      "compactChars": 449,
+      "expandedChars": 2,
+      "staleLeaks": 0,
+      "foreignLeaks": 0
+    },
+    {
+      "query": "What is the personal phone number of the project owner?",
+      "expected": null,
+      "language": "en",
+      "rank": null,
+      "returned": [
+        "memory-8a5cfd5e-c359-4929-9c88-86d49917aedf",
+        "memory-68717643-176c-4d52-b8c8-6f6090df55a2",
+        "memory-b016d208-ad83-47ca-8384-bc673908a039"
+      ],
+      "latencyMs": 6,
+      "compactChars": 3139,
+      "expandedChars": 10698,
+      "staleLeaks": 0,
+      "foreignLeaks": 0
+    },
+    {
+      "query": "Kolik stoj\u00ed dne\u0161n\u00ed letenka do Tokia?",
+      "expected": null,
+      "language": "cs",
+      "rank": null,
+      "returned": [],
+      "latencyMs": 5,
+      "compactChars": 449,
+      "expandedChars": 2,
+      "staleLeaks": 0,
+      "foreignLeaks": 0
+    }
+  ],
+  "limitations": "Synthetic evaluation on this machine. Negative results and relevance misses are reported, not hidden. No company history is used. Cloudflare mode sends only this synthetic fixture to the explicitly configured API.",
+  "regressionPassed": true
+}

@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+import {assertHandoff} from './memory/handoff-limits.js';
 import {randomUUID,createHash} from 'node:crypto';
 import {resolve,join} from 'node:path';
 import {readFileSync,readdirSync,realpathSync} from 'node:fs';
@@ -35,6 +36,7 @@ async function handle(message){
   if(method==='tools/list')return send({tools});
   if(method!=='tools/call'){process.stdout.write(JSON.stringify({jsonrpc:'2.0',id,error:{code:-32601,message:'Unknown MCP method'}})+'\n');return;}
   const validate=validators.get(params.name),input=params.arguments??{};
+  if(params.name==='handoff')assertHandoff(input);
   if(!validate||!validate(input))throw new Error('Invalid memory tool arguments');
   if(setupEnabled&&['history_read','history_complete'].includes(params.name)){const result=await setupModule.pluginSetup(directory,{...input,action:params.name==='history_read'?'history':'retrospective',...(params.name==='history_complete'?{confirm:true}:{})},{cwd:currentCwd,pluginRoot:process.env.SPOOL_PLUGIN_ROOT});return send({content:[{type:'text',text:JSON.stringify(result)}],structuredContent:result,isError:false});}
   if(setupEnabled&&params.name==='spool_setup'){const result=await setupModule.pluginSetup(directory,input,{cwd:currentCwd,pluginRoot:process.env.SPOOL_PLUGIN_ROOT});if(result.root)currentCwd=result.root;return send({content:[{type:'text',text:JSON.stringify(result)}],structuredContent:result,isError:false});}

@@ -1,3 +1,4 @@
+import {assertHandoff} from '../memory/handoff-limits.js';
 import {updateMemoryInput} from '../memory/lifecycle.js';
 import {compactMemory} from '../memory/presentation.js';
 import {memoryTools,memoryCommands} from '../memory/tools.js';
@@ -46,6 +47,7 @@ export async function remoteMcp(req,env,ctx){
  if(!tool||!args||typeof args!=='object'||Array.isArray(args))return error(message.id,-32602,'Unknown tool or invalid tool arguments');
  if(tool.name==='project_list'){if(Object.keys(args).length)return error(message.id,-32602,'project_list takes no arguments');return send({content:[{type:'text',text:JSON.stringify({projects})}],structuredContent:{projects},isError:false});}
  const {project,...input}=args;
+ if(tool.name==='handoff')try{assertHandoff(input);}catch(fault){return send({content:[{type:'text',text:fault.message}],isError:true});}
  if(project!==undefined&&(typeof project!=='string'||!project.length||project.length>180)||!(tool.name==='delete_conversations'?Object.keys(input).every(k=>['sessionId','confirm','deletionToken','requestId'].includes(k))&&(input.confirm===undefined||typeof input.confirm==='boolean')&&(input.sessionId===undefined||typeof input.sessionId==='string'&&input.sessionId.length>0&&input.sessionId.length<=200)&&(input.deletionToken===undefined||typeof input.deletionToken==='string')&&(input.requestId===undefined||typeof input.requestId==='string'):validators[tool.name]?.(input)))return error(message.id,-32602,'Invalid tool arguments');
  if(connection.kind==='workspace'&&!project)return error(message.id,-32602,'Select a project for this chat using project_list, then pass project on every call.');
  const matches=project?projects.filter(p=>p.id===project||p.name===project):projects;

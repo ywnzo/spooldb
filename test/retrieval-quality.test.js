@@ -1,0 +1,10 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';import {topics,negatives,version} from '../benchmarks/fixtures/retrieval-v2.js';
+import {ShardedEngine} from '../src/index.js';import {MemoryStore} from '../src/memory/store.js';import {compactMemory} from '../src/memory/presentation.js';
+test('versioned evaluation covers 50 English/Czech, identifier and no-answer questions',()=>{assert.equal(version,'retrieval-v2');assert.equal(topics.length*3+negatives.length,50);assert.equal(new Set(topics.map(t=>t.key)).size,topics.length);for(const topic of topics){assert.equal(topic.questions.length,3);assert.ok(topic.questions[1].length>20);}});
+test('resolved evidence, foreign projects and unrelated keyword results stay out of compact context',async t=>{
+ const engine=new ShardedEngine(':memory:'),ref=engine.create('new');engine.db.prepare('UPDATE shard_refs SET name=? WHERE name=?').run('relay-'+ref.room,'new');const store=new MemoryStore(engine,{referencesOnly:true});t.after(()=>engine.close());const write=(room,input)=>store.run(room,{command:'remember',kind:'finding',requestId:crypto.randomUUID(),...input});
+ const old=write(ref.room,{title:'Old shipping rule',text:'ShippingCost.calculate charges delivery per item.'}),latest=write(ref.room,{title:'Current shipping rule',text:topics[0].text,supersedes:[old.id]});
+ const foreign=engine.create('other');engine.db.prepare('UPDATE shard_refs SET name=? WHERE name=?').run('relay-'+foreign.room,'other');write(foreign.room,{title:'ShippingCost.calculate',text:'Foreign tenant-only rule.'});
+ const result=await store.retrieve(ref.room,{command:'search',query:'ShippingCost.calculate',mode:'keyword'});assert.deepEqual(result.results.map(r=>r.id),[latest.id]);const compact=compactMemory(result,{maxChars:1500});assert.ok(JSON.stringify(compact).length<=1500);assert.ok(!JSON.stringify(compact).includes('Foreign tenant'));
+ assert.equal((await store.retrieve(ref.room,{command:'search',query:'Lisbon weather tomorrow',mode:'keyword'})).results.length,0);
+});

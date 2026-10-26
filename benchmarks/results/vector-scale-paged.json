@@ -1,0 +1,73 @@
+{
+  "version": 1,
+  "runtime": "bun 1.4.4",
+  "cpus": 12,
+  "memoryBytes": 33510481920,
+  "results": [
+    {
+      "records": 10000,
+      "dimensions": 384,
+      "indexingMs": 109,
+      "queryMs": [
+        127,
+        120,
+        116
+      ],
+      "peakRssKiB": 97164,
+      "rssBeforeBytes": 70893568,
+      "rssAfterBytes": 96899072,
+      "sqliteBytes": 26365952,
+      "returned": 100,
+      "conditions": "Synthetic dense vectors with broad matches, exact scan, cached query embedding; no external inference."
+    },
+    {
+      "records": 100000,
+      "dimensions": 384,
+      "indexingMs": 1077,
+      "queryMs": [
+        1390,
+        1438,
+        1080
+      ],
+      "peakRssKiB": 191792,
+      "rssBeforeBytes": 74338304,
+      "rssAfterBytes": 165625856,
+      "sqliteBytes": 262443008,
+      "returned": 100,
+      "conditions": "Synthetic dense vectors with broad matches, exact scan, cached query embedding; no external inference."
+    },
+    {
+      "records": 10000,
+      "dimensions": 1024,
+      "indexingMs": 155,
+      "queryMs": [
+        148,
+        163,
+        146
+      ],
+      "peakRssKiB": 123128,
+      "rssBeforeBytes": 72015872,
+      "rssAfterBytes": 122761216,
+      "sqliteBytes": 51961856,
+      "returned": 100,
+      "conditions": "Synthetic dense vectors with broad matches, exact scan, cached query embedding; no external inference."
+    },
+    {
+      "records": 100000,
+      "dimensions": 1024,
+      "indexingMs": 1972,
+      "queryMs": [
+        1555,
+        1294,
+        1353
+      ],
+      "peakRssKiB": 206244,
+      "rssBeforeBytes": 75640832,
+      "rssAfterBytes": 164130816,
+      "sqliteBytes": 518467584,
+      "returned": 100,
+      "conditions": "Synthetic dense vectors with broad matches, exact scan, cached query embedding; no external inference."
+    }
+  ],
+  "decision": "Use measured latency and memory against deployment SLOs before adopting ANN. This measures exact retrieval, not storage operation throughput or relevance."
+}

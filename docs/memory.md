@@ -107,3 +107,31 @@ Record embeddings persist in SQLite, keyed by source fingerprint and provider/mo
 The API token is stored in the relay's private SQLite settings tables, outside replicated project history. Status responses never return it. Blank token inputs keep the existing credential for the same account; entering a token replaces it. **Disconnect and remove token** disables semantic retrieval and removes the stored token. Revoke the token in Cloudflare if it should no longer be usable anywhere. Relay backups contain credentials and must be protected; this storage is not application-level encryption at rest. Requests use Cloudflare's fixed HTTPS API origin with redirects refused and bounded timeouts/responses.
 
 The hosted Cloudflare relay's optional Workers AI binding remains separate from this VPS REST configuration. Provider settings here apply to self-hosted relays.
+
+
+### Bounded indexing and outage recovery
+
+Indexing persists each embedding batch with a derived progress cursor and applies the per-pass chunk limit inside long records. After interruption it resumes completed batches; deleting conversations also removes their cursors. Transient provider failures schedule another background attempt after cooldown. Cached query embeddings can search existing valid vectors while new records await indexing; the response continues to report an indexing backlog. Cold queries can still use keyword fallback while inference is pending. These per-pass limits do not impose a daily provider usage budget.
+
+
+### Concise handoffs
+
+New handoff saves enforce 2,000 Unicode characters combined across title, summary, next steps and blockers (including separators). The summary may contain at most 1,500 characters, title 120, and up to three next steps and three blockers of 160 characters each. MCP schemas advertise the field limits; the relay also checks the combined limit for direct API/CLI saves and local private memory. Rejection explains how to shorten the handoff. Agent-authored text is not silently truncated. Store detailed evidence in findings/decisions and cite their IDs instead of copying it into a handoff. Automatic fallback checkpoints use a short, explicitly unverified excerpt. Existing and historically imported records remain readable under the historical event format; imports are not rewritten to erase their history.
+
+### Usage and external embedding caps
+
+On self-hosted relays, workspace owners use **Settings → Search & memory → Usage & limits** or `spool workspace usage --json`. Run `spool workspace usage limits` for interactive limits without putting secrets in arguments. The same owner-only API uses `command: retrieval`, `action: status` or `action: limits`; limit writes require their current `usage.limits.revision` as `expectedRevision`.
+
+Counters include relay HTTP requests/categories/failures, per-project traffic, query embedding cache hits/misses, embedding attempts/characters/failures/elapsed time, vector scan work, quota blocks and pending indexing records. They contain numeric aggregates and project identities, not prompts, passages or credentials. Daily aggregates expire automatically after 90 days. Telemetry errors are reported without breaking ordinary reads. Budget reservations remain transactional and fail closed if they cannot persist.
+
+Limits cover daily external embedding requests, daily external UTF-16 characters for the relay, and a daily character allowance applied separately to each project. Zero means unlimited (the compatible default). Counts reset at midnight UTC and survive restarts. Warmup, connection tests and retries count toward the relay-wide allowance; probes are not assigned to a project. Failed attempts are counted conservatively, because the upstream may have processed them. These are text/request budgets, not exact provider-token or currency caps. They do not limit HTTP traffic or retained storage. On reaching a cap, no further external invocation is made for that work; cached vectors/query embeddings and keyword fallback remain available. Local inference is not blocked by external API budgets.
+
+Queries have priority over queued indexing batches. Inference stays serial; after four queries, one waiting indexing batch gets a turn. Indexing resumes in bounded, persisted chunks. Exact vector scoring reads pages rather than materializing every vector at once, and yields periodically to keep the event loop responsive.
+
+### Reproducible quality and scale checks
+
+- `bun run benchmark:quality --check`: pinned local model, versioned 50-question English/Czech corpus, identifier queries, obsolete evidence, cross-project distractors, unrelated questions, compact/full source comparison and a measured regression floor. Release CI runs this gate. It does not read company history.
+- `bun run benchmark:quality --provider=cloudflare`: the same synthetic corpus, explicitly using `SPOOL_CLOUDFLARE_ACCOUNT_ID` and `SPOOL_CLOUDFLARE_API_TOKEN` from the environment. Never put the token in command arguments. This standalone evaluation uses its own ephemeral store, not a connected relay's usage caps. Cloudflare needs its own reviewed baseline before `--check` can be used.
+- `bun run benchmark:vectors`: 10k/100k exact vectors at 384/1024 dimensions in separate processes; records query times, SQLite size and peak RSS. No external inference is used. Synthetic broad-match vectors stress memory/scoring, not relevance. Local results are not VPS guarantees.
+
+See [measured results and limitations](../benchmarks/results/README.md). Character reduction compares compact responses with full records for the same retrieved IDs; it is not proof of total chat-token savings.

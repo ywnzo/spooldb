@@ -1,0 +1,11 @@
+{
+  "fixture": "retrieval-v2",
+  "model": "Xenova/paraphrase-multilingual-MiniLM-L12-v2@2c4055b12046f11709e9df2c122e59ffbdc2f900:q8:mean:256:plain",
+  "minimumRecallAt3": 0.85,
+  "minimumMrr": 0.75,
+  "minimumNegativeEmptyRate": 0.75,
+  "minimumContextCharacterReduction": 0.6,
+  "maximumStaleLeaks": 0,
+  "maximumCrossProjectLeaks": 0,
+  "scope": "Synthetic fixture regression floor, not a production quality guarantee. Cloudflare requires its own measured baseline."
+}
