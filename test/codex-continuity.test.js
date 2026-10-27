@@ -1,3 +1,5 @@
+import {blockedCategory,defaultSharing} from '../src/team/sharing.js';
+import {lifecycleHealth} from '../src/lifecycle-health.js';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtempSync,mkdirSync,writeFileSync,readFileSync,rmSync} from 'node:fs';
@@ -57,7 +59,15 @@ test('prompt retrieval runs once, stays compact, and sends unchanged evidence on
  const request=async(_,message)=>{calls.push(message.input);if(message.input.command==='context')return {tasks:[],notes:[]};if(message.input.command==='task_update')return {revision:1};return {room:'test',results:[{id:'finding',kind:'finding',title:'Shipping calculation',text:'The delivery charge was added twice.',reconciliation:{status:'matching',message:'Check evidence'}}],retrieval:{mode:'hybrid',semanticStatus:'ready'}};};
  const options={directory:base,room:'test',root:base,request},input={cwd:base,session_id:'session',turn_id:'turn'};
  await runHook({...options,event:'SessionStart',input});assert.equal(calls.length,0);
- const first=await runHook({...options,event:'UserPromptSubmit',input:{...input,prompt:'Why is the shipping total wrong?'}});assert.equal(calls.filter(call=>call.command==='context').length,1);assert.equal(calls.filter(call=>call.command==='search').length,1);assert.match(first.hookSpecificOutput.additionalContext,/added twice/);assert.ok(first.hookSpecificOutput.additionalContext.length<6000);
+ const first=await runHook({...options,event:'UserPromptSubmit',input:{...input,prompt:'Why is the shipping total wrong?'}});assert.equal(calls.filter(call=>call.command==='context').length,1);assert.equal(calls.filter(call=>call.command==='search').length,1);assert.match(first.hookSpecificOutput.additionalContext,/added twice/);assert.match(first.hookSpecificOutput.additionalContext,/supplied task revision/);assert.match(first.hookSpecificOutput.additionalContext,/focused tests/);assert.match(first.hookSpecificOutput.additionalContext,/\"revision\":1/);assert.ok(first.hookSpecificOutput.additionalContext.length<6000);
+ const taskWrite=calls.find(call=>call.command==='task_update');assert.equal(blockedCategory(taskWrite,{...defaultSharing(),conversations:false}),null);assert.ok(!JSON.stringify(taskWrite).includes('shipping total'));assert.equal(lifecycleHealth(base,base).status,'observed');
  const second=await runHook({...options,event:'UserPromptSubmit',input:{...input,turn_id:'turn-2',prompt:'Continue checking'}});assert.ok(!second.hookSpecificOutput.additionalContext.includes('added twice'));
  await runHook({...options,event:'SessionStart',input});const resumed=await runHook({...options,event:'UserPromptSubmit',input:{...input,turn_id:'turn-3',prompt:'Continue'}});assert.match(resumed.hookSpecificOutput.additionalContext,/added twice/);
+});
+
+test('normal Stop makes no memory requests even when the relay is unavailable',async t=>{
+ const base=mkdtempSync(join(tmpdir(),'spool-stop-no-read-'));t.after(()=>rmSync(base,{recursive:true,force:true}));let calls=0;
+ const options={directory:base,room:'test',root:base,request:async()=>{calls++;throw Error('Relay offline');}};
+ assert.deepEqual(await runHook({...options,event:'Stop',input:{cwd:base,session_id:'offline',turn_id:'turn',last_assistant_message:'Done'}}),{});
+ assert.equal(calls,0);
 });

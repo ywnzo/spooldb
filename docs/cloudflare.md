@@ -37,7 +37,7 @@ spool deploy cloudflare --yes --name company-spool \
   --account-id YOUR_ACCOUNT_ID --workspace-name 'Company'
 ```
 
-Use `--deploy-dir PATH` to store deployment files elsewhere, `--url https://relay.example.com` for a separately configured public origin, and `--no-connect` to avoid offering a client switch. `--connect` explicitly enrolls this client after initial setup. Custom domain provisioning is managed through Cloudflare/Wrangler separately; passing `--url` does not create DNS routes.
+Use `--deploy-dir PATH` to store deployment files elsewhere, `--url https://relay.example.com` for a separately configured public origin, and `--no-connect` to avoid offering to save a client connection. `--connect` explicitly enrolls this client after initial setup. Custom domain provisioning is managed through Cloudflare/Wrangler separately; passing `--url` does not create DNS routes.
 
 Deployment receipts are stored under the selected SpoolDB state directory in `deployments/cloudflare/WORKER/`, with mode 0600. They contain a private bootstrap token and may contain the owner invitation; do not publish or commit them. Credentials for Cloudflare itself remain managed by Wrangler. Re-running the same deployment directory preserves the bootstrap capability, namespaces, workspace and data. Only the token's SHA-256 hash is sent in Worker configuration. `/v1/setup` requires the token and cannot mint another owner invitation once an active owner exists. Existing admins invite members through workspace commands.
 
@@ -59,7 +59,7 @@ One deployment currently represents one company workspace with many project obje
 
 ## Resume after a published deployment
 
-If upload succeeds but a health/setup check fails, run `spool deploy cloudflare --resume`. It uses the saved private deployment receipt, performs no Wrangler login/build/publish, retries temporary HTML responses, and resumes workspace initialization or displays the saved owner invitation. Add `--name NAME` or `--deploy-dir PATH` if you used another deployment location. HTTP status, content type and Cloudflare Ray/error codes are reported for non-JSON edge responses. Client switching remains a separate confirmation.
+If upload succeeds but a health/setup check fails, run `spool deploy cloudflare --resume`. It uses the saved private deployment receipt, performs no Wrangler login/build/publish, retries temporary HTML responses, and resumes workspace initialization or displays the saved owner invitation. Add `--name NAME` or `--deploy-dir PATH` if you used another deployment location. HTTP status, content type and Cloudflare Ray/error codes are reported for non-JSON edge responses. Saving a client connection remains a separate confirmation and never reassigns existing repositories.
 
 
 ## Hosted installers and browser invitations

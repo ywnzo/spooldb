@@ -84,11 +84,10 @@ async function finishCloudflareDeployment({receipt,receiptPath,state,options,out
  let setup;if(receipt.workspace&&receipt.ownerLink){setup={workspace:receipt.workspace,link:receipt.ownerLink};}else{const response=await fetcher(origin+'/v1/setup',{method:'POST',headers:{authorization:'Bootstrap '+bootstrap,'content-type':'application/json'},body:JSON.stringify({name:workspaceName}),redirect:'error',signal:AbortSignal.timeout(30000)});setup=await cloudflareJson(response,'Workspace setup');if(!response.ok)throw new Error(setup.error?.message??'Workspace setup failed');}
  if(setup.link)receipt.ownerLink=setup.link;receipt.workspace=setup.workspace;save(receiptPath,receipt);
  output.write('\nRelay ready: '+origin+'\n');if(setup.alreadyConfigured&&!setup.link)output.write('Workspace is already initialized. Existing memberships and data were preserved.\n');if(setup.link)output.write('Private owner invitation (single use; keep private):\n'+receipt.ownerLink+'\n');
- const old=existsSync(join(state,'workspace.json'))?JSON.parse(readFileSync(join(state,'workspace.json'))):null;
- if(old?.url===origin)output.write('This client is already connected to the Cloudflare workspace.\n');
- if(setup.link&&old?.url!==origin&&!options['no-connect']&&(options.connect||rl&&/^y(es)?$/i.test(await ask(old&&old.url!==origin?'Switch this client’s workspace connection to Cloudflare? Existing project connections remain in place. (y/N)':'Connect this client to the new workspace? (y/N)','N')))){
-  if(old&&old.url!==origin){const backup=join(folder,'previous-workspace-'+Date.now()+'.json');save(backup,old);output.write('Previous workspace connection backed up at '+backup+'\n');}
-  const action=connect??(link=>new WorkspaceClient(state).run({command:'connect',link}));await action(receipt.ownerLink);output.write('Client connected. Add or join projects from the UI or spool project commands.\n');
+ const connections=new WorkspaceClient(state).publicProfiles(),already=connections.some(p=>p.relay===origin);
+ if(already)output.write('A saved connection to this Cloudflare relay already exists.\n');
+ if(setup.link&&!already&&!options['no-connect']&&(options.connect||rl&&/^y(es)?$/i.test(await ask('Save a client connection to this relay? Existing repository bindings stay unchanged. (y/N)','N')))){
+  const action=connect??(link=>new WorkspaceClient(state).run({command:'connect',link}));await action(receipt.ownerLink);output.write('Connection saved. Choose it when connecting a repository from Add project or spool init.\n');
  }
  return {deployed:true,origin,workspace:setup.workspace,configPath,receiptPath};
 }

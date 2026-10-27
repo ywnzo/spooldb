@@ -9,17 +9,21 @@ import {previewInvite} from './desktop/join.js';
 
 // Project creation, joining and capture happen only after the final sharing approval.
 export async function initializeCheckout({cwd=process.cwd(),state,options={},ask,output,workspace,local,preview=previewInvite,workspacePreview=link=>workspaceRequest(parseWorkspaceLink(link),'preview'),connectCodex=enableDiscovery}){
+ let selectedWorkspace=options.workspace;const unscopedWorkspace=workspace;workspace=input=>unscopedWorkspace({...input,...(selectedWorkspace&&!['connect','profiles','switch','preview'].includes(input.command)?{workspace:selectedWorkspace}:{})});
  let repo;try{repo=repositoryAt(cwd);}catch{throw Error('Run spool init from a Git project folder (or initialize Git first).');}
  const say=text=>output.write(text+'\n'),yes=async(label,defaultYes=false)=>/^y(es)?$/i.test(await ask(label,defaultYes?'Y':'N'));
  say('\nSpoolDB · Connect this project\nFolder: '+repo.root);
  const registry=await local('projects'),registered=registry.projects?.find(p=>p.root===repo.root);
  const current=registered?await local('status',undefined,{project:registered.id}):null;
+ if(!selectedWorkspace&&current?.team?.configured)selectedWorkspace=current.team.url;
  let data=await workspace({command:'list'}),plan,device=options.device??hostname();
+ if(data.selectionRequired&&data.workspaces?.length){say('\nSaved connections:');data.workspaces.forEach((p,index)=>say(`${index+1}. ${p.name} · ${p.relay}`));const choice=data.workspaces[Number(await ask('Choose the connection for this repository','1'))-1];if(!choice)throw Error('Choose a saved connection. No repository binding was changed.');selectedWorkspace=choice.id;data=await workspace({command:'list'});}
+
  const invitePlan=async supplied=>{
   const link=supplied??await ask('Paste a project or workspace invitation (Enter to cancel)');if(!link)return null;
   if(isWorkspaceLink(link)){
    const info=await workspacePreview(link);if(!await yes('Connect this computer to workspace '+info.workspace.name+'?'))return null;
-   data=await workspace({command:'connect',link,device});return 'workspace';
+   data=await workspace({command:'connect',link,device});selectedWorkspace=data.workspaceProfile;return 'workspace';
   }
   const info=await preview(link,{directory:state});return {kind:'invite',link,name:info.project,relay:info.relay};
  };
@@ -61,7 +65,7 @@ export async function initializeCheckout({cwd=process.cwd(),state,options={},ask
   if(repo.repositoryKey){const enrollment=await workspace({command:'repository-enroll',repositoryKey:repo.repositoryKey,name:plan.name,...(plan.room?{mode:'join',room:plan.room}:{mode:'create',requestId:'init-'+createHash('sha256').update(JSON.stringify([repo.root,repo.repositoryKey,plan.relay,plan.name])).digest('hex')})});if(plan.kind==='create'&&enrollment.enrollmentMode!=='create')throw Error('Upgrade the relay before creating a separate repository project. No local connection was changed.');project=enrollment.project;}
   else if(plan.kind==='create')project=(await workspace({command:'create',name:plan.name,requestId:'init-'+createHash('sha256').update(JSON.stringify([repo.root,repo.repositoryKey,plan.relay,plan.name])).digest('hex')})).project;
   else project={room:plan.room,name:plan.name};
-  joined=await local('workspace',{command:'join-local',room:project.room,root:repo.root,captureConversations:true,connectAgents:false});
+  joined=await local('workspace',{command:'join-local',room:project.room,root:repo.root,...(selectedWorkspace?{workspace:selectedWorkspace}:{}),captureConversations:true,connectAgents:false});
  }
  if(!joined.project?.id)throw Error('The companion did not return a local project connection. Run spool init again to retry.');
  const enrollment=await local('discovery',{command:'approve-existing',cwd:repo.root,confirm:true});

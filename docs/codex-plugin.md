@@ -64,13 +64,15 @@ Before executing hook JavaScript, the dispatcher verifies these pinned files in 
 
 `spool plugin install` installs the dispatcher automatically. Direct marketplace installations initialize it when the plugin MCP server starts. No production path writes Codex trust hashes. The native regression test approves hooks only in a disposable Codex home, confirms that trust survives a real UI-only plugin upgrade, then checks that modified hook code is refused and a hook upgrade is marked for review.
 
-## Connect and switch workspaces in Codex
+## Repository connections in Codex
 
-After installing the desktop plugin, say **“Connect my SpoolDB workspace”** in Codex. The setup skill lists saved workspaces or asks for an invitation, previews its workspace name and access, then connects after your approval. No terminal command, browser UI or open Git folder is required for workspace-only setup. Next, choose the shared project for an actual Git folder and separately approve conversation sharing.
+There is no global active workspace. Ask Codex to connect the repository being worked on. The setup skill lists saved connections or previews an invitation, then asks for the connection and whether to create or join a matching shared project. Sharing still requires explicit approval. Saving a connection never moves another repository's memory.
 
-Say **“Switch to the Acme workspace”** to use a saved workspace. Saved names and relay addresses are shown through `spool_setup`; credentials remain in private local profile files. Switching changes the workspace used for future project enrollment. It preserves every already-connected checkout and its capture destination. Repository identity changes still invalidate discovery authorization and require new sharing approval. If a saved connection has expired or been revoked, a failed switch preserves the current workspace.
+When the agent encounters an unconnected repository mid-chat, memory tools return `PROJECT_CONNECTION_REQUIRED` with a structured setup question. The agent asks which saved connection to use, previews that repository on it, then asks to join an existing match or create a shared project. Choosing a connection does not authorize sharing the repository. **Continue without SpoolDB** records a local decline and suppresses future automatic questions for that repository; the user can explicitly reopen setup later. Failed writes remain unsaved and are never redirected to the starting project. Offline or denied access offers retry/skip, not duplicate creation.
 
-The setup tool exposes `workspace_status`, `workspace_preview`, `workspace_connect` and `workspace_switch`. Connection/switch actions require explicit user approval via `confirm:true`. Workspace status never returns invitations or access tokens. Existing single-workspace installations are remembered automatically when first inspected or replaced. For headless administration the same profiles are available through `spool workspace saved` and `spool workspace switch NAME`.
+Every local plugin memory call requires `root`, an absolute directory inside the repository currently being worked on. Git resolves its actual top level, including submodules. A chat can retrieve and save memory on several relays without restarting its MCP server. Missing bindings, permission failures and unavailable relays never fall back to the chat's original project. Results include the resolved repository and relay. Agents must retrieve each repository's own context when crossing repositories; the plugin cannot observe arbitrary `cd` commands in other tools.
+
+`spool_setup workspace_status` lists saved connections; `workspace_preview` previews an invitation and `workspace_connect` saves it. Pass `root` and `workspace` to `preview`/`connect` for repository enrollment. The old `workspace_switch` action returns a migration explanation rather than selecting a global workspace. Legacy `workspace.json` credentials are preserved in saved profiles and a private migration backup; existing project grants and databases are untouched.
 
 ## Workspace sharing categories
 
@@ -80,7 +82,7 @@ Open Company workspace → Shared memory to choose whether new handoffs, decisio
 
 Turning sharing off preserves existing shared history. New local capture and memory remain on that computer; private records are excluded from later uploads even if sharing is turned back on. Cloud clients have no local companion store, so disabled-category writes are rejected with `SHARING_DISABLED`, not reported as saved. A shared handoff can exist without a shared task when task sharing is disabled. These are category controls, not semantic redaction: administrators and agents must not copy private content into another category.
 
-Automatic lifecycle records that embed raw prompt or assistant excerpts follow the conversation switch as well as their own category switch. Turning conversations off keeps those automatic excerpts local, while explicit agent-authored findings, decisions and handoffs follow their respective category settings.
+Automatic session tasks contain generic metadata rather than raw prompts, so task sharing works independently of conversation sharing. Older automatic records that embed raw prompt or assistant excerpts follow the conversation switch as well as their own category switch. Turning conversations off keeps those automatic excerpts local, while explicit agent-authored findings, decisions and handoffs follow their respective category settings.
 
 ## Per-project sharing
 
@@ -107,3 +109,16 @@ In the web UI use **Project settings → Company workspace → Project sharing �
 Project connection offers **Analyze existing chats** or **Skip**. If accepted, Codex reviews the checkout's locally saved conversation history and saves useful decisions, findings, tasks and handoffs, with source references and verification limits. It deduplicates existing memory and accounts for later fixes and corrections. This choice is saved per checkout and resumes if interrupted.
 
 Raw conversation sharing remains a separate setting. Private local chat retrieval is available only after the analysis choice is approved; the relay receives structured memory according to the workspace/project category settings. Unseen cloud or colleague chats are outside this machine's coverage. The analysis runs in a Codex session with reviewed plugin hooks; it is not an unattended relay summarizer. Connections made through the UI or `spool init` queue accepted analysis for the next Codex session.
+
+Configuration and hook trust do not prove that an existing chat loaded the plugin. Setup status reports observed prompt-hook delivery separately from background capture. If no delivery is observed, open a new chat with the plugin enabled and hooks reviewed. Findings, decisions and handoffs are agent-authored useful evidence, not a record automatically created for every reply or every category.
+
+### Older relays
+
+SpoolDB checks repository-enrollment capabilities before creating a shared project.
+If the relay is too old, Codex offers to update that selected relay instead of
+creating a project and failing afterward. Existing matching projects remain
+joinable. `spool_setup action="relay_update"` checks maintenance support;
+`updateNow=true confirm=true` requests a supported host update after approval.
+Cloudflare requires redeploying the existing Worker with its deployment credentials;
+the plugin explains this rather than claiming to have updated it. After updating,
+preview again and join any existing repository match instead of creating a duplicate.

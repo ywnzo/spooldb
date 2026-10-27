@@ -11,7 +11,7 @@ function fixture(){
  return {root,directory,plugin,codexHome,calls,hooks,inspect,close:()=>rmSync(base,{recursive:true,force:true})};
 }
 test('Connect Codex uses installed trusted plugin hooks without installing project configuration or writing trust',async()=>{
- const f=fixture();try{const result=await connectCodexMemory(f,{inspect:f.inspect(),installShared:()=>{throw Error('must not install another integration');}});assert.equal(result.mode,'plugin');assert.equal(result.ready,true);assert.equal(result.trusted,true);assert.equal(existsSync(join(f.root,'.codex')),false);assert.deepEqual(f.calls,['hooks/list']);}finally{f.close();}
+ const f=fixture();try{const result=await connectCodexMemory(f,{inspect:f.inspect(),installShared:()=>{throw Error('must not install another integration');}});assert.equal(result.mode,'plugin');assert.equal(result.ready,true);assert.equal(result.lifecycle.status,'not_observed');assert.match(result.message,/No successful prompt-hook delivery/);assert.equal(result.trusted,true);assert.equal(existsSync(join(f.root,'.codex')),false);assert.deepEqual(f.calls,['hooks/list']);}finally{f.close();}
 });
 test('untrusted plugin and legacy managed config produce actionable states without modifying either',async()=>{
  const f=fixture();try{const untrusted=f.hooks.map(h=>({...h,trustStatus:'untrusted'})),first=await connectCodexMemory(f,{inspect:f.inspect(untrusted)});assert.equal(first.needsHookReview,true);assert.equal(first.ready,false);assert.equal(existsSync(join(f.root,'.codex')),false);

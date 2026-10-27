@@ -108,3 +108,5 @@ Connect a cloud MCP client once to all workspace projects: run `spool workspace 
 ## Updates
 
 Use `spool update` for an interactive update, `spool update check` to check without installing, or `spool update enable` to opt in to daily updates. `spool update disable` turns them off. Choose `--target plugin` or `--target client` when both are installed. See [updates](updates.md).
+
+Repository memory commands resolve the Git repository in the current directory. Use `--root /absolute/repo` when working elsewhere. They never use the last project selected in the web UI. Saved connection management accepts `--workspace NAME`; `spool init` asks which saved connection to use when more than one is available. There is no global workspace switch.

@@ -1,3 +1,4 @@
+import {lifecycleHealth,lifecycleMessage} from './lifecycle-health.js';
 import {CodexRpc} from './codex-rpc.js';
 import {readFileSync,realpathSync} from 'node:fs';
 import {dirname,join} from 'node:path';
@@ -19,7 +20,8 @@ export async function codexMemoryState({root,directory,discoveryDirectory=direct
   const complete=own.length===4&&new Set(own.map(h=>h.eventName)).size===4&&own.every(h=>events.has(h.eventName)),trusted=complete&&own.every(h=>h.trustStatus==='trusted'),legacy=legacyFiles(root,{codexHome}).filter(path=>mode!=='shared'||path!==join(codexHome,'config.toml')),needsMigration=legacy.length>0,ready=trusted&&!needsMigration;
   let message=ready?'Connected through '+(mode==='plugin'?'the SpoolDB plugin':'the shared Codex integration')+'. New Codex sessions can retrieve context and leave handoffs.':mode==='none'?'No active SpoolDB plugin or shared Codex integration was found. Connect to set up agent memory.':!complete?'SpoolDB has an incomplete or duplicate hook configuration. Review the enabled plugin and hooks in Codex.':'Review the SpoolDB hooks in Codex, then check the connection again.';
   if(needsMigration)message=trusted?'The plugin hooks are ready, but an older managed SpoolDB configuration is also present. Ask Codex to migrate it with backups before starting a new session.':'An older managed SpoolDB configuration is present. Review the plugin hooks, then ask Codex to migrate the old integration with backups.';
-  return {mode,configured:complete,ready,trusted,needsHookReview:complete&&!trusted,needsMigration,legacyConfiguration:legacy,message,restartRequired:needsMigration};
+  const lifecycle=lifecycleHealth(directory,root);if(ready)message+=' '+lifecycleMessage(lifecycle);
+  return {lifecycle,mode,configured:complete,ready,trusted,needsHookReview:complete&&!trusted,needsMigration,legacyConfiguration:legacy,message,restartRequired:needsMigration};
  }finally{rpc.close();}
 }
 export async function connectCodexMemory(options,{inspect=codexMemoryState,installShared=installDiscovery}={}){

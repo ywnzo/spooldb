@@ -1,3 +1,5 @@
+import {repositoryAt} from './repository.js';
+import {discoveryRequest} from './discovery-request.js';
 import {readFileSync,existsSync,writeFileSync,renameSync} from 'node:fs';
 import {resolve,join} from 'node:path';
 import {createInterface} from 'node:readline/promises';
@@ -19,14 +21,14 @@ Usage: spool COMMAND [--state DIR] [--json]
   init                                        Connect the current Git project interactively
   deploy cloudflare [--dry-run | --resume] [--name NAME] [--account-id ID]
   discovery enable | list
-  discovery propose|preview|approve|ignore FOLDER [--room ROOM | --create] [--name NAME]
+  discovery propose|preview|approve|ignore FOLDER [--room ROOM | --create] [--name NAME] [--workspace NAME]
   status                                      Local capture status
   workspace connect [--invite-file FILE | --invite-stdin] [--device NAME]
   workspace status | projects | members | saved | disconnect
   project sharing [NAME]                     Guided per-project category overrides
   workspace usage [limits]                   View usage or configure external embedding limits
   workspace sharing                          Guided category sharing settings
-  workspace switch NAME
+  workspace saved                            List saved connections (no global workspace)
   workspace create NAME [--request-id KEY]
   workspace invite                            Guided invitation (flags optional)
     [--label NAME] [--no-create | --allow-create] [--role member|reader|writer|admin]
@@ -55,7 +57,7 @@ Local project operations use the running companion, starting an installed compan
 Use --server-state DIR for server-local administration; Unix socket ownership is required.
 Invites are prompted for, read from a file or stdin; avoid putting them in shell history.
 The server exposes an API, not a hosted administration dashboard. The local UI and CLI use that API.`;
-export function parseManagementArgs(args){const options={},words=[];const flags=new Set(['json','invite-stdin','allow-create','no-create','no-capture','no-agents','help','text-stdin','yes','dry-run','resume','connect','no-connect']);for(let i=0;i<args.length;i++){const value=args[i];if(value.startsWith('--')){const [key,inline]=value.slice(2).split(/=(.*)/s,2);if(['file','ref','next-step','blocker','resolve-id'].includes(key)){const next=inline??args[++i];if(!next||next.startsWith('--'))throw new Error('Missing value for --'+key);(options[key]??=[]).push(next);}else if(flags.has(key)){if(inline!==undefined)throw new Error('Unexpected value for --'+key);options[key]=true;}else{if(!['state','server-state','invite-file','device','label','role','request-id','project','task','local-url','title','text-file','kind','revision','status','offset','limit','room','name','account-id','workspace-name','deploy-dir','url','target','mode'].includes(key))throw new Error('Unknown option --'+key);const next=inline??args[++i];if(!next||next.startsWith('--'))throw new Error('Missing value for --'+key);options[key]=next;}}else words.push(value);}return {options,words};}
+export function parseManagementArgs(args){const options={},words=[];const flags=new Set(['json','invite-stdin','allow-create','no-create','no-capture','no-agents','help','text-stdin','yes','dry-run','resume','connect','no-connect']);for(let i=0;i<args.length;i++){const value=args[i];if(value.startsWith('--')){const [key,inline]=value.slice(2).split(/=(.*)/s,2);if(['file','ref','next-step','blocker','resolve-id'].includes(key)){const next=inline??args[++i];if(!next||next.startsWith('--'))throw new Error('Missing value for --'+key);(options[key]??=[]).push(next);}else if(flags.has(key)){if(inline!==undefined)throw new Error('Unexpected value for --'+key);options[key]=true;}else{if(!['state','server-state','invite-file','device','label','role','request-id','project','root','workspace','task','local-url','title','text-file','kind','revision','status','offset','limit','room','name','account-id','workspace-name','deploy-dir','url','target','mode'].includes(key))throw new Error('Unknown option --'+key);const next=inline??args[++i];if(!next||next.startsWith('--'))throw new Error('Missing value for --'+key);options[key]=next;}}else words.push(value);}return {options,words};}
 async function invite(options,io){if(options['invite-file'])return readFileSync(resolve(options['invite-file']),'utf8').trim();if(options['invite-stdin'])return readFileSync(0,'utf8').trim();if(!io.input.isTTY)throw new Error('Supply --invite-file FILE or --invite-stdin');const rl=createInterface({input:io.input,output:io.output});try{return (await rl.question('Paste the private invitation link: ')).trim();}finally{rl.close();}}
 function localOrigin(value){const url=new URL(value);if(url.protocol!=='http:'||!['127.0.0.1','localhost','[::1]'].includes(url.hostname)||url.username||url.password||url.pathname!=='/'||url.search||url.hash)throw new Error('The companion URL must be loopback HTTP');return url.origin;}
 export async function localCommand(state,path,input,options={}){
@@ -123,7 +125,15 @@ export async function runManagement(args,{input=process.stdin,output=process.std
  if(group==='plugin'){if(action!=='install')throw Error('Use spool plugin install');const {installPlugin}=await import('./plugin/package.js');print(installPlugin({state}));return;}
  if(group==='init'){if(action)throw new Error('Run spool init from inside your Git project folder.');if(!input.isTTY)throw new Error('spool init needs an interactive terminal so you can choose a project and approve sharing.');const {initializeCheckout}=await import('./init.js');const rl=createInterface({input,output});try{const result=await initializeCheckout({state,options,output,workspace:input=>new WorkspaceClient(state).run(input),local:(path,body,selected={})=>localCommand(state,path,body,{...options,...selected}),ask:async(label,value='')=>(await rl.question(label+(value?' ['+value+']':'')+': ')).trim()||value});if(options.json)print(result);if(result.problems?.length)process.exitCode=1;}finally{rl.close();}return;}
  if(group==='deploy'){if(action!=='cloudflare')throw new Error('Use spool deploy cloudflare');const {deployCloudflare}=await import('./deploy/cloudflare.js');const result=await deployCloudflare({state,options,input,output});if(options.json)print(result);return;}
- let workspace;const ws=input=>(workspace??=new WorkspaceClient(state)).run(input);
+ let workspace;let repositoryConnection;
+ const ws=async command=>{
+  let selector=options.workspace;
+  if(!selector&&!['connect','profiles','preview','switch'].includes(command.command)){
+   if(repositoryConnection===undefined){let repo;try{repo=repositoryAt(options.root??process.cwd());}catch{}if(repo&&existsSync(join(state,'discovery.sock'))){const binding=await discoveryRequest(state,{command:'resolve',cwd:repo.root});repositoryConnection=binding.status==='enrolled'?(binding.workspaceProfile??binding.workspace):null;}else{const registry=join(state,'discovery.json'),binding=repo&&existsSync(registry)?JSON.parse(readFileSync(registry)).entries.find(e=>e.root===repo.root):null;if(binding&&binding.repositoryKey!==repo.repositoryKey)throw Error('Repository identity changed. Reconnect it explicitly before using its management connection.');repositoryConnection=binding?.status==='enrolled'?(binding.workspaceProfile??binding.workspace):null;}}
+   selector=repositoryConnection;
+  }
+  return (workspace??=new WorkspaceClient(state)).run({...command,...(selector&&command.command!=='switch'?{workspace:selector}:{})});
+ };
  const sharedProject=async selector=>{
   const data=await ws({command:'list'}),projects=data.projects??[];if(!data.connected)throw new Error('Connect to a workspace first.');
   if(selector)return resolveProjectName(projects,selector);
@@ -133,16 +143,18 @@ export async function runManagement(args,{input=process.stdin,output=process.std
   output.write(projects.map((p,i)=>`${i+1}. ${p.name}`).join('\n')+'\n');const rl=createInterface({input,output});try{const selected=projects[Number(await rl.question('Choose a project: '))-1];if(!selected)throw new Error('Choose one of the numbered projects');return selected;}finally{rl.close();}
  };
 
- const need=(value,message)=>{if(!value)throw new Error(message);return value;};const local=(path,body)=>localCommand(state,path,body,options);
+ let memoryProject;
+ const memorySelection=async()=>{if(options.project)return options.project;if(memoryProject)return memoryProject;let repo;try{repo=repositoryAt(options.root??process.cwd());}catch{throw Error('Run memory commands inside the repository or pass --root /absolute/repository (or an explicit --project for administration).');}const binding=await discoveryRequest(state,{command:'resolve',cwd:repo.root});if(binding.status!=='enrolled')throw Error('This repository is not connected. Run spool init here; no selected UI project was used.');memoryProject=binding.projectId;return memoryProject;};
+ const need=(value,message)=>{if(!value)throw new Error(message);return value;};const local=async(path,body)=>localCommand(state,path,body,{...options,...(group==='memory'?{project:await memorySelection()}:{})});
  if(group==='discovery'){
   if(action==='enable'){print(await enableDiscovery(state));return;}
   const cwd=action==='list'?undefined:resolve(rest[0]??process.cwd());
   if(action==='approve'){
-   const preview=await local('discovery',{command:'preview',cwd});print(preview);
+   const preview=await local('discovery',{command:'preview',cwd,...(options.workspace?{workspace:options.workspace}:{})});print(preview);
    if(!options.yes){if(!input.isTTY)throw new Error('Explicit approval required: use an interactive terminal or --yes after user confirmation');const rl=createInterface({input,output});let answer;try{answer=await rl.question('Connect this checkout and share its Codex conversations and memory? [y/N] ');}finally{rl.close();}if(!/^y(es)?$/i.test(answer.trim())){print({connected:false,cancelled:true});return;}}
-   print(await local('discovery',{command:'approve',cwd,confirm:true,...(options.create?{create:true}:{}),...(options.room?{room:options.room}:{}),...(options.name?{name:options.name}:{})}));return;
+   print(await local('discovery',{command:'approve',cwd,confirm:true,...(options.workspace?{workspace:options.workspace}:{}),...(options.create?{create:true}:{}),...(options.room?{room:options.room}:{}),...(options.name?{name:options.name}:{})}));return;
   }
-  if(!['list','propose','preview','ignore'].includes(action))throw new Error('Use discovery enable|list|propose|preview|approve|ignore');print(await local('discovery',{command:action,...(cwd?{cwd}:{})}));return;
+  if(!['list','propose','preview','ignore'].includes(action))throw new Error('Use discovery enable|list|propose|preview|approve|ignore');print(await local('discovery',{command:action,...(cwd?{cwd}:{}),...(options.workspace?{workspace:options.workspace}:{})}));return;
  }
  if(group==='workspace'){
   if(action==='usage'){
@@ -190,7 +202,7 @@ export async function runManagement(args,{input=process.stdin,output=process.std
   const text=options['text-file']?readFileSync(resolve(options['text-file']),'utf8'):options['text-stdin']?readFileSync(0,'utf8'):null;need(text,'Supply --text-file FILE or --text-stdin');need(options.title,'Supply --title TITLE');
   const command=action==='task'?'task_update':action,body={command,title:options.title,text,requestId:options['request-id']??randomUUID(),files:options.file??[],refs:options.ref??[],...(options.task?{taskId:options.task}:{}),...(action==='remember'?{kind:options.kind??'finding'}:{}),...(action==='handoff'?{nextSteps:options['next-step']??[],blockers:options.blocker??[]}:{})};
   if(action==='task'){body.taskId=need(rest[0],'Supply a task ID');body.expectedRevision=Number(need(options.revision,'Supply --revision (0 creates a task)'));body.status=need(options.status,'Supply --status');body.resolveIds=options['resolve-id']??[];}
-  const preferences=join(state,'cli.json'),projectId=options.project??(existsSync(preferences)?JSON.parse(readFileSync(preferences)).project:null),directory=existsSync(join(state,'project.json'))?state:join(state,'p');print(await projectRequest(directory,{command:'memory',projectId,actor:'spool-cli',input:body}));return;
+  const projectId=await memorySelection(),directory=existsSync(join(state,'project.json'))?state:join(state,'p');print(await projectRequest(directory,{command:'memory',projectId,actor:'spool-cli',input:body}));return;
  }
  if(group==='server'){
   if(action==='control'){const {startRelayControl}=await import('./relay-control.js');await startRelayControl(process.env.SPOOL_CONTAINER_CONFIG??'/opt/spooldb/containers.json');return;}

@@ -100,7 +100,7 @@ function renderActivity() {
   const seen=new Set();container.replaceChildren();$('more-activity').hidden=!state.activityCursor;
   for(const entry of entries) {
     const meta=entry.metadata;if(!meta)continue;if(state.local&&!entry.messages.length&&!meta.fileIds.length)continue;const linked=meta.fileIds.includes(state.fileId);const card=node('article',`activity-item${linked?' linked':''}${state.revision?.changeId===entry.changeId?' selected':''}`);
-    const top=node('div','activity-top'),person=node('div','activity-person');person.append(node('strong','',meta.actor),node('small','',state.local&&entry.messages.some(m=>m.id.startsWith('native-'))?'Saved Codex chat':`${meta.harness??'generic'} · ${new Date(meta.observedAt).toLocaleString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}`));top.append(node('span','avatar',(meta.harness??'agent').slice(0,2).toUpperCase()),person,node('span','activity-hash',short(entry.changeId)));card.append(top);
+    const top=node('div','activity-top'),person=node('div','activity-person');person.append(node('strong','',meta.actor),node('small','',state.local&&entry.messages.some(m=>m.id.startsWith('native-'))?'Local Codex chat':`${meta.harness??'generic'} · ${new Date(meta.observedAt).toLocaleString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}`));top.append(node('span','avatar',(meta.harness??'agent').slice(0,2).toUpperCase()),person,node('span','activity-hash',short(entry.changeId)));card.append(top);
     for(const m of entry.messages) {
       if(seen.has(m.id))continue;seen.add(m.id);const block=node('div','message');block.append(node('span','message-role',m.role),node('p','',messageText(m)));
       if(m.truncated)block.append(action('Read full message',async()=>{const full=await api({command:'message',branch:state.branch,heads:context().heads,messageId:m.id});block.querySelector('p').textContent=messageText(full.message);block.querySelector('button')?.remove();},'load-more'));card.append(block);
@@ -147,7 +147,8 @@ function renderProject(project){
   state.project=project;if($('project-switch').querySelector(`option[value="${project.id}"]`))$('project-switch').value=project.id;$('project-name').textContent=project.name.charAt(0).toUpperCase()+project.name.slice(1);$('memory-project-name').textContent=project.name.toUpperCase();$('project-root').textContent=project.root;$('project-root').title=project.root;$('project-files').textContent=project.lastCapture?.files??'—';
   const codex=project.codex;$('project-threads').textContent=codex.threads||'0';$('codex-badge').textContent=codex.status==='connected'?'Connected':codex.status==='connecting'?'Connecting…':codex.enabled?'Needs attention':'Not connected';$('codex-badge').classList.toggle('connected',codex.status==='connected');
   $('codex-connect').hidden=codex.enabled;$('codex-disconnect').hidden=!codex.enabled;
-  $('codex-detail').textContent=codex.error??(codex.status==='connected'?`${codex.threads} project chats found. New completed replies appear automatically.`:'Local capture only. No new agent or model request.');
+  $('codex-detail').textContent=codex.error??(codex.status==='connected'?`${codex.threads} local project chats found. Capture is separate from conversation sharing and structured agent memory.`:'Local capture only. No new agent or model request.');
+  $('activity-scope').textContent='Local checkout history. Conversation capture is independent of relay sharing; disabling sharing keeps these local copies.';
   $('project-error').textContent=project.lastError??'';$('workspace-label').textContent=project.name.toUpperCase();$('room-short').hidden=true;
   $('connection-state').textContent=project.lastError?'Capture needs attention':'Capturing automatically';
 }
@@ -155,8 +156,9 @@ async function renewLocalSession(){
   const response=await fetch('/local/session',{cache:'no-store',redirect:'error'});if(!response.ok)throw new Error('Unable to reconnect. Reload SpoolDB.');const data=await response.json();state.csrf=data.csrf;return data;
 }
 async function localRequest(path,input,retried=false){
+  const requestedProject=state.project?.id;
   const response=await fetch('/local/'+path,{method:input?'POST':'GET',headers:{'x-spool-csrf':state.csrf,...(state.project?.id?{'x-spool-project':state.project.id}:{}),...(input?{'content-type':'application/json'}:{})},...(input?{body:JSON.stringify(input)}:{}),cache:'no-store',redirect:'error'});
-  const data=await response.json();if(response.status===401&&!retried){await renewLocalSession();return localRequest(path,input,true);}if(!response.ok)throw new Error(data.error?.message??'Unable to reach SpoolDB');return data;
+  const data=await response.json();if(requestedProject!==state.project?.id)throw new DOMException('Project changed','AbortError');if(response.status===401&&!retried){await renewLocalSession();if(requestedProject!==state.project?.id)throw new DOMException('Project changed','AbortError');return localRequest(path,input,true);}if(!response.ok)throw new Error(data.error?.message??'Unable to reach SpoolDB');return data;
 }
 let applyingHistory=false,pageEpoch=0;
 function setPage(page,{note=null,record=true}={}){
@@ -193,19 +195,36 @@ $('project-switch').addEventListener('change',async()=>{
   if(localBusy){$('project-switch').value=state.project.id;return;}localBusy=true;$('project-switch').disabled=true;
   try{await switchProject($('project-switch').value);}catch(error){$('project-error').textContent=error.message;$('project-switch').value=state.project.id;}finally{$('project-switch').disabled=false;localBusy=false;}
 });
-$('add-project').addEventListener('click',()=>{if(localBusy)return;$('add-project-error').textContent='';$('add-project-form').reset();$('add-project-dialog').showModal();});
+let addProjectPlan=null;
+function resetProjectPlan(){addProjectPlan=null;$('new-project-plan').hidden=true;$('add-project-submit').textContent='Check repository';}
+async function loadSavedConnections(preferred){const saved=await localRequest('workspace',{command:'profiles'});const choices=saved.workspaces??[];$('new-project-workspace').replaceChildren(option('','Choose a saved connection…'),...choices.map(p=>option(p.id,p.name+' · '+p.relay)));if(preferred)$('new-project-workspace').value=preferred;else if(choices.length===1)$('new-project-workspace').value=choices[0].id;}
+$('add-project').addEventListener('click',async()=>{if(localBusy)return;$('add-project-error').textContent='';$('add-project-form').reset();resetProjectPlan();$('add-project-dialog').showModal();try{await loadSavedConnections();}catch(error){$('add-project-error').textContent=error.message;}});
 for(const id of ['close-add-project','cancel-add-project'])$(id).addEventListener('click',()=>{if(!localBusy)$('add-project-dialog').close();});
 $('add-project-dialog').addEventListener('cancel',event=>{if(localBusy)event.preventDefault();});
-$('browse-project').addEventListener('click',async()=>{
-  const button=$('browse-project');button.disabled=true;try{const result=await localRequest('projects/browse',{});if(result.root)$('new-project-root').value=result.root;if(result.message)$('add-project-error').textContent=result.message;}catch(error){$('add-project-error').textContent=error.message;}finally{button.disabled=false;}
-});
+for(const id of ['new-project-root','new-project-workspace'])$(id).addEventListener('input',resetProjectPlan);
+$('new-project-shared').addEventListener('change',()=>{$('new-project-name').hidden=$('new-project-shared').value!=='create';$('new-project-name-label').hidden=$('new-project-name').hidden;});
+$('browse-project').addEventListener('click',async()=>{const button=$('browse-project');button.disabled=true;try{const result=await localRequest('projects/browse',{});if(result.root){$('new-project-root').value=result.root;resetProjectPlan();}if(result.message)$('add-project-error').textContent=result.message;}catch(error){$('add-project-error').textContent=error.message;}finally{button.disabled=false;}});
+$('new-project-save-connection').addEventListener('click',async()=>{if(localBusy)return;localBusy=true;$('add-project-error').textContent='';try{const result=await localRequest('workspace',{command:'connect',link:$('new-project-invite').value.trim()});$('new-project-invite').value='';await loadSavedConnections(result.workspaceProfile);resetProjectPlan();}catch(error){$('add-project-error').textContent=error.message;}finally{localBusy=false;}});
 $('add-project-form').addEventListener('submit',async event=>{
-  event.preventDefault();if(localBusy)return;localBusy=true;$('add-project-error').textContent='';$('add-project-progress').hidden=false;
-  for(const element of $('add-project-form').elements)element.disabled=true;
-  try{
-    const result=await localRequest('projects/add',{root:$('new-project-root').value,connectCodex:$('new-project-codex').checked,exclude:$('new-project-exclude').value.split('\n').map(p=>p.trim()).filter(Boolean)});
-    await loadProjects();await switchProject(result.project.id);$('project-switch').value=result.project.id;$('add-project-dialog').close();if($('new-project-memory').checked)await connectMemoryAgents();
-  }catch(error){$('add-project-error').textContent=error.message;}finally{for(const element of $('add-project-form').elements)element.disabled=false;$('add-project-progress').hidden=true;localBusy=false;}
+ event.preventDefault();if(localBusy)return;localBusy=true;$('add-project-error').textContent='';$('add-project-progress').hidden=false;
+ for(const element of $('add-project-form').elements)element.disabled=true;
+ try{
+  const cwd=$('new-project-root').value.trim(),workspace=$('new-project-workspace').value;if(!workspace)throw Error('Choose a saved connection or add an invitation first.');
+  if(!addProjectPlan){
+   const preview=await localRequest('discovery',{command:'preview',cwd,workspace});if(!preview.connected)throw Error('Choose a saved connection for this repository.');
+   if(preview.status==='enrolled'&&preview.workspace!==preview.relay)throw Error('This repository is already bound to another relay. Change its binding explicitly; adding it again will not move it.');
+   addProjectPlan={cwd:preview.root,workspace,repositoryKey:preview.repositoryKey,existing:preview.status==='enrolled'?preview:null};
+   $('new-project-relay').textContent=preview.workspaceName+' · '+preview.relay;
+   const matches=preview.matches??[],choices=matches.length?matches:preview.projects??[];
+   $('new-project-shared').replaceChildren(option('','Choose a shared project…'),...choices.map(p=>option(p.room,'Join '+p.name)));
+   if(!matches.length&&preview.canCreate&&preview.repositoryKey)$('new-project-shared').append(option('create','Create a new shared project'));
+   if(addProjectPlan.existing){$('new-project-shared').value=preview.room;if(!$('new-project-shared').value){$('new-project-shared').append(option(preview.room,'Keep existing project'));$('new-project-shared').value=preview.room;}}else if(matches.length===1)$('new-project-shared').value=matches[0].room;
+   $('new-project-name').value=preview.name;$('new-project-name').hidden=true;$('new-project-name-label').hidden=true;$('new-project-plan').hidden=false;$('add-project-submit').textContent=addProjectPlan.existing?'Open connected repository':'Connect and share memory';return;
+  }
+  let result=addProjectPlan.existing;
+  if(!result){const shared=$('new-project-shared').value;if(!shared)throw Error('Choose whether to create or join a shared project.');result=await localRequest('discovery',{command:'approve',cwd:addProjectPlan.cwd,workspace:addProjectPlan.workspace,confirm:true,...(shared==='create'?{create:true,name:$('new-project-name').value.trim()}:{room:shared}),...($('new-project-history').value?{analyzeExisting:$('new-project-history').value==='yes'}:{})});}
+  await loadProjects();await switchProject(result.projectId);$('add-project-dialog').close();await connectMemoryAgents();
+ }catch(error){$('add-project-error').textContent=error.message;}finally{for(const element of $('add-project-form').elements)element.disabled=false;$('add-project-progress').hidden=true;localBusy=false;}
 });
 async function bootLocal(){
   if(location.protocol==='file:')return;

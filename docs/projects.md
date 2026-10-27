@@ -7,7 +7,7 @@ Open the local app. Your project opens without room IDs or token entry. Click **
 
 ## Add and switch from the app
 
-Use **+ Add project** in the top bar. Choose the top-level Git folder with **Browse…**, or paste its path. The Codex checkbox connects completed saved conversations for that folder automatically; uncheck it for code capture alone. Open **Capture options** to add excluded relative file paths or directory prefixes. Click **Add project** and the app creates the baseline, separate capture/relay databases and credentials, then switches to the new project.
+Use **+ Add project** in the top bar. Choose a repository folder, select a saved connection (or save one using a workspace invitation), then click **Check repository**. SpoolDB checks for an existing matching shared project. Choose to join it or create a project when no match exists, then approve **Connect and share memory**. The folder gets its own relay/project binding; source files stay in Git. Existing connections and memories do not move.
 
 The top-bar project menu switches back to an existing project. Each project's history, files, branch pointers and Codex setting stay separate. Adding the same canonical folder again reuses its existing history. Setup errors stay in the dialog; a failed new setup removes only the state created by that attempt, leaving source files and previously connected projects intact.
 
