@@ -13,6 +13,7 @@ export async function initializeCheckout({cwd=process.cwd(),state,options={},ask
  let repo;try{repo=repositoryAt(cwd);}catch{throw Error('Run spool init from a Git project folder (or initialize Git first).');}
  const say=text=>output.write(text+'\n'),yes=async(label,defaultYes=false)=>/^y(es)?$/i.test(await ask(label,defaultYes?'Y':'N'));
  say('\nSpoolDB · Connect this project\nFolder: '+repo.root);
+ if(repo.superproject){const binding=await local('discovery',{command:'resolve',cwd:repo.root});if(binding.inherited){say('This Git submodule already uses its parent project memory on '+binding.workspace+'. No separate project is needed.');return {connected:true,inherited:true,root:repo.root,bindingRoot:binding.bindingRoot,projectId:binding.projectId,room:binding.room,relay:binding.workspace};}}
  const registry=await local('projects'),registered=registry.projects?.find(p=>p.root===repo.root);
  const current=registered?await local('status',undefined,{project:registered.id}):null;
  if(!selectedWorkspace&&current?.team?.configured)selectedWorkspace=current.team.url;

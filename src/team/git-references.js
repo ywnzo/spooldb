@@ -46,7 +46,7 @@ export function captureCheckpoint(root,paths=[],{readState=repositoryState,readH
  let git;
  for(let attempt=0;attempt<attempts;attempt++){
   const before=readState(root),hashes=unique.map(path=>readHash(root,path)),after=readState(root),finalHashes=unique.map(path=>readHash(root,path));git=after;
-  if(before.verified&&after.verified&&JSON.stringify(before)===JSON.stringify(after)&&JSON.stringify(hashes)===JSON.stringify(finalHashes)){const {submodules,...fileState}=after;return {git:{...after,capturedAt:new Date().toISOString()},files:unique.map((path,i)=>({path,...fileState,...(hashes[i]?{contentHash:hashes[i]}:{})}))};}
+  if(before.verified&&after.verified&&JSON.stringify(before)===JSON.stringify(after)&&JSON.stringify(hashes)===JSON.stringify(finalHashes)){const {submodules,...fileState}=after;return {git:{...after,capturedAt:new Date().toISOString()},files:unique.map((path,i)=>({path,...fileState,...(submodules?.some(item=>path.startsWith(item.path+'/'))?{submodules:submodules.filter(item=>path.startsWith(item.path+'/'))}:{}),...(hashes[i]?{contentHash:hashes[i]}:{})}))};}
  }
  return {git:{...git,verified:false,verificationError:'Git state changed during capture or could not be read',capturedAt:new Date().toISOString()},files:unique.map(path=>({path,verified:false}))};
 }

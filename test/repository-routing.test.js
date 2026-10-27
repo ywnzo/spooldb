@@ -1,10 +1,11 @@
+import {initializeCheckout} from '../src/init.js';
 import {localCommand} from '../src/management-cli.js';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtempSync,mkdirSync,writeFileSync,readFileSync,existsSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join,resolve} from 'node:path';
-import {execFileSync,spawn} from 'node:child_process';
+import {execFileSync,execFile,spawn} from 'node:child_process';
 import {WorkspaceClient} from '../src/team/workspace-client.js';
 import {startTeamHost} from '../src/team/host.js';
 import {startDesktop} from '../src/desktop/service.js';
@@ -55,4 +56,31 @@ test('legacy workspace credentials become saved connections without altering pro
  const first=new WorkspaceClient(join(base,'original')),saved=await first.run({command:'connect',link:host.command({command:'workspace-init',name:'Legacy'}).link});const profile=JSON.parse(readFileSync(join(base,'original/workspace-profiles',saved.workspaceProfile+'.json')));
  const directory=join(base,'old');mkdirSync(directory);writeFileSync(join(directory,'workspace.json'),JSON.stringify(profile.connection),{mode:0o600});writeFileSync(join(directory,'projects.json'),'KEEP PROJECT BINDINGS');
  const migrated=new WorkspaceClient(directory),listing=await migrated.run({command:'profiles'});assert.equal(listing.workspaces.length,1);assert.equal(existsSync(join(directory,'workspace.json')),false);assert.equal(readFileSync(join(directory,'projects.json'),'utf8'),'KEEP PROJECT BINDINGS');assert.equal((await migrated.run({command:'list',workspace:listing.workspaces[0].id})).workspace.name,'Legacy');assert.ok(!JSON.stringify(listing).includes(profile.connection.token));
+});
+
+test('registered submodules inherit parent memory and references; explicit bindings, skips and independent repos retain isolation',{timeout:90000},async t=>{
+ const base=mkdtempSync(join(tmpdir(),'spool-submodule-inherit-')),state=join(base,'state'),platform=repo(base,'platform'),library=repo(base,'library'),grand=repo(base,'grand');
+ git(platform,['-c','protocol.file.allow=always','submodule','add','-q',library,'modules/Cms']);const nested=join(platform,'modules/Cms');git(nested,['remote','set-url','origin','https://example.test/team/module-cms.git']);git(nested,['-c','protocol.file.allow=always','submodule','add','-q',grand,'vendor/nested']);const inner=join(nested,'vendor/nested');git(inner,['remote','set-url','origin','https://example.test/team/nested.git']);
+ const independent=repo(platform,'independent'),host=await startTeamHost(join(base,'relay'),{port:0}),desktop=await startDesktop(state,{port:0,history:{read:async()=>({threads:0,messages:0}),close(){}}}),ws=new WorkspaceClient(state);let session;
+ t.after(async()=>{await session?.close();await desktop.close();await host.close();rmSync(base,{recursive:true,force:true});});
+ const connection=await ws.run({command:'connect',link:host.command({command:'workspace-init',name:'Team'}).link});
+ assert.equal((await discoveryRequest(state,{command:'resolve',cwd:nested})).status,'pending');
+ const parent=await discoveryRequest(state,{command:'approve',cwd:platform,workspace:connection.workspaceProfile,create:true,name:'Platform',confirm:true});
+ const inherited=await discoveryRequest(state,{command:'resolve',cwd:nested});assert.equal(inherited.inherited,true);assert.equal(inherited.projectId,parent.projectId);assert.equal(inherited.room,parent.room);assert.equal(inherited.root,nested);assert.equal(inherited.bindingRoot,platform);assert.equal(inherited.pathPrefix,'modules/Cms');
+ const deeper=await discoveryRequest(state,{command:'resolve',cwd:inner});assert.equal(deeper.inherited,true);assert.equal(deeper.bindingRoot,platform);assert.equal(deeper.pathPrefix,'modules/Cms/vendor/nested');assert.equal((await ws.run({command:'list',workspace:connection.workspaceProfile})).projects.length,1);
+ assert.equal((await discoveryRequest(state,{command:'resolve',cwd:independent})).status,'pending');
+ session=mcp(state,platform);await session.call('initialize');const tool=(name,args)=>session.call('tools/call',{name,arguments:args});
+ const seed=await tool('remember',{root:platform,kind:'finding',title:'Earlier CMS context',text:'PARENT-CMS-HISTORY-622'});assert.equal(seed.isError,false);
+ const init=await initializeCheckout({cwd:nested,state,ask:async()=>{throw Error('Inherited submodules must not ask for another project');},output:{write(){}},workspace:input=>ws.run(input),local:(path,input)=>localCommand(state,path,input)});assert.equal(init.inherited,true);assert.equal(init.room,parent.room);
+ const context=await tool('project_context',{root:nested});assert.equal(context.isError,false);assert.equal(context.structuredContent.repository.inherited,true);assert.match(JSON.stringify(context),/PARENT-CMS-HISTORY-622/);
+ const saved=await tool('remember',{root:nested,kind:'finding',title:'CMS result',text:'CHILD-RESULT-831',files:['app.js']});assert.equal(saved.isError,false);assert.equal(saved.structuredContent.room,parent.room);
+ const record=await tool('memory_get',{root:nested,id:saved.structuredContent.id});assert.equal(record.structuredContent.files[0].path,'modules/Cms/app.js');const gitRef=record.structuredContent.files[0].submodules.find(s=>s.path==='modules/Cms');assert.equal(gitRef.commit,git(nested,['rev-parse','HEAD']));assert.match(gitRef.repository,/module-cms/);
+ assert.equal((await tool('remember',{root:platform,kind:'finding',title:'Parent CMS work',text:'Allowed inherited reference',files:['modules/Cms/app.js']})).isError,false);
+ assert.equal((await tool('remember',{root:nested,kind:'finding',title:'Escape',text:'Not allowed',files:['../../app.js']})).isError,true);
+ assert.equal((await tool('remember',{root:platform,kind:'finding',title:'Independent',text:'Not allowed',files:['independent/app.js']})).isError,true);
+ const textFile=join(base,'cli-note.txt');writeFileSync(textFile,'CLI-INHERITED-836');const cli=JSON.parse(await new Promise((resolveCli,reject)=>execFile(process.execPath,[resolve('src/cli.js'),'memory','remember','--state',state,'--root',nested,'--title','CLI inherited note','--text-file',textFile,'--file','app.js','--json'],{encoding:'utf8',timeout:20000},(error,stdout)=>error?reject(error):resolveCli(stdout))));assert.equal(cli.room,parent.room);assert.equal((await tool('memory_get',{root:nested,id:cli.id})).structuredContent.files[0].path,'modules/Cms/app.js');
+ const child=await discoveryRequest(state,{command:'approve',cwd:nested,workspace:connection.workspaceProfile,create:true,name:'Separate CMS',confirm:true});assert.notEqual(child.room,parent.room);assert.equal((await discoveryRequest(state,{command:'resolve',cwd:nested})).inherited,undefined);assert.equal((await discoveryRequest(state,{command:'resolve',cwd:inner})).room,child.room);
+ assert.equal((await tool('remember',{root:platform,kind:'finding',title:'Explicit child',text:'Not allowed',files:['modules/Cms/app.js']})).isError,true);
+ await discoveryRequest(state,{command:'ignore',cwd:inner});assert.equal((await discoveryRequest(state,{command:'resolve',cwd:inner})).status,'ignored');assert.equal((await tool('project_context',{root:inner})).structuredContent.code,'PROJECT_SKIPPED');
+ git(platform,['rm','--cached','-f','-q','modules/Cms']);assert.equal(repositoryAt(nested).superproject,null);
 });

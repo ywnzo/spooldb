@@ -56,3 +56,7 @@ bun src/project-cli.js capture /absolute/state/project
 ```
 
 Status reports the root, room, URL, active harness, last capture and latest watcher error without credentials. Capture forces a filesystem observation and publication. The local project app refreshes automatically; a standalone remote relay review still uses Refresh. The bridge still has 1 MB/file, 12 MB snapshot and 10,000-path limits, and each atomic upload batch must fit the relay page budget. Exclusions should cover large generated files/assets and private configuration. Secret-path filtering is limited to documented filename patterns and is not a general content redactor.
+
+## Git submodule memory
+
+Registered Git submodules use their connected parent project’s memory by default. They do not create another relay project. Explicit separate bindings or an explicit skip override inheritance. Independent nested or sibling repositories need their own approved binding. File references include the parent-relative path and the submodule Git repository/commit; source files stay in Git.

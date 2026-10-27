@@ -214,7 +214,7 @@ $('add-project-form').addEventListener('submit',async event=>{
    const preview=await localRequest('discovery',{command:'preview',cwd,workspace});if(!preview.connected)throw Error('Choose a saved connection for this repository.');
    if(preview.status==='enrolled'&&preview.workspace!==preview.relay)throw Error('This repository is already bound to another relay. Change its binding explicitly; adding it again will not move it.');
    addProjectPlan={cwd:preview.root,workspace,repositoryKey:preview.repositoryKey,existing:preview.status==='enrolled'?preview:null};
-   $('new-project-relay').textContent=preview.workspaceName+' · '+preview.relay;
+   $('new-project-relay').textContent=(preview.inherited?'Uses parent project memory':preview.workspaceName)+' · '+preview.relay;
    const matches=preview.matches??[],choices=matches.length?matches:preview.projects??[];
    $('new-project-shared').replaceChildren(option('','Choose a shared project…'),...choices.map(p=>option(p.room,'Join '+p.name)));
    if(!matches.length&&preview.canCreate&&preview.repositoryKey)$('new-project-shared').append(option('create','Create a new shared project'));

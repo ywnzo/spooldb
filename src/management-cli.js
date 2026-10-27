@@ -1,3 +1,4 @@
+import {assertRepositoryFiles,repositoryMemoryInput} from './memory/repository-scope.js';
 import {repositoryAt} from './repository.js';
 import {discoveryRequest} from './discovery-request.js';
 import {readFileSync,existsSync,writeFileSync,renameSync} from 'node:fs';
@@ -143,8 +144,8 @@ export async function runManagement(args,{input=process.stdin,output=process.std
   output.write(projects.map((p,i)=>`${i+1}. ${p.name}`).join('\n')+'\n');const rl=createInterface({input,output});try{const selected=projects[Number(await rl.question('Choose a project: '))-1];if(!selected)throw new Error('Choose one of the numbered projects');return selected;}finally{rl.close();}
  };
 
- let memoryProject;
- const memorySelection=async()=>{if(options.project)return options.project;if(memoryProject)return memoryProject;let repo;try{repo=repositoryAt(options.root??process.cwd());}catch{throw Error('Run memory commands inside the repository or pass --root /absolute/repository (or an explicit --project for administration).');}const binding=await discoveryRequest(state,{command:'resolve',cwd:repo.root});if(binding.status!=='enrolled')throw Error('This repository is not connected. Run spool init here; no selected UI project was used.');memoryProject=binding.projectId;return memoryProject;};
+ let memoryProject,memoryBinding;
+ const memorySelection=async()=>{if(options.project)return options.project;if(memoryProject)return memoryProject;let repo;try{repo=repositoryAt(options.root??process.cwd());}catch{throw Error('Run memory commands inside the repository or pass --root /absolute/repository (or an explicit --project for administration).');}const binding=await discoveryRequest(state,{command:'resolve',cwd:repo.root});if(binding.status!=='enrolled')throw Error('This repository is not connected. Run spool init here; no selected UI project was used.');memoryBinding=binding;memoryProject=binding.projectId;return memoryProject;};
  const need=(value,message)=>{if(!value)throw new Error(message);return value;};const local=async(path,body)=>localCommand(state,path,body,{...options,...(group==='memory'?{project:await memorySelection()}:{})});
  if(group==='discovery'){
   if(action==='enable'){print(await enableDiscovery(state));return;}
@@ -202,7 +203,7 @@ export async function runManagement(args,{input=process.stdin,output=process.std
   const text=options['text-file']?readFileSync(resolve(options['text-file']),'utf8'):options['text-stdin']?readFileSync(0,'utf8'):null;need(text,'Supply --text-file FILE or --text-stdin');need(options.title,'Supply --title TITLE');
   const command=action==='task'?'task_update':action,body={command,title:options.title,text,requestId:options['request-id']??randomUUID(),files:options.file??[],refs:options.ref??[],...(options.task?{taskId:options.task}:{}),...(action==='remember'?{kind:options.kind??'finding'}:{}),...(action==='handoff'?{nextSteps:options['next-step']??[],blockers:options.blocker??[]}:{})};
   if(action==='task'){body.taskId=need(rest[0],'Supply a task ID');body.expectedRevision=Number(need(options.revision,'Supply --revision (0 creates a task)'));body.status=need(options.status,'Supply --status');body.resolveIds=options['resolve-id']??[];}
-  const projectId=await memorySelection(),directory=existsSync(join(state,'project.json'))?state:join(state,'p');print(await projectRequest(directory,{command:'memory',projectId,actor:'spool-cli',input:body}));return;
+  const projectId=await memorySelection(),directory=existsSync(join(state,'project.json'))?state:join(state,'p');if(memoryBinding)await assertRepositoryFiles(memoryBinding.root,body.files,{directory:state,selected:memoryBinding});print(await projectRequest(directory,{command:'memory',projectId,actor:'spool-cli',input:repositoryMemoryInput(memoryBinding,body)}));return;
  }
  if(group==='server'){
   if(action==='control'){const {startRelayControl}=await import('./relay-control.js');await startRelayControl(process.env.SPOOL_CONTAINER_CONFIG??'/opt/spooldb/containers.json');return;}

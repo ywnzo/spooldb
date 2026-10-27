@@ -12,7 +12,7 @@ export class RepositoryDiscovery{
  save(){mkdirSync(this.directory,{recursive:true,mode:0o700});writeFileSync(this.path+'.tmp',JSON.stringify({entries:this.entries},null,2)+'\n',{mode:0o600});renameSync(this.path+'.tmp',this.path);}
  run(input){const result=this.tail.then(()=>this.execute(input));this.tail=result.catch(()=>{});return result;}
  async execute(input){
-  if(input.command==='list')return {entries:this.entries,origin:this.origin(),companion:companionInfo()};
+  if(input.command==='list'){const entries=[];for(const entry of this.entries){if(entry.status==='pending'&&entry.superproject)try{entries.push(await this.execute({command:'resolve',cwd:entry.root}));continue;}catch{}entries.push(entry);}return {entries,origin:this.origin(),companion:companionInfo()};}
   const repo=repositoryAt(input.cwd??input.root);const within=relative(repo.root,this.directory);if(!within||(!within.startsWith('..')&&!within.startsWith('/')))throw new Error('Choose a source folder outside SpoolDB state');
   const id=digest(repo.root),scope=null;
   let entry=this.entries.find(e=>e.id===id);
@@ -22,6 +22,12 @@ export class RepositoryDiscovery{
   if(repositoryChanged){Object.assign(entry,repo,{status:'pending',workspace:scope});delete entry.projectId;delete entry.room;delete entry.retrospective;delete entry.workspaceProfile;this.save();}
   // Previously connected folders retain their explicit authorization. No new capture or join occurs here.
   if(!entry){const manager=await this.manager(null),prior=manager?.list().find(p=>realpathSync(p.root)===repo.root);let shared;if(prior)shared=(await manager.get(prior.id)).teamState();entry={id,...repo,workspace:shared?.configured?shared.url:scope,status:shared?.configured?'enrolled':'pending',...(shared?.configured?{projectId:prior.id,room:shared.room}:{}),discoveredAt:new Date().toISOString()};this.entries.push(entry);this.save();}
+  // Registered Git submodules inherit the approved parent grant unless explicitly bound or skipped.
+  // This is a virtual binding: never persist a copied grant or enroll another relay project.
+  if(entry.status==='pending'&&repo.superproject&&['propose','resolve','preview'].includes(input.command)){
+   const parent=await this.execute({command:'resolve',cwd:repo.superproject.root});
+   if(parent.status==='enrolled')return {...entry,status:'enrolled',inherited:true,bindingRoot:parent.bindingRoot??parent.root,pathPrefix:relative(parent.bindingRoot??parent.root,repo.root),inheritedFrom:repo.superproject.root,projectId:parent.projectId,room:parent.room,workspace:parent.workspace,workspaceProfile:parent.workspaceProfile??null,retrospective:parent.retrospective,origin:this.origin(),controlDirectory:this.controlDirectory,connected:true,relay:parent.workspace,canCreate:false};
+  }
   if(entry.status==='enrolled'){
    const manager=await this.manager(null),local=manager.list().find(p=>p.id===entry.projectId&&realpathSync(p.root)===repo.root);
    if(!local)throw Error('Repository binding is missing or points to another checkout. Reconnect this repository explicitly.');

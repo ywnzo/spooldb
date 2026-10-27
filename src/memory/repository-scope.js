@@ -1,9 +1,9 @@
 import {loadRepositoryOnboarding} from '../repository-onboarding.js';
 import {existsSync} from 'node:fs';
-import {isAbsolute,resolve,dirname} from 'node:path';
+import {isAbsolute,resolve,dirname,relative} from 'node:path';
 import {repositoryAt} from '../repository.js';
 import {discoveryRequest} from '../discovery-request.js';
-export const repositoryRootSchema={type:'string',minLength:1,maxLength:4096,description:'Absolute directory in the Git repository being worked on now. Required on every call. Resolve nested repositories/submodules separately; never reuse the chat starting project for work in another repo.'};
+export const repositoryRootSchema={type:'string',minLength:1,maxLength:4096,description:'Absolute directory in the Git repository being worked on now. Required on every call. Registered Git submodules inherit their parent binding by default; explicitly connected submodules and independent repositories use their own bindings.'};
 export const repositoryMemoryTools=tools=>tools.map(tool=>({...tool,inputSchema:{...tool.inputSchema,properties:{root:repositoryRootSchema,...tool.inputSchema.properties},required:[...new Set(['root',...(tool.inputSchema.required??[])])]}}));
 export async function resolveMemoryRepository(directory,root,{discover=discoveryRequest}={}){
  if(typeof root!=='string'||!isAbsolute(root)||root.includes('\0'))throw Error('Pass the absolute directory of the repository being worked on as root. No default project was used.');
@@ -13,12 +13,15 @@ export async function resolveMemoryRepository(directory,root,{discover=discovery
  return {...repo,...project};
 }
 
-export function assertRepositoryFiles(root,files=[]){
+export async function assertRepositoryFiles(root,files=[],{directory,selected,discover=discoveryRequest}={}){
  for(const file of files){
   if(typeof file!=='string')continue;
-  const absolute=resolve(root,file);let parent=dirname(absolute);
+  const absolute=resolve(root,file),within=relative(root,absolute);if(within==='..'||within.startsWith('../')||isAbsolute(within))throw Error('File paths must remain inside the current repository');let parent=dirname(absolute);
   while(!existsSync(parent)&&dirname(parent)!==parent)parent=dirname(parent);
   const referenced=repositoryAt(parent);
+  if(referenced.root!==root&&directory&&selected){const binding=await discover(directory,{command:'resolve',cwd:referenced.root});if(binding.inherited&&binding.projectId===selected.projectId&&binding.workspace===selected.workspace&&(binding.bindingRoot??binding.root)===(selected.bindingRoot??selected.root))continue;}
   if(referenced.root!==root)throw Error(`File ${file} belongs to ${referenced.root}. Use that repository as root; no cross-repository memory was written.`);
  }
 }
+
+export function repositoryMemoryInput(selected,input){if(!selected?.inherited)return input;const prefix=selected.pathPrefix;return {...input,...(input.files?{files:input.files.map(file=>prefix+'/'+file)}:{}),...(input.path?{path:prefix+'/'+input.path}:{})};}
