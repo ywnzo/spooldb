@@ -7,6 +7,7 @@ export function validMemoryEvent(value){
  if(!object(value)||value.protocol!=='spool-memory/1'||!kinds.has(value.kind)||!text(value.title,500)||!text(value.text,16000))return false;
  for(const key of ['actor','sessionId','createdAt','taskId'])if(value[key]!==undefined&&value[key]!==null&&!text(value[key],key==='taskId'?160:300))return false;
  for(const key of ['refs','nextSteps','blockers','resolveIds','commits'])if(value[key]!==undefined&&!list(value[key]))return false;
+ if(value.handoffGroup!==undefined&&(value.kind!=='handoff'||typeof value.handoffGroup!=='string'||!/^[a-f0-9]{64}$/.test(value.handoffGroup)))return false;
  if(value.files!==undefined&&(!Array.isArray(value.files)||value.files.length>30||!value.files.every(object)))return false;
  if(value.git!==undefined&&!object(value.git))return false;
  if(value.status!==undefined&&!['open','in_progress','blocked','done'].includes(value.status))return false;

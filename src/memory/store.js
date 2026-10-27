@@ -111,6 +111,7 @@ export class MemoryStore {
     if(current?.conflicts.length){const resolves=array(input.resolveIds??[]).slice().sort();fail(JSON.stringify(resolves)===JSON.stringify(current.conflicts.slice().sort()),'TASK_CONFLICT','Resolve every conflicting task record explicitly',409);event.resolveIds=resolves;}
     fail(['open','in_progress','blocked','done'].includes(input.status),'INVALID_STATUS','Choose open, in_progress, blocked or done');event.status=input.status;event.revision=revision+1;
    }else if(input.taskId)fail(this.tasks(room,version,true).some(t=>t.taskId===input.taskId),'TASK_NOT_FOUND','Create the task before attaching memory',404);
+   if(kind==='handoff'&&input.handoffGroup!==undefined){fail(typeof input.handoffGroup==='string'&&/^[a-f0-9]{64}$/.test(input.handoffGroup),'HANDOFF_GROUP','Invalid handoff grouping key');event.handoffGroup=input.handoffGroup;}
    if(kind==='handoff'){event.nextSteps=array(input.nextSteps??[]);event.blockers=array(input.blockers??[]);}
    if(this.referencesOnly){
     if(input.git!==undefined)event.git=gitReference(input.git);
@@ -123,9 +124,12 @@ export class MemoryStore {
    // A task has one current handoff per author. Keep immutable prior revisions
    // available through history, without mixing parallel authors or unrelated tasks.
    let handoffInput=input;
-   if(kind==='handoff'&&event.taskId&&!input.lifecycle){
-    const rows=e.db.prepare("SELECT d.* FROM memory_docs d WHERE d.room=? AND d.kind='handoff' AND d.task_id=? AND "+visibleMemory('d')+" ORDER BY d.seq DESC").all(room,event.taskId);
-    const previous=rows.filter(row=>JSON.parse(row.data).actor===principal.id);
+   if(kind==='handoff'&&(event.taskId||event.handoffGroup||event.sessionId)&&!input.lifecycle){
+    const scopes=[],keys=[];
+    if(event.taskId){scopes.push('d.task_id=?');keys.push(event.taskId);}
+    if(event.handoffGroup){scopes.push("json_extract(d.data,'$.handoffGroup')=?");keys.push(event.handoffGroup);}
+    if(!event.taskId&&!event.handoffGroup){scopes.push("d.task_id IS NULL AND json_extract(d.data,'$.handoffGroup') IS NULL AND json_extract(d.data,'$.sessionId')=?");keys.push(event.sessionId);}
+    const previous=e.db.prepare("SELECT d.* FROM memory_docs d WHERE d.room=? AND d.kind='handoff' AND json_extract(d.data,'$.actor')=? AND ("+scopes.map(s=>'('+s+')').join(' OR ')+") AND "+visibleMemory('d')+" ORDER BY d.seq DESC").all(room,principal.id,...keys);
     const automatic=title==='Automatic Codex checkpoint'||title==='Interrupted Codex checkpoint';
     const authored=previous.find(row=>!['Automatic Codex checkpoint','Interrupted Codex checkpoint'].includes(row.title));
     const equivalent=previous.find(row=>{const old=JSON.parse(row.data);return ['title','text','nextSteps','blockers','files','refs','git','commits'].every(key=>JSON.stringify(handoffValue(old[key]??null))===JSON.stringify(handoffValue(event[key]??null)));});

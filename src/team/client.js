@@ -2,7 +2,7 @@ import {repositoryAt} from '../repository.js';
 import {defaultSharing,memoryCategory,recordBlocked,blockedCategory,conversationExcerpt} from './sharing.js';
 import {readFileSync,writeFileSync,renameSync,existsSync,chmodSync} from 'node:fs';
 import {join} from 'node:path';
-import {createHash} from 'node:crypto';
+import {createHash,createHmac} from 'node:crypto';
 import {pinnedRequest} from './tls.js';
 import {SyncClient} from '../relay/client.js';
 import {captureCheckpoint,createReconciler} from './git-references.js';
@@ -67,6 +67,8 @@ export class TeamConnection{
   else{checkpoint=captureCheckpoint(this.root,input.files??[]);if(input.requestId)this.engine.db.prepare('INSERT INTO team_memory_checkpoints VALUES(?,?,?,?)').run(remote,input.requestId,encoded,JSON.stringify(checkpoint));}
  }
  const lifecycleSkipped=[];const mapped={...input,...(checkpoint?{git:checkpoint.git,codeReferences:checkpoint.files}:{})};
+ // Opaque task continuity survives removal of private task IDs. Never upload task text.
+ if((input.command==='handoff'||input.command==='remember'&&input.kind==='handoff')&&input.taskId)mapped.handoffGroup=createHmac('sha256',config.token).update(JSON.stringify(['spool-handoff/1',config.room,input.taskId])).digest('hex');
  if(category==='tasks'){const local=new MemoryStore(this.engine,{referencesOnly:true}).run(this.localRoom,{command:'context',taskId:input.taskId}).tasks?.[0];if(local&&this.engine.db.prepare('SELECT 1 FROM team_private WHERE remote=? AND id=?').get(remote,'m:'+local.id)&&input.expectedRevision===local.revision){const shared=(await this.request('memory',{command:'context',taskId:input.taskId})).tasks?.[0];const base=this.engine.db.prepare('SELECT revision FROM team_private_task_base WHERE remote=? AND task_id=?').get(remote,input.taskId);if((shared?.revision??0)!==(base?.revision??0))throw Error('Task changed on the relay while tasks were private; retrieve the shared task before updating it');mapped.expectedRevision=shared?.revision??0;}}
  if(category&&category!=='tasks'&&mapped.taskId){const local=new MemoryStore(this.engine,{referencesOnly:true}).run(this.localRoom,{command:'context',taskId:mapped.taskId}).tasks?.[0];if(this.sharing.tasks===false||local&&this.engine.db.prepare('SELECT 1 FROM team_private WHERE remote=? AND id=?').get(remote,'m:'+local.id)&&!(await this.request('memory',{command:'context',taskId:mapped.taskId})).tasks?.length)delete mapped.taskId;}
  for(const field of ['supersedes','resolves'])if(mapped[field])mapped[field]=mapped[field].filter(id=>{const privateRecord=this.engine.db.prepare('SELECT 1 FROM team_private WHERE remote=? AND id=?').get(remote,'m:'+id);if(privateRecord)lifecycleSkipped.push(id);return !privateRecord;});

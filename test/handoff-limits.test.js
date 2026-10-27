@@ -31,3 +31,13 @@ test('handoffs revise the current task snapshot without duplicates or crossing a
  assert.equal(run({command:'search',kinds:['handoff'],includeArchived:true}).results.length,3);
  const unscoped=run({command:'handoff',title:'Independent',text:'No task'});assert.ok(unscoped.id);
 });
+
+test('taskless handoffs replace their session snapshot without mixing authors, rooms or explicit groups',t=>{
+ const engine=new ShardedEngine(':memory:'),store=new MemoryStore(engine,{referencesOnly:true});t.after(()=>engine.close());const room=()=>{const ref=engine.create('new-'+crypto.randomUUID());engine.db.prepare('UPDATE shard_refs SET name=? WHERE room=?').run('relay-'+ref.room,ref.room);return ref.room;};const a=room(),b=room();
+ const run=(input,actor='alice',target=a)=>store.run(target,{requestId:crypto.randomUUID(),...input},{id:actor});const note={command:'handoff',title:'Work',text:'Initial verified work',sessionId:'chat-one',nextSteps:[]};
+ const first=run(note),second=run({...note,text:'Verified work and tests completed'});assert.equal(run({command:'get',id:first.id}).lifecycle.status,'superseded');assert.equal(run({...note,text:'Verified work and tests completed'}).id,second.id);
+ const otherSession=run({...note,sessionId:'chat-two'}),otherAuthor=run(note,'bob'),otherRoom=run(note,'alice',b);
+ assert.equal(run({command:'get',id:otherSession.id}).lifecycle.status,'active');assert.equal(run({command:'get',id:otherAuthor.id}).lifecycle.status,'active');assert.equal(run({command:'get',id:otherRoom.id},'alice',b).lifecycle.status,'active');
+ const one=run({...note,handoffGroup:'a'.repeat(64)}),two=run({...note,handoffGroup:'b'.repeat(64)});const updated=run({...note,handoffGroup:'a'.repeat(64),text:'New grouped outcome'});assert.equal(run({command:'get',id:one.id}).lifecycle.status,'superseded');assert.equal(run({command:'get',id:two.id}).lifecycle.status,'active');assert.equal(run({command:'get',id:second.id}).lifecycle.status,'active');assert.equal(run({command:'get',id:updated.id}).lifecycle.status,'active');
+ assert.throws(()=>run({...note,handoffGroup:'private task name'}),error=>error.code==='HANDOFF_GROUP');assert.equal(validMemoryEvent({...note,protocol:'spool-memory/1',kind:'handoff',handoffGroup:'bad'}),false);
+});
