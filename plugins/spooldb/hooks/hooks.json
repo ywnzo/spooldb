@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh \"${XDG_DATA_HOME:-$HOME/.local/share}/spool/codex-hooks/d3b5a57a4e776fa4f9a64cee5b1e6a4eb8855e9c2a505b6f4bc6f3e343edd43e/run.sh\" SessionStart",
+            "command": "sh \"${XDG_DATA_HOME:-$HOME/.local/share}/spool/codex-hooks/2603fb89ab19acabf7d3d527fbdb3ec45b4233471a5fd2620fd615fd1bfb0d88/run.sh\" SessionStart",
             "timeout": 60,
             "additionalContextLimit": 7000,
             "statusMessage": "SpoolDB: Load project context"
@@ -18,7 +18,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh \"${XDG_DATA_HOME:-$HOME/.local/share}/spool/codex-hooks/d3b5a57a4e776fa4f9a64cee5b1e6a4eb8855e9c2a505b6f4bc6f3e343edd43e/run.sh\" UserPromptSubmit",
+            "command": "sh \"${XDG_DATA_HOME:-$HOME/.local/share}/spool/codex-hooks/2603fb89ab19acabf7d3d527fbdb3ec45b4233471a5fd2620fd615fd1bfb0d88/run.sh\" UserPromptSubmit",
             "timeout": 60,
             "additionalContextLimit": 7000,
             "statusMessage": "SpoolDB: Retrieve relevant memory"
@@ -31,7 +31,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh \"${XDG_DATA_HOME:-$HOME/.local/share}/spool/codex-hooks/d3b5a57a4e776fa4f9a64cee5b1e6a4eb8855e9c2a505b6f4bc6f3e343edd43e/run.sh\" Stop",
+            "command": "sh \"${XDG_DATA_HOME:-$HOME/.local/share}/spool/codex-hooks/2603fb89ab19acabf7d3d527fbdb3ec45b4233471a5fd2620fd615fd1bfb0d88/run.sh\" Stop",
             "timeout": 60,
             "statusMessage": "SpoolDB: Save handoff"
           }
@@ -43,7 +43,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh \"${XDG_DATA_HOME:-$HOME/.local/share}/spool/codex-hooks/d3b5a57a4e776fa4f9a64cee5b1e6a4eb8855e9c2a505b6f4bc6f3e343edd43e/run.sh\" Interrupt",
+            "command": "sh \"${XDG_DATA_HOME:-$HOME/.local/share}/spool/codex-hooks/2603fb89ab19acabf7d3d527fbdb3ec45b4233471a5fd2620fd615fd1bfb0d88/run.sh\" Interrupt",
             "timeout": 3,
             "statusMessage": "SpoolDB: Save interrupted checkpoint"
           }
