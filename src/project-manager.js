@@ -33,7 +33,6 @@ export class ProjectManager {
    if(input.exclude!==undefined&&(!Array.isArray(input.exclude)||input.exclude.length>100||input.exclude.some(p=>typeof p!=='string')))throw new Error('Enter one relative path per excluded line.');
    const exclude=new Set(['.codex','.claude','.hermes','node_modules','dist','build','.next','.cache','.preview',...(input.exclude??[])]);
    for(const path of git(['ls-files','--cached','--others','--exclude-standard','-z']).split('\0').filter(Boolean)){try{if(lstatSync(join(root,path)).size>1000000)exclude.add(path);}catch(error){if(error.code!=='ENOENT')throw error;}}
-   if(this.entries.length>=16)throw new Error('This preview supports up to 16 connected projects.');
    const container=join(this.dir,'projects');mkdirSync(container,{recursive:true,mode:0o700});const candidate=join(container,randomUUID());
    const result=initializeProject(candidate,root,{exclude:[...exclude],captureFiles:input.captureFiles!==false,onCreated:()=>{ownedDir=candidate;}});service=await this.start(ownedDir,{port:0,manageProjects:false});
    if(input.connectCodex===true)await service.app.connect();

@@ -19,7 +19,12 @@ test('subproject links are durable and do not grant or expose parent access',asy
  const invite=await owner.run({command:'invite-member',label:'Member',canCreate:true});const member=new WorkspaceClient(join(base,'member'));await member.run({command:'connect',link:invite.link,device:'Member'});
  await assert.rejects(()=>member.run({command:'repository-enroll',repositoryKey:'c'.repeat(64),mode:'create',name:'Unauthorized',requestId:'bad',parentRoom:parent.room}),/parent project/);
  const projectInvite=await owner.run({command:'invite-project',room:child.room,label:'Member'});await member.run({command:'accept-project',link:projectInvite.link});const view=(await member.run({command:'list'})).projects.find(p=>p.room===child.room);assert.ok(view);assert.equal(view.parentRoom,undefined);await assert.rejects(()=>member.run({command:'join',room:parent.room}),/access required/);
- const port=Number(new URL(host.origin).port);await host.close();host=await startTeamHost(join(base,'host'),{port});assert.equal((await owner.run({command:'list'})).projects.find(p=>p.room===child.room).parentRoom,parent.room);
+ const separate=(await owner.run({command:'repository-enroll',repositoryKey:'d'.repeat(64),mode:'create',name:'Existing module',requestId:'existing'})).project;
+ await assert.rejects(()=>member.run({command:'link-parent',room:separate.room,parentRoom:parent.room}),/Admin access/);
+ const linked=await owner.run({command:'link-parent',room:separate.room,parentRoom:parent.room});assert.equal(linked.project.room,separate.room);assert.equal(linked.project.parentRoom,parent.room);assert.equal((await owner.run({command:'link-parent',room:separate.room,parentRoom:parent.room})).linked,true);
+ await assert.rejects(()=>owner.run({command:'link-parent',room:parent.room,parentRoom:separate.room}),/cycle/);
+ await assert.rejects(()=>owner.run({command:'link-parent',room:child.room,parentRoom:separate.room}),/different parent/);
+ const port=Number(new URL(host.origin).port);await host.close();host=await startTeamHost(join(base,'host'),{port});assert.equal((await owner.run({command:'list'})).projects.find(p=>p.room===child.room).parentRoom,parent.room);assert.equal((await owner.run({command:'list'})).projects.find(p=>p.room===separate.room).parentRoom,parent.room);
 });
 test('remote workspace enrollment, scoped projects, creation retries, invites, revocation and restart',async t=>{
  const base=mkdtempSync(join(tmpdir(),'tw-ws-'));let host=await startTeamHost(join(base,'host'),{port:0});t.after(async()=>{await host.close();rmSync(base,{recursive:true,force:true});});

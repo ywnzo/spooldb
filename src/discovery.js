@@ -8,7 +8,7 @@ import {repositoryAt} from './repository.js';
 const digest=s=>createHash('sha256').update(s).digest('hex');
 export {discoveryRequest} from './discovery-request.js';
 export class RepositoryDiscovery{
- constructor(directory,{workspace,manager,controlDirectory=directory,origin=()=>null}){Object.assign(this,{directory,workspace,manager,controlDirectory,origin});this.path=join(directory,'discovery.json');this.entries=existsSync(this.path)?JSON.parse(readFileSync(this.path)).entries:[];this.tail=Promise.resolve();}
+ constructor(directory,{workspace,manager,controlDirectory=directory,origin=()=>null}){Object.assign(this,{directory,workspace,manager,controlDirectory,origin});this.path=join(directory,'discovery.json');this.entries=existsSync(this.path)?JSON.parse(readFileSync(this.path)).entries:[];this.tail=Promise.resolve();this.parentChecked=new Set();}
  save(){mkdirSync(this.directory,{recursive:true,mode:0o700});writeFileSync(this.path+'.tmp',JSON.stringify({entries:this.entries},null,2)+'\n',{mode:0o600});renameSync(this.path+'.tmp',this.path);}
  run(input){const result=this.tail.then(()=>this.execute(input));this.tail=result.catch(()=>{});return result;}
  async execute(input){
@@ -25,7 +25,7 @@ export class RepositoryDiscovery{
   // An enclosing repository is only a candidate; the user chooses whether to
   // create a subproject. This also covers retained, unregistered module clones.
   let parentCandidate=null;
-  if(entry.status==='pending'){
+  if(entry.status==='pending'||entry.status==='enrolled'&&!entry.parent||input.command==='link-parent'){
    let enclosing=repo.superproject?.root;try{enclosing??=repositoryAt(dirname(repo.root)).root;}catch{}
    if(enclosing&&enclosing!==repo.root){const parent=await this.execute({command:'resolve',cwd:enclosing});if(parent.status==='enrolled')parentCandidate={root:parent.root,room:parent.room,projectId:parent.projectId,workspace:parent.workspace,workspaceProfile:parent.workspaceProfile??null,name:parent.name,registered:Boolean(repo.superproject)};}
   }
@@ -35,6 +35,20 @@ export class RepositoryDiscovery{
    const shared=(await manager.get(local.id)).teamState();
    if(!shared.configured||shared.room!==entry.room)throw Error('Repository binding differs from its saved project connection. Reconnect it explicitly; no fallback was used.');
    if(entry.workspace!==shared.url){entry.workspace=shared.url;delete entry.workspaceProfile;delete entry.parent;this.save();}
+  }
+  if(input.command==='link-parent'){
+   if(input.confirm!==true)throw Error('Explicit confirmation is required to link projects');
+   if(entry.status!=='enrolled'||!parentCandidate||parentCandidate.workspace!==entry.workspace)throw Error('Connect this checkout and its enclosing parent to the same relay first');
+   const selected=await this.workspace.scoped(entry.workspaceProfile??entry.workspace),listing=await selected.run({command:'list'});
+   if(!listing.capabilities?.includes('subproject-link-v1'))throw Error('Upgrade this relay before linking an existing project. No changes were made.');
+   const result=await selected.run({command:'link-parent',room:entry.room,parentRoom:parentCandidate.room});
+   if(result.project?.parentRoom!==parentCandidate.room)throw Error('The relay did not confirm the parent link. Retry to check its state.');
+   entry.parent={root:parentCandidate.root,room:parentCandidate.room};this.parentChecked.add(entry.id);this.save();return {...entry,origin:this.origin(),controlDirectory:this.controlDirectory};
+  }
+  // Refresh a previously separate nested checkout once per companion lifetime.
+  // A relay link never grants access: list hides parents the member cannot read.
+  if(entry.status==='enrolled'&&!entry.parent&&parentCandidate&&parentCandidate.workspace===entry.workspace&&!this.parentChecked.has(entry.id)){
+   this.parentChecked.add(entry.id);try{const selected=await this.workspace.scoped(entry.workspaceProfile??entry.workspace),listing=await selected.run({command:'list'}),remote=listing.projects?.find(p=>p.room===entry.room);if(remote?.parentRoom===parentCandidate.room){entry.parent={root:parentCandidate.root,room:parentCandidate.room};this.save();}}catch{this.parentChecked.delete(entry.id);}
   }
   // Only enrollment/management needs workspace credentials. Existing memory routing
   // uses the checkout's stored project grant, independent of saved management connections.
