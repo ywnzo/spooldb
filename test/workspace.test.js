@@ -1,4 +1,5 @@
 import {runHook} from '../src/codex-hooks.js';
+import {filterLegacyPlaceholders} from '../src/team/client.js';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtempSync,mkdirSync,writeFileSync,rmSync} from 'node:fs';
@@ -9,6 +10,17 @@ import {startTeamHost} from '../src/team/host.js';
 import {WorkspaceClient,workspaceRequest} from '../src/team/workspace-client.js';
 import {parseWorkspaceLink} from '../src/team/workspace.js';
 import {initializeProject,startProject} from '../src/project.js';
+test('subproject links are durable and do not grant or expose parent access',async t=>{
+ const base=mkdtempSync(join(tmpdir(),'spool-subproject-'));let host=await startTeamHost(join(base,'host'),{port:0});t.after(async()=>{await host.close();rmSync(base,{recursive:true,force:true});});
+ const owner=new WorkspaceClient(join(base,'owner'));await owner.run({command:'connect',link:host.command({command:'workspace-init',name:'Team'}).link,device:'Owner'});
+ const parent=(await owner.run({command:'repository-enroll',repositoryKey:'a'.repeat(64),mode:'create',name:'Platform',requestId:'parent'})).project;
+ const input={command:'repository-enroll',repositoryKey:'b'.repeat(64),mode:'create',name:'Module',requestId:'child',parentRoom:parent.room};const child=(await owner.run(input)).project;assert.equal(child.parentRoom,parent.room);assert.equal((await owner.run(input)).project.room,child.room);
+ await assert.rejects(()=>owner.run({...input,parentRoom:'not-a-project'}),/parent project/);
+ const invite=await owner.run({command:'invite-member',label:'Member',canCreate:true});const member=new WorkspaceClient(join(base,'member'));await member.run({command:'connect',link:invite.link,device:'Member'});
+ await assert.rejects(()=>member.run({command:'repository-enroll',repositoryKey:'c'.repeat(64),mode:'create',name:'Unauthorized',requestId:'bad',parentRoom:parent.room}),/parent project/);
+ const projectInvite=await owner.run({command:'invite-project',room:child.room,label:'Member'});await member.run({command:'accept-project',link:projectInvite.link});const view=(await member.run({command:'list'})).projects.find(p=>p.room===child.room);assert.ok(view);assert.equal(view.parentRoom,undefined);await assert.rejects(()=>member.run({command:'join',room:parent.room}),/access required/);
+ const port=Number(new URL(host.origin).port);await host.close();host=await startTeamHost(join(base,'host'),{port});assert.equal((await owner.run({command:'list'})).projects.find(p=>p.room===child.room).parentRoom,parent.room);
+});
 test('remote workspace enrollment, scoped projects, creation retries, invites, revocation and restart',async t=>{
  const base=mkdtempSync(join(tmpdir(),'tw-ws-'));let host=await startTeamHost(join(base,'host'),{port:0});t.after(async()=>{await host.close();rmSync(base,{recursive:true,force:true});});
  const boot=host.command({command:'workspace-init',name:'Company'});assert.ok(boot.link);assert.equal(host.command({command:'workspace-init',name:'Again'}).alreadyConfigured,true);
@@ -85,10 +97,12 @@ test('workspace sharing controls enforce categories and never backfill locally p
  const retry=await endpoint('source',{requestId:'blocked-page',records:[{kind:'message',id:'private-conversation',role:'user',text:'Never share this conversation'}]});assert.equal(retry.value.skipped,1);assert.equal((await endpoint('memory',{command:'search',query:'Never share this conversation'})).value.results.length,0);
  let revision=2;for(const [category,kind] of [['handoffs','handoff'],['decisions','decision'],['findings','finding'],['tasks','task'],['conversations',null]]){await owner.run({command:'sharing',sharing:{[category]:false},expectedRevision:revision++});if(kind)assert.equal((await endpoint('memory',{command:'remember',kind,title:'Blocked category',text:'Must not save',requestId:'blocked-'+category})).status,403);else assert.equal((await endpoint('source',{requestId:'blocked-conversations-2',records:[{kind:'message',id:'blocked-conversations-2',role:'assistant',text:'Private message'}]})).value.skipped,1);await owner.run({command:'sharing',sharing:{[category]:true},expectedRevision:revision++});}
  await owner.run({command:'sharing',sharing:{conversations:false},expectedRevision:revision++});
+ const legacy=await endpoint('memory',{command:'task_update',taskId:'legacy-placeholder',title:'Codex project work',text:'Session task created automatically. Agent-authored progress, findings and continuation details are pending.',status:'in_progress',expectedRevision:0,requestId:'legacy-placeholder'});assert.equal(legacy.status,200);
+ const legacyTask={kind:'task',taskId:'legacy-placeholder',title:'Codex project work',text:'Session task created automatically. Agent-authored progress, findings and continuation details are pending.'};assert.equal(filterLegacyPlaceholders({tasks:[legacyTask]},{command:'context'}).tasks.length,0);assert.equal(filterLegacyPlaceholders({tasks:[legacyTask]},{command:'context',taskId:'legacy-placeholder'}).tasks.length,1);
  const hookInput={cwd:repo,session_id:'conversations-off-session',turn_id:'turn',prompt:'A private prompt that must never become a shared task title or body'};
- await runHook({directory:join(base,'hook-state'),room:project.room,root:repo,event:'UserPromptSubmit',input:hookInput,request:(_,message)=>service.app.memory(message.input)});
- const hookTasks=(await endpoint('memory',{command:'search',kinds:['task'],query:'Codex project work'})).value.results;assert.equal(hookTasks.length,1);assert.ok(!JSON.stringify(hookTasks).includes(hookInput.prompt));
- const sharedTask=hookTasks[0];for(const kind of ['finding','decision']){const note=await service.app.memory({command:'remember',kind,taskId:sharedTask.taskId,title:'Verified '+kind,text:'A distilled result without raw conversation content',requestId:'hook-'+kind});assert.equal(note.sharing.mode,'shared');}
+ const hookResult=await runHook({directory:join(base,'hook-state'),room:project.room,root:repo,event:'UserPromptSubmit',input:hookInput,request:(_,message)=>service.app.memory(message.input)});
+ const hookTasks=(await endpoint('memory',{command:'search',kinds:['task'],query:'Codex project work'})).value.results;assert.equal(hookTasks.length,0);assert.ok(!JSON.stringify(hookTasks).includes(hookInput.prompt));
+ const taskId=/Task for this Codex session: ([\w-]+)/.exec(hookResult.hookSpecificOutput.additionalContext)[1];const sharedTask=await service.app.memory({command:'task_update',taskId,title:'Distilled work',text:'Agent-authored scope.',status:'in_progress',expectedRevision:0,requestId:'hook-agent-task'});for(const kind of ['finding','decision']){const note=await service.app.memory({command:'remember',kind,taskId:sharedTask.taskId,title:'Verified '+kind,text:'A distilled result without raw conversation content',requestId:'hook-'+kind});assert.equal(note.sharing.mode,'shared');}
  const authored=await service.app.memory({command:'handoff',taskId:sharedTask.taskId,title:'Verified continuation',text:'Focused validation passed; continue with the next integration check.',nextSteps:['Run the integration check.'],requestId:'hook-handoff'});assert.equal(authored.sharing.mode,'shared');assert.equal(authored.taskId,sharedTask.taskId);
  const completed=await service.app.memory({command:'task_update',taskId:sharedTask.taskId,title:'Validated work',text:'Focused validation passed.',expectedRevision:sharedTask.revision,status:'done',requestId:'hook-complete'});assert.equal(completed.sharing.mode,'shared');
  const excerpt={command:'task_update',taskId:'excerpt-private',expectedRevision:0,status:'in_progress',title:'Prompt excerpt',text:'Current request (source text, not verified findings):\nPrivate user prompt',requestId:'excerpt-private'};

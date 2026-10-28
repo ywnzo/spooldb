@@ -10,6 +10,8 @@ import {SemanticIndex,fuse} from './semantic.js';
 import {queryTokens} from './query.js';
 import {visibleMemory,lifecycleState,rebuildLifecycle,lifecycleChanges} from './lifecycle.js';
 const PROTOCOL='spool-memory/1',KINDS=['task','finding','decision','blocker','handoff'];
+const placeholderTitle='Codex project work',placeholderText='Session task created automatically. Agent-authored progress, findings and continuation details are pending.';
+const isPlaceholder=item=>item.kind==='task'&&item.title===placeholderTitle&&item.text===placeholderText;
 const branch=room=>`relay-${room}`;
 // Observation timestamps do not change the evidence itself. Canonicalize keys
 // so a caller's JSON property order cannot manufacture another revision.
@@ -39,7 +41,7 @@ export class MemoryStore {
   // A source can be deleted while inference awaits. Recheck membership before returning it.
   const current=this.index(room),candidates=fuse(lexical.results,semantic.results,input.query),latest=candidates.some(item=>item.kind==='task')?new Set(this.tasks(room,current).map(task=>task.id)):null;
   const present=item=>this.engine.db.prepare('SELECT 1 FROM memory_docs d WHERE d.room=? AND d.id=? AND '+visibleMemory('d',input)).get(room,item.id);
-  const ranked=candidates.filter(item=>present(item)&&(item.kind!=='task'||latest.has(item.id)));
+  const ranked=candidates.filter(item=>present(item)&&(input.taskId||!isPlaceholder(item))&&(item.kind!=='task'||latest.has(item.id)));
   for(const key of ['tasks','notes','results','relatedConversations'])if(Array.isArray(base[key]))base[key]=base[key].filter(present);
   base.heads=current.heads;
   const retrieval={mode:semantic.status==='ready'||semantic.status==='indexing'?'hybrid':'keyword',semanticStatus:semantic.status,...(semantic.model?{model:semantic.model}:{}),...(semantic.remaining!==undefined?{remaining:semantic.remaining}:{}),index:'sqlite-exact-cosine'};
@@ -90,7 +92,7 @@ export class MemoryStore {
   if(input.taskId)taskId(input.taskId);const kinds=input.kinds??[];fail(Array.isArray(kinds)&&kinds.length<=6&&kinds.every(k=>[...KINDS,'conversation'].includes(k)),'INVALID_KIND','Invalid memory kind');
   const tokens=queryTokens(query),match=tokens.map(t=>`"${t.replaceAll('"','""')}"`).join(' OR ');
   if(query.trim()&&!match)return {results:[],nextOffset:null,heads:version.heads};
-  const where=['d.room=?',visibleMemory('d',input)],params=[room];const background=this.backgroundTasks(room);if(background.length){where.push(`(d.task_id IS NULL OR d.task_id NOT IN (${background.map(()=>'?').join(',')}))`);params.push(...background);}if(input.taskId){where.push('d.task_id=?');params.push(input.taskId);}if(kinds.length){where.push(`d.kind IN (${kinds.map(()=>'?').join(',')})`);params.push(...kinds);}
+  const where=['d.room=?',visibleMemory('d',input)],params=[room];if(!input.taskId&&!input.includeArchived){where.push('(d.kind != ? OR d.title != ? OR d.text != ?)');params.push('task',placeholderTitle,placeholderText);}const background=this.backgroundTasks(room);if(background.length){where.push(`(d.task_id IS NULL OR d.task_id NOT IN (${background.map(()=>'?').join(',')}))`);params.push(...background);}if(input.taskId){where.push('d.task_id=?');params.push(input.taskId);}if(kinds.length){where.push(`d.kind IN (${kinds.map(()=>'?').join(',')})`);params.push(...kinds);}
   let sql='SELECT d.* FROM memory_docs d';if(match){sql+=' JOIN memory_fts ON memory_fts.room=d.room AND memory_fts.id=d.id';where.push('memory_fts MATCH ?');params.push(match);}
   sql+=` WHERE ${where.join(' AND ')} ORDER BY ${match?'bm25(memory_fts,0,0,3,1),':''}d.seq DESC LIMIT ? OFFSET ?`;
   const rows=this.engine.db.prepare(sql).all(...params,limit+1,offset);return {results:rows.slice(0,limit).map(r=>this.decorate(r,version,query)),nextOffset:rows.length>limit?offset+limit:null,heads:version.heads};
@@ -121,6 +123,13 @@ export class MemoryStore {
     const entry=[...e.manifest.entries(version.root)].find(([key,value])=>key.startsWith('f:')&&value.path===path&&!value.deleted);fail(entry,'SOURCE_NOT_FOUND',`File is not captured in this project: ${path}`,404);event.files.push({path,fileId:entry[0].slice(2),heads:entry[1].heads});
    }
    for(const ref of array(input.refs??[])){fail(e.db.prepare('SELECT 1 FROM memory_docs WHERE room=? AND id=?').get(room,ref),'SOURCE_NOT_FOUND','Referenced memory is not in this project',404);event.refs.push(ref);}
+   // Suppress only exact repeats from the same author, session and task, with
+   // identical evidence. Do not guess semantic equivalence or discard new provenance.
+   if(['finding','decision','blocker'].includes(kind)&&event.sessionId&&event.taskId&&!input.lifecycle&&!input.supersedes?.length&&!input.resolves?.length){
+    const rows=e.db.prepare("SELECT d.* FROM memory_docs d WHERE d.room=? AND d.kind=? AND d.title=? AND d.text=? AND "+visibleMemory('d')+" ORDER BY d.seq DESC").all(room,kind,title,text);
+    const retained=rows.find(row=>{const old=JSON.parse(row.data);return ['actor','sessionId','taskId','files','refs','git','commits'].every(key=>JSON.stringify(handoffValue(old[key]??null))===JSON.stringify(handoffValue(event[key]??null)));});
+    if(retained){const result={id:retained.id,kind,taskId:event.taskId,revision:null,heads:version.heads,citation:`tw://rooms/${room}/messages/${retained.id}`,unchanged:true};e.db.prepare('INSERT INTO memory_write_receipts VALUES(?,?,?,?,?)').run(room,principal.id,requestId,encoded,JSON.stringify(result));return result;}
+   }
    // A task has one current handoff per author. Keep immutable prior revisions
    // available through history, without mixing parallel authors or unrelated tasks.
    let handoffInput=input;
@@ -161,7 +170,7 @@ export class MemoryStore {
     const f=this.engine.readFile(branch(room),entry[0].slice(2)).file,offset=input.offset??0,limit=input.limit??12000;fail(Number.isSafeInteger(offset)&&offset>=0&&Number.isSafeInteger(limit)&&limit>0&&limit<=20000,'INVALID_LIMIT','Invalid source page');return {path:f.path,fileId:f.fileId,kind:f.kind,heads:version.heads,fileHeads:entry[1].heads,text:f.kind==='text'?f.text.slice(offset,offset+limit):null,nextOffset:f.kind==='text'&&offset+limit<f.text.length?offset+limit:null,citation:`tw://rooms/${room}/files/${entry[0].slice(2)}`};
    }
    if(input.command==='context'){
-    if(input.taskId)taskId(input.taskId);const tasks=this.tasks(room,version).filter(t=>(!input.taskId||t.taskId===input.taskId)&&(input.includeArchived||(input.taskId||t.status!=='done')&&!['archived','resolved','superseded'].includes(t.lifecycle.status))).slice(0,12);
+    if(input.taskId)taskId(input.taskId);const tasks=this.tasks(room,version).filter(t=>(input.taskId||input.includeArchived||!isPlaceholder(t))&&(!input.taskId||t.taskId===input.taskId)&&(input.taskId||input.includeArchived||t.status!=='done'&&!['archived','resolved','superseded'].includes(t.lifecycle.status))).slice(0,12);
     const notes=this.search(room,{query:input.query??'',taskId:input.taskId,includeArchived:input.includeArchived,kinds:['finding','decision','blocker','handoff'],limit:12},version);
     const conversations=input.query?this.search(room,{query:input.query,kinds:['conversation'],limit:5},version):{results:[]};
     const changes=this.engine.db.prepare("SELECT data FROM memory_provenance WHERE room=? AND json_array_length(json_extract(data,'$.fileIds'))>0 ORDER BY CAST(json_extract(data,'$.seq') AS INTEGER) DESC LIMIT 5").all(room).map(row=>JSON.parse(row.data));

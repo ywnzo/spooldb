@@ -13,7 +13,8 @@ export async function initializeCheckout({cwd=process.cwd(),state,options={},ask
  let repo;try{repo=repositoryAt(cwd);}catch{throw Error('Run spool init from a Git project folder (or initialize Git first).');}
  const say=text=>output.write(text+'\n'),yes=async(label,defaultYes=false)=>/^y(es)?$/i.test(await ask(label,defaultYes?'Y':'N'));
  say('\nSpoolDB · Connect this project\nFolder: '+repo.root);
- if(repo.superproject){const binding=await local('discovery',{command:'resolve',cwd:repo.root});if(binding.inherited){say('This Git submodule already uses its parent project memory on '+binding.workspace+'. No separate project is needed.');return {connected:true,inherited:true,root:repo.root,bindingRoot:binding.bindingRoot,projectId:binding.projectId,room:binding.room,relay:binding.workspace};}}
+ let binding;try{binding=await local('discovery',{command:'resolve',cwd:repo.root});}catch{}
+ if(!selectedWorkspace&&binding?.parentCandidate)selectedWorkspace=binding.parentCandidate.workspaceProfile??binding.parentCandidate.workspace;
  const registry=await local('projects'),registered=registry.projects?.find(p=>p.root===repo.root);
  const current=registered?await local('status',undefined,{project:registered.id}):null;
  if(!selectedWorkspace&&current?.team?.configured)selectedWorkspace=current.team.url;
@@ -41,13 +42,13 @@ export async function initializeCheckout({cwd=process.cwd(),state,options={},ask
   if(repo.repositoryKey)try{const result=await workspace({command:'repository-match',repositoryKey:repo.repositoryKey});match=result.project;matches=result.projects??(match?[match]:[]);}catch(error){if(error.code!=='WORKSPACE_FORBIDDEN')throw error;restricted=true;say('This repository already has a shared project. Ask its administrator for an invitation.');}
   const choices=[];
   for(const project of matches)choices.push({kind:'join',project,label:'Join '+project.name+' (matches this repository)'});
-  if(!matches.length&&!restricted&&data.member?.canCreate)choices.push({kind:'create',label:'Create a shared project'});
+  if(!matches.length&&!restricted&&data.member?.canCreate){if(binding?.parentCandidate&&data.capabilities?.includes('subprojects-v1')&&binding.parentCandidate.workspace===data.relay)choices.push({kind:'subproject',label:'Create a subproject of '+binding.parentCandidate.name});choices.push({kind:'create',label:'Create a separate shared project'});}
   if(!matches.length&&!restricted&&projects.length)choices.push({kind:'choose',label:'Choose an existing shared project'});
   choices.push({kind:'invitation',label:'Join using an invitation'});
   say('\nWorkspace: '+data.workspace.name);choices.forEach((item,index)=>say(`${index+1}. ${item.label}`));
   const choice=choices[Number(await ask('Choose an option','1'))-1];if(!choice)throw Error('Choose one of the numbered options. Nothing was connected.');
-  if(choice.kind==='create'){
-   const name=await ask('Project name',repo.name);if(!name.trim()||name.length>160)throw Error('Enter a project name (1–160 characters).');plan={kind:'create',name,relay:data.relay};
+  if(['create','subproject'].includes(choice.kind)){
+   const name=await ask('Project name',repo.name);if(!name.trim()||name.length>160)throw Error('Enter a project name (1–160 characters).');plan={kind:choice.kind,name,relay:data.relay,...(choice.kind==='subproject'?{parentRoom:binding.parentCandidate.room}:{})};
   }else if(choice.kind==='invitation'){
    plan=await invitePlan();if(!plan)return {cancelled:true};if(plan==='workspace'){plan=null;continue;}
   }else{
@@ -55,12 +56,14 @@ export async function initializeCheckout({cwd=process.cwd(),state,options={},ask
    plan={kind:'join',room:project.room,name:project.name,relay:data.relay};
   }
  }
- say('\n'+(plan.kind==='create'?'Create':'Connect to')+': '+plan.name+'\nRelay: '+plan.relay+'\nCodex: automatic MCP context and lifecycle hooks (including Codex in Zed). Other folders still ask before sharing.\nSharing: saved Codex conversations, findings and handoffs. Code stays in Git.');
+ say('\n'+(['create','subproject'].includes(plan.kind)?'Create':'Connect to')+': '+plan.name+'\nRelay: '+plan.relay+'\nCodex: automatic MCP context and lifecycle hooks (including Codex in Zed). Other folders still ask before sharing.\nSharing: saved Codex conversations, findings and handoffs. Code stays in Git.');
  if(!await yes('Connect this folder and enable sharing?')){say('Cancelled. No project was created or joined.');return {cancelled:true};}
  let joined;
  if(plan.kind==='invite')joined=await local('invites/join',{link:plan.link,root:repo.root,device,captureConversations:true,connectAgents:false});
  else if(plan.kind==='existing'){
   await local('codex/connect',{}, {project:plan.project.id});joined={project:plan.project};
+ }else if(plan.kind==='subproject'){
+  const created=await local('discovery',{command:'approve',cwd:repo.root,workspace:selectedWorkspace,confirm:true,create:true,parentRoom:plan.parentRoom,name:plan.name});joined={project:{id:created.projectId,root:repo.root}};
  }else{
   let project;
   if(repo.repositoryKey){const enrollment=await workspace({command:'repository-enroll',repositoryKey:repo.repositoryKey,name:plan.name,...(plan.room?{mode:'join',room:plan.room}:{mode:'create',requestId:'init-'+createHash('sha256').update(JSON.stringify([repo.root,repo.repositoryKey,plan.relay,plan.name])).digest('hex')})});if(plan.kind==='create'&&enrollment.enrollmentMode!=='create')throw Error('Upgrade the relay before creating a separate repository project. No local connection was changed.');project=enrollment.project;}

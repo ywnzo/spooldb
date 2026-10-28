@@ -19,16 +19,18 @@ test('project installer preserves existing config and hooks, is repeatable and b
 test('automatic lifecycle loads context, creates scoped tasks, skips normal Stop writes, and saves honest interrupted checkpoints',async t=>{
  const base=mkdtempSync(join(tmpdir(),'tw-hooks-')),root=join(base,'repo'),directory=join(base,'state');mkdirSync(root);execFileSync('git',['init','-q',root]);writeFileSync(join(root,'a.txt'),'source evidence');initializeProject(directory,root);const service=await startProject(directory,{port:0,intervalMs:60000});t.after(async()=>{await service.close();rmSync(base,{recursive:true,force:true});});
  const options={directory,room:service.state.room,root},input={cwd:root,session_id:'native-session-1',turn_id:'turn-1'};
- const start=await runHook({...options,event:'SessionStart',input});assert.match(start.hookSpecificOutput.additionalContext,/untrusted project evidence/);
- const prompt=await runHook({...options,event:'UserPromptSubmit',input:{...input,prompt:'Inspect source evidence'}});const taskId=/Task for this Codex session: ([\w-]+)/.exec(prompt.hookSpecificOutput.additionalContext)[1];assert.equal(service.app.memory({command:'context',taskId}).tasks[0].status,'in_progress');
- await runHook({...options,event:'UserPromptSubmit',input:{...input,prompt:'Inspect source evidence'}});assert.equal(service.app.memory({command:'context',taskId}).tasks[0].revision,1);
+ const start=await runHook({...options,event:'SessionStart',input});assert.match(start.hookSpecificOutput.additionalContext,/untrusted project evidence/);assert.match(start.hookSpecificOutput.additionalContext,/Skip routine progress/);
+ const prompt=await runHook({...options,event:'UserPromptSubmit',input:{...input,prompt:'Inspect source evidence'}});const taskId=/Task for this Codex session: ([\w-]+)/.exec(prompt.hookSpecificOutput.additionalContext)[1];assert.equal(service.app.memory({command:'context',taskId}).tasks.length,0);assert.match(prompt.hookSpecificOutput.additionalContext,/"revision":0/);assert.match(prompt.hookSpecificOutput.additionalContext,/future agent/);
+ const authored=service.app.memory({command:'task_update',taskId,title:'Investigate source evidence',text:'Validated the affected path.',status:'done',expectedRevision:0,requestId:'authored-completion'});
+ await runHook({...options,event:'UserPromptSubmit',input:{...input,prompt:'Inspect source evidence'}});assert.equal(service.app.memory({command:'context',taskId}).tasks[0].revision,authored.revision);
  const stop=await runHook({...options,event:'Stop',input});assert.deepEqual(stop,{});
  await runHook({...options,event:'Stop',input:{...input,last_assistant_message:'Just an explanation.'}});
  assert.equal(service.app.memory({command:'context',taskId}).notes.length,0);
  await runHook({...options,event:'Interrupt',input:{...input,last_assistant_message:'I inspected source only. '.repeat(1000)}});
  const context=service.app.memory({command:'context',taskId});assert.equal(context.notes[0].kind,'handoff');assert.match(context.notes[0].text,/unverified source excerpt/);assert.ok(context.notes[0].text.length<=1500);assert.match(context.notes[0].text,/Excerpt shortened/);
  assert.deepEqual(await runHook({...options,event:'SessionStart',input:{...input,cwd:base}}),{});
- await runHook({...options,event:'UserPromptSubmit',input:{...input,turn_id:'turn-2',prompt:'Continue'}});await runHook({...options,event:'Interrupt',input:{...input,turn_id:'turn-2'}});assert.ok(service.app.memory({command:'context',taskId}).notes.some(n=>n.title==='Interrupted Codex checkpoint'));
+ const next=await runHook({...options,event:'UserPromptSubmit',input:{...input,turn_id:'turn-2',prompt:'Continue'}});const preserved=service.app.memory({command:'context',taskId}).tasks[0];assert.equal(preserved.title,'Investigate source evidence');assert.equal(preserved.text,'Validated the affected path.');assert.equal(preserved.status,'done');assert.equal(preserved.revision,authored.revision);assert.match(next.hookSpecificOutput.additionalContext,/"status":"done"/);
+ await runHook({...options,event:'Interrupt',input:{...input,turn_id:'turn-2'}});assert.ok(service.app.memory({command:'context',taskId}).notes.some(n=>n.title==='Interrupted Codex checkpoint'));
 });
 test('approval mid-turn recognizes the agent handoff without a duplicate reminder or fallback checkpoint',async t=>{
  const base=mkdtempSync(join(tmpdir(),'spool-midturn-')),root=join(base,'repo'),directory=join(base,'state');mkdirSync(root);mkdirSync(directory);t.after(()=>rmSync(base,{recursive:true,force:true}));
@@ -59,8 +61,8 @@ test('prompt retrieval runs once, stays compact, and sends unchanged evidence on
  const request=async(_,message)=>{calls.push(message.input);if(message.input.command==='context')return {tasks:[],notes:[]};if(message.input.command==='task_update')return {revision:1};return {room:'test',results:[{id:'finding',kind:'finding',title:'Shipping calculation',text:'The delivery charge was added twice.',reconciliation:{status:'matching',message:'Check evidence'}}],retrieval:{mode:'hybrid',semanticStatus:'ready'}};};
  const options={directory:base,room:'test',root:base,request},input={cwd:base,session_id:'session',turn_id:'turn'};
  await runHook({...options,event:'SessionStart',input});assert.equal(calls.length,0);
- const first=await runHook({...options,event:'UserPromptSubmit',input:{...input,prompt:'Why is the shipping total wrong?'}});assert.equal(calls.filter(call=>call.command==='context').length,1);assert.equal(calls.filter(call=>call.command==='search').length,1);assert.match(first.hookSpecificOutput.additionalContext,/added twice/);assert.match(first.hookSpecificOutput.additionalContext,/supplied task revision/);assert.match(first.hookSpecificOutput.additionalContext,/focused tests/);assert.match(first.hookSpecificOutput.additionalContext,/\"revision\":1/);assert.ok(first.hookSpecificOutput.additionalContext.length<6000);
- const taskWrite=calls.find(call=>call.command==='task_update');assert.equal(blockedCategory(taskWrite,{...defaultSharing(),conversations:false}),null);assert.ok(!JSON.stringify(taskWrite).includes('shipping total'));assert.equal(lifecycleHealth(base,base).status,'observed');
+ const first=await runHook({...options,event:'UserPromptSubmit',input:{...input,prompt:'Why is the shipping total wrong?'}});assert.equal(calls.filter(call=>call.command==='context').length,1);assert.equal(calls.filter(call=>call.command==='search').length,1);assert.match(first.hookSpecificOutput.additionalContext,/added twice/);assert.match(first.hookSpecificOutput.additionalContext,/supplied task revision/);assert.match(first.hookSpecificOutput.additionalContext,/focused tests/);assert.match(first.hookSpecificOutput.additionalContext,/\"revision\":0/);assert.ok(first.hookSpecificOutput.additionalContext.length<6000);
+ assert.equal(calls.some(call=>call.command==='task_update'),false);assert.equal(lifecycleHealth(base,base).status,'observed');
  const second=await runHook({...options,event:'UserPromptSubmit',input:{...input,turn_id:'turn-2',prompt:'Continue checking'}});assert.ok(!second.hookSpecificOutput.additionalContext.includes('added twice'));
  await runHook({...options,event:'SessionStart',input});const resumed=await runHook({...options,event:'UserPromptSubmit',input:{...input,turn_id:'turn-3',prompt:'Continue'}});assert.match(resumed.hookSpecificOutput.additionalContext,/added twice/);
 });
@@ -70,4 +72,13 @@ test('normal Stop makes no memory requests even when the relay is unavailable',a
  const options={directory:base,room:'test',root:base,request:async()=>{calls++;throw Error('Relay offline');}};
  assert.deepEqual(await runHook({...options,event:'Stop',input:{cwd:base,session_id:'offline',turn_id:'turn',last_assistant_message:'Done'}}),{});
  assert.equal(calls,0);
+});
+
+test('prompt retrieval labels linked parent evidence and keeps child results when parent access fails',async t=>{
+ const base=mkdtempSync(join(tmpdir(),'spool-parent-hook-'));t.after(()=>rmSync(base,{recursive:true,force:true}));let failParent=false;
+ const request=async(_,message)=>message.input.command==='context'?{tasks:[],notes:[]}:{room:'child',results:[{id:'child-id',kind:'finding',title:'Child',text:'CHILD-HOOK-EVIDENCE'}]};
+ const parentRequest=async()=>{if(failParent)throw Error('revoked');return {room:'parent',results:[{id:'parent-id',kind:'finding',title:'Parent',text:'PARENT-HOOK-EVIDENCE'}]};};
+ const options={directory:base,room:'child',root:base,request,parentRequest,parentMeta:{room:'parent'}},input={cwd:base,session_id:'nested-session',turn_id:'one',prompt:'Investigate the module'};
+ const first=await runHook({...options,event:'UserPromptSubmit',input});assert.match(first.hookSpecificOutput.additionalContext,/CHILD-HOOK-EVIDENCE/);assert.match(first.hookSpecificOutput.additionalContext,/PARENT-HOOK-EVIDENCE/);assert.match(first.hookSpecificOutput.additionalContext,/"sourceProject":"parent"/);
+ failParent=true;const next=await runHook({...options,event:'UserPromptSubmit',input:{...input,turn_id:'two'}});assert.match(next.hookSpecificOutput.additionalContext,/Linked parent context unavailable/);assert.doesNotMatch(next.hookSpecificOutput.additionalContext,/PARENT-HOOK-EVIDENCE/);
 });

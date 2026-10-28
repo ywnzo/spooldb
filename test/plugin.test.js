@@ -49,7 +49,8 @@ test('plugin: consent before sharing, native capture, linked agent handoff, a se
  const capture=await client.tool('memory_search',{query:'PLUGIN-CAPTURE-582',kinds:['conversation']});assert.equal(capture.structuredContent.results[0].source.sessionId,'saved-session');assert.equal(capture.structuredContent.results.length,1);
  const prompted=await runDiscoveryHook({directory:state,event:'UserPromptSubmit',input,plugin:true}),taskId=/Task for this Codex session: ([\w-]+)/.exec(prompted.hookSpecificOutput.additionalContext)[1];
  assert.deepEqual(await runDiscoveryHook({directory:state,event:'Stop',input,plugin:true}),{});
- const finding=(await client.tool('remember',{taskId,kind:'finding',title:'Shipping finding',text:'Verified fee fixture doubles the charge',refs:[capture.structuredContent.results[0].id]})).structuredContent;
+ assert.equal((await client.tool('task_update',{taskId,title:'Investigate shipping fee',text:'Verify the shipping calculation',status:'in_progress',expectedRevision:0})).isError,false);
+ const findingResponse=await client.tool('remember',{taskId,kind:'finding',title:'Shipping finding',text:'Verified fee fixture doubles the charge',refs:[capture.structuredContent.results[0].id]});assert.equal(findingResponse.isError,false,JSON.stringify(findingResponse));const finding=findingResponse.structuredContent;
  const handoff=(await client.tool('handoff',{taskId,title:'Continue shipping fix',text:'Check the cited finding and add a regression',nextSteps:['Write regression'],refs:[finding.id]})).structuredContent;
  assert.ok(handoff?.id);assert.deepEqual(await runDiscoveryHook({directory:state,event:'Stop',input,plugin:true}),{});
  const fetched=(await client.tool('memory_get',{id:handoff.id})).structuredContent;assert.equal(fetched.sessionId,input.session_id);assert.equal(fetched.refs[0],finding.id);

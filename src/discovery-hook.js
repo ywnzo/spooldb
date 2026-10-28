@@ -7,6 +7,7 @@ import {fileURLToPath} from 'node:url';
 import {discoveryRequest} from './discovery-request.js';
 import {repositoryAt} from './repository.js';
 import {runHook} from './codex-hooks.js';
+import {resolveParent} from './memory/subproject.js';
 export async function runDiscoveryHook({directory,event,input,plugin=false}){
  const sessionHash=createHash('sha256').update(String(input.session_id??'')).digest('hex'),pendingPath=join(directory,'onboarding',sessionHash+'.json');
  if(event==='UserPromptSubmit'&&/^This is an app-generated request for a suggested next user message\. The user did not write this message\./.test(input.prompt??'')){
@@ -20,7 +21,9 @@ export async function runDiscoveryHook({directory,event,input,plugin=false}){
  else if(project.status==='enrolled'){
   if(plugin){const {projectRequest}=await import('./project-request.js');const status=await projectRequest(project.controlDirectory,{command:'status',projectId:project.projectId});if(!status.codex?.enabled)return {};if(event==='Stop')await projectRequest(project.controlDirectory,{command:'capture',projectId:project.projectId});}
   let onboardingStartedAt;if(['Stop','Interrupt'].includes(event)&&existsSync(pendingPath)){const pending=JSON.parse(readFileSync(pendingPath));if(pending.root===project.root&&pending.turnId===(input.turn_id??'session'))onboardingStartedAt=pending.startedAt;}
-  const result=await runHook({directory:project.controlDirectory,room:project.projectId,root:project.bindingRoot??project.root,event,input,onboardingStartedAt});if(['Stop','Interrupt'].includes(event)&&!result.decision)rmSync(pendingPath,{force:true});
+  let parent,parentUnavailable=false;if(project.parent)try{parent=await resolveParent(project,discoveryRequest,directory);}catch{parentUnavailable=true;}
+  const parentRequest=parent?async payload=>{const {projectRequest}=await import('./project-request.js');return projectRequest(parent.controlDirectory,{command:'memory',projectId:parent.projectId,actor:'codex-lifecycle',input:{...payload,sessionId:input.session_id}});}:undefined;
+  const result=await runHook({directory:project.controlDirectory,room:project.projectId,root:project.bindingRoot??project.root,event,input,onboardingStartedAt,parentRequest,parentMeta:parent,parentUnavailable});if(['Stop','Interrupt'].includes(event)&&!result.decision)rmSync(pendingPath,{force:true});
   if(['SessionStart','UserPromptSubmit'].includes(event)&&!['completed','declined'].includes(project.retrospective?.status)){
    const context=project.retrospective?.status==='pending'?'Historical analysis was explicitly approved and is pending. Follow the setup skill retrospective workflow: page through spool_setup history, deduplicate against project memory, save distilled evidence-backed decisions/findings/tasks/handoffs respecting category sharing, then complete retrospective with its saved handoffId. Do not claim completion before finishing all available pages.':'Ask one optional clarifying question during project connection: "Analyze existing local chats and save decisions, findings, tasks and handoffs?" Offer Analyze existing chats or Skip. Save the explicit answer using spool_setup action=retrospective analyzeExisting=true/false confirm=true. This choice is separate from raw conversation sharing. Do not read historical chats or backfill before approval. Connection and normal work can continue if skipped.';
    result.hookSpecificOutput={...(result.hookSpecificOutput??{}),hookEventName:event,additionalContext:(result.hookSpecificOutput?.additionalContext??'')+'\n'+context};

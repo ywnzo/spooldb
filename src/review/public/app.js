@@ -182,7 +182,9 @@ for(const [id,path]of [['codex-connect','codex/connect'],['codex-disconnect','co
   try{renderProject(await localRequest(path,{}));}catch(error){$('project-error').textContent=error.message;}finally{button.disabled=false;button.textContent=label;localBusy=false;}
 });
 async function loadProjects(){
-  const data=await localRequest('projects');$('project-switch').replaceChildren(...data.projects.map(p=>{const name=p.name.charAt(0).toUpperCase()+p.name.slice(1),duplicate=data.projects.filter(other=>other.name.toLowerCase()===p.name.toLowerCase()).length>1;const item=option(p.id,duplicate?`${name} · ${p.root}`:name);item.title=p.root;return item;}));$('project-switch').value=state.project.id;$('project-controls').hidden=false;
+  const data=await localRequest('projects');let entries=[];try{entries=(await localRequest('discovery',{command:'list'})).entries??[];}catch{}const links=new Map(entries.filter(e=>e.parent&&e.projectId).map(e=>[e.projectId,e.parent.root]));
+  const ordered=[],seen=new Set();function add(p,depth=0){if(seen.has(p.id))return;seen.add(p.id);ordered.push({project:p,depth});for(const child of data.projects.filter(c=>links.get(c.id)===p.root))add(child,depth+1);}for(const p of data.projects.filter(p=>!links.has(p.id)||!data.projects.some(q=>q.root===links.get(p.id))))add(p);for(const p of data.projects)add(p);
+  $('project-switch').replaceChildren(...ordered.map(({project:p,depth})=>{const name=p.name.charAt(0).toUpperCase()+p.name.slice(1),duplicate=data.projects.filter(other=>other.name.toLowerCase()===p.name.toLowerCase()).length>1;const item=option(p.id,(depth?'  '.repeat(depth)+'↳ ':'')+(duplicate?`${name} · ${p.root}`:name));item.title=p.root;return item;}));$('project-switch').value=state.project.id;$('project-controls').hidden=false;
 }
 async function switchProject(id){
  $('team-connection').value='';$('team-invite-output').value='';$('team-invite-output').hidden=true;
@@ -202,7 +204,7 @@ $('add-project').addEventListener('click',async()=>{if(localBusy)return;$('add-p
 for(const id of ['close-add-project','cancel-add-project'])$(id).addEventListener('click',()=>{if(!localBusy)$('add-project-dialog').close();});
 $('add-project-dialog').addEventListener('cancel',event=>{if(localBusy)event.preventDefault();});
 for(const id of ['new-project-root','new-project-workspace'])$(id).addEventListener('input',resetProjectPlan);
-$('new-project-shared').addEventListener('change',()=>{$('new-project-name').hidden=$('new-project-shared').value!=='create';$('new-project-name-label').hidden=$('new-project-name').hidden;});
+$('new-project-shared').addEventListener('change',()=>{$('new-project-name').hidden=!['create','subproject'].includes($('new-project-shared').value);$('new-project-name-label').hidden=$('new-project-name').hidden;});
 $('browse-project').addEventListener('click',async()=>{const button=$('browse-project');button.disabled=true;try{const result=await localRequest('projects/browse',{});if(result.root){$('new-project-root').value=result.root;resetProjectPlan();}if(result.message)$('add-project-error').textContent=result.message;}catch(error){$('add-project-error').textContent=error.message;}finally{button.disabled=false;}});
 $('new-project-save-connection').addEventListener('click',async()=>{if(localBusy)return;localBusy=true;$('add-project-error').textContent='';try{const result=await localRequest('workspace',{command:'connect',link:$('new-project-invite').value.trim()});$('new-project-invite').value='';await loadSavedConnections(result.workspaceProfile);resetProjectPlan();}catch(error){$('add-project-error').textContent=error.message;}finally{localBusy=false;}});
 $('add-project-form').addEventListener('submit',async event=>{
@@ -213,16 +215,16 @@ $('add-project-form').addEventListener('submit',async event=>{
   if(!addProjectPlan){
    const preview=await localRequest('discovery',{command:'preview',cwd,workspace});if(!preview.connected)throw Error('Choose a saved connection for this repository.');
    if(preview.status==='enrolled'&&preview.workspace!==preview.relay)throw Error('This repository is already bound to another relay. Change its binding explicitly; adding it again will not move it.');
-   addProjectPlan={cwd:preview.root,workspace,repositoryKey:preview.repositoryKey,existing:preview.status==='enrolled'?preview:null};
-   $('new-project-relay').textContent=(preview.inherited?'Uses parent project memory':preview.workspaceName)+' · '+preview.relay;
+   addProjectPlan={cwd:preview.root,workspace,repositoryKey:preview.repositoryKey,parent:preview.parentCandidate,existing:preview.status==='enrolled'?preview:null};
+   $('new-project-relay').textContent=(preview.workspaceName??'Shared connection')+' · '+preview.relay;
    const matches=preview.matches??[],choices=matches.length?matches:preview.projects??[];
    $('new-project-shared').replaceChildren(option('','Choose a shared project…'),...choices.map(p=>option(p.room,'Join '+p.name)));
-   if(!matches.length&&preview.canCreate&&preview.repositoryKey)$('new-project-shared').append(option('create','Create a new shared project'));
+   if(!matches.length&&preview.canCreate&&preview.repositoryKey){if(preview.parentCandidate&&preview.subprojectsSupported&&preview.parentCandidate.workspace===preview.relay)$('new-project-shared').append(option('subproject','Create a subproject of '+preview.parentCandidate.name));$('new-project-shared').append(option('create','Create a separate shared project'));}
    if(addProjectPlan.existing){$('new-project-shared').value=preview.room;if(!$('new-project-shared').value){$('new-project-shared').append(option(preview.room,'Keep existing project'));$('new-project-shared').value=preview.room;}}else if(matches.length===1)$('new-project-shared').value=matches[0].room;
    $('new-project-name').value=preview.name;$('new-project-name').hidden=true;$('new-project-name-label').hidden=true;$('new-project-plan').hidden=false;$('add-project-submit').textContent=addProjectPlan.existing?'Open connected repository':'Connect and share memory';return;
   }
   let result=addProjectPlan.existing;
-  if(!result){const shared=$('new-project-shared').value;if(!shared)throw Error('Choose whether to create or join a shared project.');result=await localRequest('discovery',{command:'approve',cwd:addProjectPlan.cwd,workspace:addProjectPlan.workspace,confirm:true,...(shared==='create'?{create:true,name:$('new-project-name').value.trim()}:{room:shared}),...($('new-project-history').value?{analyzeExisting:$('new-project-history').value==='yes'}:{})});}
+  if(!result){const shared=$('new-project-shared').value;if(!shared)throw Error('Choose whether to create or join a shared project.');result=await localRequest('discovery',{command:'approve',cwd:addProjectPlan.cwd,workspace:addProjectPlan.workspace,confirm:true,...(['create','subproject'].includes(shared)?{create:true,name:$('new-project-name').value.trim(),...(shared==='subproject'?{parentRoom:addProjectPlan.parent.room}:{})}:{room:shared}),...($('new-project-history').value?{analyzeExisting:$('new-project-history').value==='yes'}:{})});}
   await loadProjects();await switchProject(result.projectId);$('add-project-dialog').close();await connectMemoryAgents();
  }catch(error){$('add-project-error').textContent=error.message;}finally{for(const element of $('add-project-form').elements)element.disabled=false;$('add-project-progress').hidden=true;localBusy=false;}
 });

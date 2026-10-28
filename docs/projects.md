@@ -59,4 +59,4 @@ Status reports the root, room, URL, active harness, last capture and latest watc
 
 ## Git submodule memory
 
-Registered Git submodules use their connected parent project’s memory by default. They do not create another relay project. Explicit separate bindings or an explicit skip override inheritance. Independent nested or sibling repositories need their own approved binding. File references include the parent-relative path and the submodule Git repository/commit; source files stay in Git.
+When entering an unconnected Git submodule or another Git checkout nested inside a connected repository, SpoolDB offers to create a linked subproject, create a separate project, join an existing repository match, or continue without connecting. Previously inherited submodules are asked the next time they are entered; existing explicit bindings and skips remain unchanged. A linked subproject stores its own memory and can retrieve separately labeled parent context when the user also has access to the parent. File references remain scoped to the project where they were saved, and source files stay in Git. The relay must support `subprojects-v1` to create a linked subproject.

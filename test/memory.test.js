@@ -11,6 +11,29 @@ import {initializeProject,startProject} from '../src/project.js';
 const submit=(e,branch,operations)=>e.submit(branch,{actor:'capture',requestId:crypto.randomUUID(),expectedHeads:e.ref(branch).heads,operations});
 function fixture(t){const e=new ShardedEngine(':memory:');e.create('relay-room');submit(e,'relay-room',[{type:'file.create',fileId:'code',path:'src/queue.ts',text:'validate before queue'}, {type:'message.add',messageId:'source-chat',role:'assistant',text:'Queue-time validation rejects invalid actions before the tick.'}]);t.after(()=>e.close());return {e,room:e.ref('relay-room').room,store:new MemoryStore(e)};}
 const input=(command,fields={})=>({command,requestId:crypto.randomUUID(),...fields});
+test('exact repeated evidence is reused only within the same author, session and task',t=>{
+ const {e,room,store}=fixture(t);e.db.prepare('UPDATE shard_refs SET name=? WHERE name=?').run(`relay-${room}`,'relay-room');const run=(value,actor='alice')=>store.run(room,value,{id:actor});
+ run(input('task_update',{taskId:'audit',title:'Queue audit',text:'Inspect boundary',status:'in_progress',expectedRevision:0}));
+ const base={kind:'finding',taskId:'audit',sessionId:'chat-a',title:'Queue boundary',text:'Invalid input is rejected before persistence.',files:['src/queue.ts'],refs:['source-chat']};
+ const first=run(input('remember',base));const duplicateInput=input('remember',base);const repeat=run(duplicateInput);assert.equal(repeat.id,first.id);assert.equal(repeat.unchanged,true);assert.equal(run(duplicateInput).id,first.id);
+ assert.notEqual(run(input('remember',{...base,sessionId:'chat-b'})).id,first.id);assert.notEqual(run(input('remember',base),'bob').id,first.id);assert.notEqual(run(input('remember',{...base,refs:[]})).id,first.id);assert.notEqual(run(input('remember',{...base,text:'The boundary fails on retry.'})).id,first.id);
+ const noSession={...base};delete noSession.sessionId;assert.notEqual(run(input('remember',noSession)).id,run(input('remember',noSession)).id);
+ const changed=run(input('remember',{...base,supersedes:[first.id]}));assert.notEqual(changed.id,first.id);assert.equal(run({command:'get',id:first.id}).lifecycle.status,'superseded');
+});
+test('duplicate suppression preserves new Git evidence and ignores only capture time',t=>{
+ const {e,room}=fixture(t);e.db.prepare('UPDATE shard_refs SET name=? WHERE name=?').run(`relay-${room}`,'relay-room');const store=new MemoryStore(e,{referencesOnly:true}),run=value=>store.run(room,input(value.command,value),{id:'alice'});
+ run({command:'task_update',taskId:'audit',title:'Audit',text:'Inspect',status:'in_progress',expectedRevision:0});
+ const base={command:'remember',kind:'finding',taskId:'audit',sessionId:'chat',title:'Boundary',text:'Validation runs before persistence.',git:{commit:'a'.repeat(40),capturedAt:'2026-10-27T09:00:00.000Z'},files:['src/queue.ts']};
+ const first=run(base),same=run({...base,git:{...base.git,capturedAt:'2026-10-27T09:01:00.000Z'}});assert.equal(same.id,first.id);assert.equal(same.unchanged,true);
+ assert.notEqual(run({...base,git:{...base.git,commit:'b'.repeat(40)}}).id,first.id);assert.notEqual(run({...base,files:['src/other.ts']}).id,first.id);
+});
+test('legacy automatic placeholders stay out of normal results while preserving revision and history',t=>{
+ const {e,room,store}=fixture(t);e.db.prepare('UPDATE shard_refs SET name=? WHERE name=?').run(`relay-${room}`,'relay-room');const run=value=>store.run(room,value,{id:'agent-a'});
+ const placeholder=run(input('task_update',{taskId:'old-session',title:'Codex project work',text:'Session task created automatically. Agent-authored progress, findings and continuation details are pending.',status:'in_progress',expectedRevision:0}));
+ assert.equal(run({command:'context'}).tasks.length,0);assert.equal(run({command:'search',query:'Codex project work',kinds:['task']}).results.length,0);assert.equal(run({command:'context',taskId:'old-session'}).tasks[0].revision,1);assert.equal(run({command:'get',id:placeholder.id}).id,placeholder.id);
+ run(input('remember',{kind:'decision',title:'Archive placeholder',text:'No authored work',lifecycle:{id:placeholder.id,action:'archive',expectedRevision:0}}));assert.equal(run({command:'context',taskId:'old-session'}).tasks[0].revision,1);
+ run(input('task_update',{taskId:'old-session',title:'Restore useful work',text:'Meaningful agent progress.',status:'in_progress',expectedRevision:1}));assert.equal(run({command:'context'}).tasks[0].title,'Restore useful work');
+});
 test('shared memory retrieves conversations and handoffs, checks task revisions and flags changed source evidence',t=>{
  const {e,room,store}=fixture(t);e.db.prepare('UPDATE shard_refs SET name=? WHERE name=?').run(`relay-${room}`,'relay-room');const run=(value,actor='agent-a')=>store.run(room,value,{id:actor});
  assert.equal(run({command:'search',query:'validation'}).results[0].id,'source-chat');

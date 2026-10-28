@@ -1,7 +1,7 @@
 import {companionInfo} from './plugin/companion-upgrade.js';
 import {discoveryRequest} from './discovery-request.js';
 import {existsSync,mkdirSync,readFileSync,writeFileSync,renameSync,chmodSync,unlinkSync,realpathSync} from 'node:fs';
-import {join,relative} from 'node:path';
+import {join,relative,dirname} from 'node:path';
 import {createServer,createConnection} from 'node:net';
 import {createHash} from 'node:crypto';
 import {repositoryAt} from './repository.js';
@@ -19,28 +19,29 @@ export class RepositoryDiscovery{
   // A different repository always needs fresh sharing approval. Saved management connections do not
   // reassign an already approved checkout.
   const repositoryChanged=Boolean(entry && entry.repositoryKey!==repo.repositoryKey);
-  if(repositoryChanged){Object.assign(entry,repo,{status:'pending',workspace:scope});delete entry.projectId;delete entry.room;delete entry.retrospective;delete entry.workspaceProfile;this.save();}
+  if(repositoryChanged){Object.assign(entry,repo,{status:'pending',workspace:scope});delete entry.projectId;delete entry.room;delete entry.retrospective;delete entry.workspaceProfile;delete entry.parent;this.save();}
   // Previously connected folders retain their explicit authorization. No new capture or join occurs here.
   if(!entry){const manager=await this.manager(null),prior=manager?.list().find(p=>realpathSync(p.root)===repo.root);let shared;if(prior)shared=(await manager.get(prior.id)).teamState();entry={id,...repo,workspace:shared?.configured?shared.url:scope,status:shared?.configured?'enrolled':'pending',...(shared?.configured?{projectId:prior.id,room:shared.room}:{}),discoveredAt:new Date().toISOString()};this.entries.push(entry);this.save();}
-  // Registered Git submodules inherit the approved parent grant unless explicitly bound or skipped.
-  // This is a virtual binding: never persist a copied grant or enroll another relay project.
-  if(entry.status==='pending'&&repo.superproject&&['propose','resolve','preview'].includes(input.command)){
-   const parent=await this.execute({command:'resolve',cwd:repo.superproject.root});
-   if(parent.status==='enrolled')return {...entry,status:'enrolled',inherited:true,bindingRoot:parent.bindingRoot??parent.root,pathPrefix:relative(parent.bindingRoot??parent.root,repo.root),inheritedFrom:repo.superproject.root,projectId:parent.projectId,room:parent.room,workspace:parent.workspace,workspaceProfile:parent.workspaceProfile??null,retrospective:parent.retrospective,origin:this.origin(),controlDirectory:this.controlDirectory,connected:true,relay:parent.workspace,canCreate:false};
+  // An enclosing repository is only a candidate; the user chooses whether to
+  // create a subproject. This also covers retained, unregistered module clones.
+  let parentCandidate=null;
+  if(entry.status==='pending'){
+   let enclosing=repo.superproject?.root;try{enclosing??=repositoryAt(dirname(repo.root)).root;}catch{}
+   if(enclosing&&enclosing!==repo.root){const parent=await this.execute({command:'resolve',cwd:enclosing});if(parent.status==='enrolled')parentCandidate={root:parent.root,room:parent.room,projectId:parent.projectId,workspace:parent.workspace,workspaceProfile:parent.workspaceProfile??null,name:parent.name,registered:Boolean(repo.superproject)};}
   }
   if(entry.status==='enrolled'){
    const manager=await this.manager(null),local=manager.list().find(p=>p.id===entry.projectId&&realpathSync(p.root)===repo.root);
    if(!local)throw Error('Repository binding is missing or points to another checkout. Reconnect this repository explicitly.');
    const shared=(await manager.get(local.id)).teamState();
    if(!shared.configured||shared.room!==entry.room)throw Error('Repository binding differs from its saved project connection. Reconnect it explicitly; no fallback was used.');
-   if(entry.workspace!==shared.url){entry.workspace=shared.url;delete entry.workspaceProfile;this.save();}
+   if(entry.workspace!==shared.url){entry.workspace=shared.url;delete entry.workspaceProfile;delete entry.parent;this.save();}
   }
   // Only enrollment/management needs workspace credentials. Existing memory routing
   // uses the checkout's stored project grant, independent of saved management connections.
   let selectedWorkspace;
   const enrollmentWorkspace=async()=>{
    if(selectedWorkspace)return selectedWorkspace;
-   const selector=input.workspace??(entry.status==='enrolled'?(entry.workspaceProfile??entry.workspace):null);
+   const selector=input.workspace??(entry.status==='enrolled'?(entry.workspaceProfile??entry.workspace):(parentCandidate?.workspaceProfile??parentCandidate?.workspace));
    if(selector)selectedWorkspace=await this.workspace.scoped(selector);else{const saved=await this.workspace.run({command:'profiles'});if(saved.workspaces.length!==1)throw Error('Choose a saved connection for this repository. There is no global workspace.');selectedWorkspace=await this.workspace.scoped(saved.workspaces[0].id);}
    return selectedWorkspace;
   };
@@ -63,7 +64,8 @@ export class RepositoryDiscovery{
    if(input.confirm!==true)throw new Error('Explicit user confirmation is required before connecting a repository');
    const manager=await this.manager(null),project=manager?.list().find(p=>realpathSync(p.root)===repo.root);if(!project)throw new Error('Connect this checkout to a shared project first');
    const shared=(await manager.get(project.id)).teamState();if(!shared.configured)throw new Error('Connect this checkout to a shared project first');
-   if(entry.room&&entry.room!==shared.room)delete entry.retrospective;
+   if(entry.room&&entry.room!==shared.room){delete entry.retrospective;delete entry.parent;}
+   if(parentCandidate&&parentCandidate.workspace===shared.url){try{const scope=await this.workspace.scoped(parentCandidate.workspaceProfile??shared.url),listing=await scope.run({command:'list'}),remote=listing.projects?.find(p=>p.room===shared.room);if(remote?.parentRoom===parentCandidate.room)entry.parent={root:parentCandidate.root,room:parentCandidate.room};else delete entry.parent;}catch{delete entry.parent;}}
    Object.assign(entry,{status:'enrolled',workspace:shared.url,room:shared.room,projectId:project.id,approvedAt:new Date().toISOString()});if(typeof input.analyzeExisting==='boolean')entry.retrospective={status:input.analyzeExisting?'pending':'declined',chosenAt:new Date().toISOString()};this.save();return {...entry,origin:this.origin(),controlDirectory:this.controlDirectory};
   }
   if(input.command==='ignore'){if(entry.status==='enrolled')throw new Error('This checkout is already connected. Pause its capture through project controls.');entry.status='ignored';this.save();return {...entry,origin:this.origin()};}
@@ -71,11 +73,13 @@ export class RepositoryDiscovery{
    if(input.confirm!==true)throw new Error('Explicit user confirmation is required before connecting a repository');
    if(input.create===true&&input.room)throw Error('Choose either creating a new project or joining an existing project');
    let room=input.room;
+   if(input.parentRoom!==undefined&&(!input.create||!parentCandidate||input.parentRoom!==parentCandidate.room))throw Error('Choose the connected parent of this repository before creating a subproject.');
    const selected=await enrollmentWorkspace(),relay=await selected.run({command:'list'});
+   if(input.parentRoom&&(!relay.capabilities?.includes('subprojects-v1')||relay.relay!==parentCandidate.workspace))throw Error('Subprojects require an updated relay and the same connection as the parent. No project was created.');
    if(!room&&!relay.capabilities?.includes('repository-enrollment-v2')){const error=Error('This relay needs an update before creating repository projects. Existing projects can still be joined. Ask whether to update the selected relay or continue without SpoolDB. No project was created.');error.code='RELAY_UPDATE_REQUIRED';throw error;}
    if(repo.repositoryKey){
     if(!room){const match=await (await enrollmentWorkspace()).run({command:'repository-match',repositoryKey:repo.repositoryKey});if(match.ambiguous)throw Error('Several existing shared projects use this repository. Choose which one to join.');if(match.project){if(entry.status==='enrolled'&&entry.room===match.project.room&&input.create!==true)return {...entry,origin:this.origin(),controlDirectory:this.controlDirectory};throw Error('This repository already belongs to '+JSON.stringify(match.project.name)+'. Ask whether to join it, then approve with that project selected. No connection was changed.');}}
-    const result=await (await enrollmentWorkspace()).run({command:'repository-enroll',repositoryKey:repo.repositoryKey,name:input.name??repo.name,...(room?{mode:'join',room}:{mode:'create',requestId:'discovery-'+digest(JSON.stringify([repo.root,repo.repositoryKey,scope,input.name??repo.name]))})});if(!room&&result.enrollmentMode!=='create'){const match=await selected.run({command:'repository-match',repositoryKey:repo.repositoryKey});if(match.ambiguous||!match.project||match.project.room!==result.project?.room){const error=Error('Relay enrollment could not be verified. A remote project may have been created; preview this repository before retrying. No local binding was changed.');error.code='ENROLLMENT_UNVERIFIED';throw error;}}room=result.project.room;
+    const result=await (await enrollmentWorkspace()).run({command:'repository-enroll',repositoryKey:repo.repositoryKey,name:input.name??repo.name,...(room?{mode:'join',room}:{mode:'create',...(input.parentRoom?{parentRoom:input.parentRoom}:{}),requestId:'discovery-'+digest(JSON.stringify([repo.root,repo.repositoryKey,scope,input.name??repo.name,input.parentRoom??null]))})});if(!room&&result.enrollmentMode!=='create'){const match=await selected.run({command:'repository-match',repositoryKey:repo.repositoryKey});if(match.ambiguous||!match.project||match.project.room!==result.project?.room){const error=Error('Relay enrollment could not be verified. A remote project may have been created; preview this repository before retrying. No local binding was changed.');error.code='ENROLLMENT_UNVERIFIED';throw error;}}room=result.project.room;if(result.project?.parentRoom&&parentCandidate?.room===result.project.parentRoom)entry.parent={root:parentCandidate.root,room:parentCandidate.room};else delete entry.parent;
    }
    else if(!room)throw new Error('This repository has no supported origin remote. Choose an existing shared project explicitly.');
    // Global MCP/hooks handle the current checkout; do not install another project hook set.
@@ -86,13 +90,13 @@ export class RepositoryDiscovery{
   }
   if(['approve','approve-existing'].includes(input.command)&&typeof input.analyzeExisting==='boolean'){entry.retrospective={status:input.analyzeExisting?'pending':'declined',chosenAt:new Date().toISOString()};this.save();}
   if(input.command==='preview'){
-   if(!input.workspace&&entry.status!=='enrolled'){const saved=await this.workspace.run({command:'profiles'});if(saved.workspaces.length!==1)return {...entry,origin:this.origin(),connected:false,selectionRequired:true,workspaces:saved.workspaces,projects:[],matches:[],canCreate:false};}
+   if(!input.workspace&&entry.status!=='enrolled'&&!parentCandidate){const saved=await this.workspace.run({command:'profiles'});if(saved.workspaces.length!==1)return {...entry,origin:this.origin(),connected:false,selectionRequired:true,workspaces:saved.workspaces,projects:[],matches:[],canCreate:false};}
    const selectedWorkspace=await enrollmentWorkspace(),workspace=await selectedWorkspace.run({command:'list'});const saved=await this.workspace.run({command:'profiles'});let match=null,matches=[],ambiguous=false;
    if(workspace.connected&&repo.repositoryKey){const result=await (await enrollmentWorkspace()).run({command:'repository-match',repositoryKey:repo.repositoryKey});match=result.project;matches=result.projects??(match?[match]:[]);ambiguous=Boolean(result.ambiguous);}
-   return {...entry,origin:this.origin(),relayUpdate:workspace.capabilities?.includes('repository-enrollment-v2')?null:{required:true,reason:'This relay predates safe repository creation. Join existing projects now, or offer to update this relay before creating one.',next:{tool:'spool_setup',arguments:{action:'relay_update',workspace:workspace.workspaceProfile}}},match,matches,ambiguous,projects:workspace.projects??[],canCreate:workspace.member?.canCreate??false,connected:workspace.connected,relay:workspace.relay,workspaceName:workspace.workspace?.name,workspaceProfile:workspace.workspaceProfile??null,workspaces:saved.workspaces??[]};
+   return {...entry,parentCandidate,subprojectsSupported:Boolean(workspace.capabilities?.includes('subprojects-v1')),origin:this.origin(),relayUpdate:workspace.capabilities?.includes('repository-enrollment-v2')?null:{required:true,reason:'This relay predates safe repository creation. Join existing projects now, or offer to update this relay before creating one.',next:{tool:'spool_setup',arguments:{action:'relay_update',workspace:workspace.workspaceProfile}}},match,matches,ambiguous,projects:workspace.projects??[],canCreate:workspace.member?.canCreate??false,connected:workspace.connected,relay:workspace.relay,workspaceName:workspace.workspace?.name,workspaceProfile:workspace.workspaceProfile??null,workspaces:saved.workspaces??[]};
   }
   if(!['propose','resolve','preview','approve'].includes(input.command))throw new Error('Unknown discovery command');
-  return {...entry,origin:this.origin(),controlDirectory:this.controlDirectory};
+  return {...entry,...(parentCandidate?{parentCandidate}:{}),origin:this.origin(),controlDirectory:this.controlDirectory};
  }
 }
 export async function serveDiscovery(discovery){
