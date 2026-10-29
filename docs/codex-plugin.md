@@ -56,13 +56,13 @@ The marketplace is written to `work/plugin-marketplace` and the self-contained a
 
 ## Stable hook trust across updates
 
-Starting with plugin 0.3.0, hook commands use a version-independent, content-addressed dispatcher under `${XDG_DATA_HOME:-$HOME/.local/share}/spool/codex-hooks/<fingerprint>/run.sh`. The first migration from older versioned-cache commands needs one review. After that, an unchanged hook definition keeps its Codex key and trust hash across plugin version, icon, documentation and UI updates.
+Starting with plugin 0.3.0, hook commands use a version-independent, content-addressed dispatcher under `${XDG_DATA_HOME:-$HOME/.local/share}/spool/codex-hooks/<fingerprint>/run.sh`. The first migration from older versioned-cache commands needs one review. The dispatcher command stays stable when its runtime is unchanged, but current Codex also fingerprints the complete plugin bundle: version, icon, documentation and UI changes can require another review.
 
 The fingerprint covers the dispatcher, the hook-only entry point, its complete local JavaScript import graph and the bundled interpreter binary. Changes to those files produce a new command/fingerprint, which Codex marks for review. Handler settings such as timeouts and status messages remain part of Codex's own definition hashing. Changing marketplace/plugin identity also creates a different trust identity.
 
 Before executing hook JavaScript, the dispatcher verifies these pinned files in the current plugin against its immutable checksum manifest. It refuses mismatches rather than blindly forwarding a previously approved command to arbitrary new hook code. Existing dispatcher profiles are never overwritten; a modified profile is reported and left untouched. The companion remains a separate application service with its existing project sharing approvals and installation/update lifecycle.
 
-`spool plugin install` installs the dispatcher automatically. Direct marketplace installations initialize it when the plugin MCP server starts. No production path writes Codex trust hashes. The native regression test approves hooks only in a disposable Codex home, confirms that trust survives a real UI-only plugin upgrade, then checks that modified hook code is refused and a hook upgrade is marked for review.
+`spool plugin install` installs the dispatcher automatically. Direct marketplace installations initialize it when the plugin MCP server starts. No production path writes Codex trust hashes. The native regression test approves hooks only in a disposable Codex home, confirms that a UI-only bundle upgrade requires review, then checks that modified hook code is refused and a hook upgrade is marked for review.
 
 ## Repository connections in Codex
 
@@ -122,3 +122,5 @@ joinable. `spool_setup action="relay_update"` checks maintenance support;
 Cloudflare requires redeploying the existing Worker with its deployment credentials;
 the plugin explains this rather than claiming to have updated it. After updating,
 preview again and join any existing repository match instead of creating a duplicate.
+
+Current Codex versions fingerprint the entire plugin bundle for hook trust. Even UI-only updates can require hook review. Stable dispatchers retain integrity checks and paths, but cannot override Codex bundle review. SpoolDB never copies trust approvals across changed bundles.

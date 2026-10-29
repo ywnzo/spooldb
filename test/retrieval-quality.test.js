@@ -8,3 +8,9 @@ test('resolved evidence, foreign projects and unrelated keyword results stay out
  const result=await store.retrieve(ref.room,{command:'search',query:'ShippingCost.calculate',mode:'keyword'});assert.deepEqual(result.results.map(r=>r.id),[latest.id]);const compact=compactMemory(result,{maxChars:1500});assert.ok(JSON.stringify(compact).length<=1500);assert.ok(!JSON.stringify(compact).includes('Foreign tenant'));
  assert.equal((await store.retrieve(ref.room,{command:'search',query:'Lisbon weather tomorrow',mode:'keyword'})).results.length,0);
 });
+test('a match at the end of a short finding preserves its complete diagnosis',async t=>{
+ const engine=new ShardedEngine(':memory:'),ref=engine.create('new');engine.db.prepare('UPDATE shard_refs SET name=? WHERE name=?').run('relay-'+ref.room,'new');const store=new MemoryStore(engine,{referencesOnly:true});t.after(()=>engine.close());
+ const text='The resolver deletes the replacement row after comparing only action names. '+ 'Verified evidence with a reproduction. '.repeat(15)+' Invert the broken-behavior assertion after fixing.';
+ const saved=store.run(ref.room,{command:'remember',kind:'finding',title:'Resolver diagnosis',text,requestId:crypto.randomUUID()});
+ const result=await store.retrieve(ref.room,{command:'search',query:'broken-behavior',mode:'keyword'});const found=result.results.find(x=>x.id===saved.id);assert.ok(found);assert.equal(found.text,text);assert.equal(found.truncated,false);assert.match(compactMemory(result).results[0].text,/resolver deletes/);
+});

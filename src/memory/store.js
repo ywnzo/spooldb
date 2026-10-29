@@ -20,7 +20,7 @@ const handoffValue=value=>Array.isArray(value)?value.map(handoffValue):value&&ty
 const str=(value,name,max=8000)=>{fail(typeof value==='string'&&value.trim().length>0&&value.length<=max,'INVALID_MEMORY',`Invalid ${name}`);return value;};
 const taskId=value=>{str(value,'task ID',160);fail(/^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(value),'INVALID_TASK','Use a short task identifier');return value;};
 const array=(value,max=30)=>{fail(Array.isArray(value)&&value.length<=max&&value.every(v=>typeof v==='string'&&v.length<=1000),'INVALID_MEMORY','Invalid list');return value;};
-const snippet=(text,query='',length=1400)=>{const at=queryTokens(query).map(token=>text.toLowerCase().indexOf(token.toLowerCase())).find(index=>index>=0);return text.slice(Math.max(0,(at??150)-150),Math.max(0,(at??150)-150)+length);};
+const snippet=(text,query='',length=1400)=>{if(text.length<=length)return text;const at=queryTokens(query).map(token=>text.toLowerCase().indexOf(token.toLowerCase())).find(index=>index>=0);const start=Math.min(text.length-length,Math.max(0,(at??150)-150));return text.slice(start,start+length);};
 export class MemoryStore {
  constructor(engine,{referencesOnly=false,embeddings=null}={}){this.engine=engine;this.referencesOnly=referencesOnly;engine.db.exec(`
  CREATE TABLE IF NOT EXISTS conversation_origins(room TEXT NOT NULL,id TEXT NOT NULL,data TEXT NOT NULL,PRIMARY KEY(room,id));

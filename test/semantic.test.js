@@ -119,3 +119,6 @@ test('distinct warming queries are bounded and model inference is serialized acr
  const results=await Promise.all(jobs);assert.ok(store.semantic.lookups.size<=32);assert.ok(store.semantic.pending.size<=2);assert.ok(results.some(r=>r.status==='busy'));assert.equal(peak,1);
  release();await Promise.allSettled([...store.semantic.lookups.values()]);assert.equal(peak,1);assert.equal(store.semantic.lookups.size,0);
 });
+test('semantic matches preserve a complete short diagnosis even when the best chunk is at its end',async t=>{
+ const {room,store,write}=fixture(t,fake());const text='The resolver deletes a replacement row because it compares only action names. '+ 'Verified reproduction evidence. '.repeat(17)+' shipping';const saved=write({title:'Diagnosis',text});store.index(room);while(store.semantic.remaining(room))await store.semantic.prepare(room);const r=await store.retrieve(room,{command:'search',query:'shipping',mode:'hybrid'});const note=r.results.find(n=>n.id===saved.id);assert.ok(note);assert.equal(note.text,text);assert.equal(note.truncated,false);
+});

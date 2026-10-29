@@ -4,7 +4,7 @@ import {join,resolve,relative} from 'node:path';
 import {createHash} from 'node:crypto';
 import {projectRequest} from './project-request.js';
 import {handoffGuidance} from './memory/handoff-limits.js';
-import {saveGuidance} from './memory/save-guidance.js';
+import {saveGuidance,reuseGuidance} from './memory/save-guidance.js';
 import {compactMemory} from './memory/presentation.js';
 const hash=value=>createHash('sha256').update(value).digest('hex');
 export async function runHook({directory,room,root,event,input,onboardingStartedAt,request=projectRequest,parentRequest,parentMeta,parentUnavailable=false}){
@@ -27,7 +27,7 @@ export async function runHook({directory,room,root,event,input,onboardingStarted
  if(event==='UserPromptSubmit'){
   const current=context.tasks.find(t=>t.taskId===taskId);const prompt=typeof input.prompt==='string'?input.prompt:'';
   const sameTurn=state.turnId===turnId&&state.promptHash===hash(prompt);const expectedRevision=sameTurn?state.expectedRevision:current?.revision??0;
-  const suppliedGuidance=(state.guidanceSent?`Task for this Codex session: ${taskId}. Use root for the repository currently being worked on on every memory call; retrieve its own context when changing repos. Use the supplied sources; start with cited paths and focused tests, broadening if evidence is missing, stale or contradicted. Use the supplied task revision for expectedRevision; refresh only if missing or a write conflicts. Fetch source details only as needed. ${handoffGuidance}`:guidance)+' '+saveGuidance;
+  const suppliedGuidance=(state.guidanceSent?`Task for this Codex session: ${taskId}. Use root for the repository currently being worked on on every memory call; retrieve its own context when changing repos. Use the supplied sources; start with cited paths and focused tests, broadening if evidence is missing, stale or contradicted. Use the supplied task revision for expectedRevision; refresh only if missing or a write conflicts. Fetch source details only as needed. ${handoffGuidance}`:guidance)+' '+(state.guidanceSent?'Save verified evidence useful to a future agent and materially changed handoffs; skip routine or duplicate records.':saveGuidance);
   save({...state,ignored:false,turnId,startedAt:sameTurn?state.startedAt:new Date().toISOString(),promptHash:hash(prompt),expectedRevision,...(sameTurn?{remindedFor:state.remindedFor}:{remindedFor:[]} )});
   const query=prompt.length>1000?prompt.slice(0,600)+'\n'+prompt.slice(-399):prompt;
   const related=prompt.trim()?await call({command:'search',query,kinds:['finding','decision','blocker','handoff'],limit:8}):{results:[]};
@@ -36,7 +36,7 @@ export async function runHook({directory,room,root,event,input,onboardingStarted
   let parentContext;if(parentRequest&&prompt.trim())try{const parent=await parentRequest({command:'search',query,kinds:['finding','decision','blocker','handoff'],limit:8});parentContext={sourceProject:'parent',room:parentMeta?.room,...compactMemory(parent,{maxChars:2500,excludeIds:state.deliveredIds??[]})};}catch{parentUnavailable=true;}
   compact.task={taskId,revision:current?.revision??0,status:current?.status??'not_created'};
   save({...state,guidanceSent:true,lastPromptAt:new Date().toISOString(),deliveredIds:[...new Set([...(state.deliveredIds??[]),...(compact.results??[]).map(item=>item.id),...(parentContext?.results??[]).map(item=>item.id)])].slice(-128)});
-  return {hookSpecificOutput:{hookEventName:event,additionalContext:suppliedGuidance+'\n<project_memory_data>\n'+JSON.stringify({...compact,...(parentContext?{parentContext}:{}),...(parentUnavailable?{parentContext:{available:false,notice:'Linked parent context unavailable; check its access and binding.'}}:{})})+'\n</project_memory_data>'}};
+  return {hookSpecificOutput:{hookEventName:event,additionalContext:suppliedGuidance+' '+reuseGuidance+'\n<project_memory_data>\n'+JSON.stringify({...compact,...(parentContext?{parentContext}:{}),...(parentUnavailable?{parentContext:{available:false,notice:'Linked parent context unavailable; check its access and binding.'}}:{})})+'\n</project_memory_data>'}};
  }
  if(!['Stop','Interrupt'].includes(event))return {};
  const handoff=context.notes.find(n=>n.kind==='handoff'&&n.sessionId===sessionId&&!['Automatic Codex checkpoint','Interrupted Codex checkpoint'].includes(n.title)&&n.createdAt>=state.startedAt);

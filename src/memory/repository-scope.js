@@ -3,7 +3,7 @@ import {existsSync} from 'node:fs';
 import {isAbsolute,resolve,dirname,relative} from 'node:path';
 import {repositoryAt} from '../repository.js';
 import {discoveryRequest} from '../discovery-request.js';
-export const repositoryRootSchema={type:'string',minLength:1,maxLength:4096,description:'Absolute directory in the Git repository being worked on now. Required on every call. Nested repositories require an explicit subproject or separate project binding.'};
+export const repositoryRootSchema={type:'string',minLength:1,maxLength:4096,description:'Absolute directory in the current Git repository. Required on every call.'};
 export const repositoryMemoryTools=tools=>tools.map(tool=>({...tool,inputSchema:{...tool.inputSchema,properties:{root:repositoryRootSchema,...tool.inputSchema.properties,...(tool.name==='memory_get'?{sourceProject:{enum:['current','parent'],description:'Read a cited parent result using parent; defaults to the current project.'}}:{})},required:[...new Set(['root',...(tool.inputSchema.required??[])])]}}));
 export async function resolveMemoryRepository(directory,root,{discover=discoveryRequest}={}){
  if(typeof root!=='string'||!isAbsolute(root)||root.includes('\0'))throw Error('Pass the absolute directory of the repository being worked on as root. No default project was used.');
