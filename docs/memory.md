@@ -18,12 +18,7 @@ Click **Connect Codex & Zed** on the Memory page. SpoolDB adds a managed block t
 
 The connector registers trust only for its four exact hook definitions through Codex’s configuration API. It does not disable hook trust or change tool approval policy. If a hook changes, Codex’s normal review rules apply again. Start a new chat or reopen an existing session after connecting; an already-running session may retain its old tools.
 
-- Session start (including resume/compaction): supply the continuity workflow and reset delivered-source tracking. Relevant memory is retrieved once the prompt is known.
-- User prompt: create/update a session-scoped task and retrieve matching decisions, findings, blockers and handoffs. Inject complete, compact source cards within a character budget, skipping unchanged sources already delivered to this session. Repeated callback delivery is idempotent.
-- Stop: do not force a handoff or save a fallback for every reply. Agents save a self-contained task handoff only for material changes.
-- Interrupt: save an interrupted checkpoint only when assistant text exists and no agent-authored session handoff exists. This is best effort; process crashes and timeouts can still prevent it.
-
-The lifecycle never treats a captured assistant response as verified completion, and fallback checkpoints do not mark a task done. Native session IDs determine continuity task IDs. MCP adapter session IDs remain separate provenance. If the memory service is unavailable, the hook reports missing continuity and allows work to proceed. Keep the local project app running.
+Session start and user prompt hooks offer a short suggestion to use SpoolDB if prior project memory would help. Agents can choose to retrieve context or save findings and handoffs. The hooks work without contacting the companion or relay. Stop and Interrupt callbacks return immediately.
 
 Advanced/manual configuration remains available for other MCP clients:
 
@@ -116,7 +111,7 @@ Indexing persists each embedding batch with a derived progress cursor and applie
 
 ### Concise handoffs
 
-New handoff saves enforce 2,000 Unicode characters combined across title, summary, next steps and blockers (including separators). The summary may contain at most 1,500 characters, title 120, and up to three next steps and three blockers of 160 characters each. MCP schemas advertise the field limits; the relay also checks the combined limit for direct API/CLI saves and local private memory. Rejection explains how to shorten the handoff. Agent-authored text is not silently truncated. Store detailed evidence in findings/decisions and cite their IDs instead of copying it into a handoff. Automatic fallback checkpoints use a short, explicitly unverified excerpt. Existing and historically imported records remain readable under the historical event format; imports are not rewritten to erase their history.
+New handoff saves enforce 2,000 Unicode characters combined across title, summary, next steps and blockers (including separators). The summary may contain at most 1,500 characters, title 120, and up to three next steps and three blockers of 160 characters each. MCP schemas advertise the field limits; the relay also checks the combined limit for direct API/CLI saves and local private memory. Rejection explains how to shorten the handoff. Agent-authored text is not silently truncated. Store detailed evidence in findings/decisions and cite their IDs instead of copying it into a handoff. Historical fallback checkpoints contain a short, explicitly unverified excerpt. Existing and historically imported records remain readable under the historical event format; imports are not rewritten to erase their history.
 
 ### Usage and external embedding caps
 

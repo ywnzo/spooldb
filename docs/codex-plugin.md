@@ -28,13 +28,11 @@ The Git marketplace contains a small plugin launcher. Its release URL, archive c
 
 Manual [bundle downloads](https://github.com/ywnzo/spooldb/releases/latest/download/spooldb-codex.tar.gz) remain available for offline distribution.
 
-## What runs automatically
+## Optional memory guidance
 
-- `SessionStart` loads shared project context for approved folders.
-- `UserPromptSubmit` retrieves relevant context and creates/updates the session's task.
-- Conversation capture reads saved Codex user/assistant messages, preserves session/turn/message provenance and deduplicates them. The current turn may appear only after Codex saves it. Hidden reasoning is not captured.
-- `Stop` requests an agent-authored handoff once. If unavailable, a subsequent stop saves a clearly marked, unverified fallback checkpoint. `Interrupt` attempts a bounded fallback checkpoint.
-- Findings remain evidence-based agent writes; the plugin does not invent findings from arbitrary conversation text.
+- `SessionStart` and `UserPromptSubmit` suggest using SpoolDB when prior project memory would help. Agents choose whether to retrieve context or save durable findings and handoffs.
+- `Stop` and `Interrupt` are compatibility no-ops. The hooks make no companion or relay requests and return guidance only.
+- Separately, enabled background conversation capture reads saved Codex user and assistant messages according to project sharing settings. The current turn may appear after Codex saves it.
 
 The setup MCP tool supports status, invitation/project previews, approved connection, ignore, pause/resume and migration. Memory tools remain bound to the selected checkout and project. Code stays in Git, and cited commits/files are reconciled locally.
 

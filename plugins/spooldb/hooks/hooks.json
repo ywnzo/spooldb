@@ -8,7 +8,7 @@
             "command": "sh \"${PLUGIN_ROOT}/scripts/spool.sh\" hook SessionStart",
             "timeout": 60,
             "additionalContextLimit": 7000,
-            "statusMessage": "SpoolDB: Load project context"
+            "statusMessage": "SpoolDB: Suggest project memory"
           }
         ]
       }
@@ -21,7 +21,7 @@
             "command": "sh \"${PLUGIN_ROOT}/scripts/spool.sh\" hook UserPromptSubmit",
             "timeout": 60,
             "additionalContextLimit": 7000,
-            "statusMessage": "SpoolDB: Retrieve relevant memory"
+            "statusMessage": "SpoolDB: Suggest relevant memory"
           }
         ]
       }
@@ -33,7 +33,7 @@
             "type": "command",
             "command": "sh \"${PLUGIN_ROOT}/scripts/spool.sh\" hook Stop",
             "timeout": 60,
-            "statusMessage": "SpoolDB: Save handoff"
+            "statusMessage": "SpoolDB: Finish hook (no action)"
           }
         ]
       }
@@ -45,11 +45,11 @@
             "type": "command",
             "command": "sh \"${PLUGIN_ROOT}/scripts/spool.sh\" hook Interrupt",
             "timeout": 3,
-            "statusMessage": "SpoolDB: Save interrupted checkpoint"
+            "statusMessage": "SpoolDB: Interrupt hook (no action)"
           }
         ]
       }
     ]
   },
-  "description": "SpoolDB shared project memory and handoff automation"
+  "description": "SpoolDB optional project memory guidance"
 }

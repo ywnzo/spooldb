@@ -51,7 +51,8 @@ export async function pluginSetup(state,input,{cwd=process.cwd(),pluginRoot,trus
  const repo=repositoryAt(input.root??cwd),root=repo.root;
  const discovery=command=>discoveryRequest(state,{...command,cwd:root,...(input.workspace?{workspace:input.workspace}:{})});
  const status=async()=>{const project=await discovery({command:'propose'}),local=project.status==='enrolled'?await projectRequest(project.controlDirectory,{command:'status',projectId:project.projectId}):null;
- const lifecycle=lifecycleHealth(project.controlDirectory??state,project.bindingRoot??root);
+ const scopedLifecycle=lifecycleHealth(state,root);
+ const lifecycle=scopedLifecycle.status!=='not_observed'||!project.controlDirectory?scopedLifecycle:lifecycleHealth(project.controlDirectory,project.bindingRoot??root);
  return {root,lifecycle,inherited:project.inherited??false,bindingRoot:project.bindingRoot??root,workspaceProfile:project.workspaceProfile??null,companion:(await discovery({command:'list'})).companion,superproject:repo.superproject,status:project.status,projectId:project.projectId,room:project.room,project:local?.team?.project??local?.name??project.name,relay:local?.team?.url,capture:local?.codex??null,retrospective:project.retrospective??{status:'offered'},legacyConfiguration:legacyFiles(root,{codexHome}),hookReviewRequired:pluginRoot?!await trustedPluginHooks(root,pluginRoot).catch(()=>false):true,message:lifecycleMessage(lifecycle)};};
  const finishConnection=async()=>{
   if(typeof input.analyzeExisting==='boolean')await discovery({command:'retrospective',analyzeExisting:input.analyzeExisting,confirm:true});
