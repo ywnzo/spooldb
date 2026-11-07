@@ -35,7 +35,7 @@ jobs:
       - name: Verify real containers and persistent memory
         run: sudo env SPOOL_TEST_CONTAINER_ENGINE=/usr/bin/${{ matrix.engine }} "$(command -v bun)" test --timeout 600000 test/server-container-runtime.test.js
   apple-silicon:
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
