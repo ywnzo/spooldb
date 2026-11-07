@@ -5,10 +5,10 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh \"${XDG_DATA_HOME:-$HOME/.local/share}/spool/codex-hooks/483dd9d14bd26f93fef5e532b98123629edf26400eeaefdbe2d3d874974b96c3/run.sh\" SessionStart",
+            "command": "sh \"${XDG_DATA_HOME:-$HOME/.local/share}/spool/codex-hooks/b319e275b591e176c168bcc9498bb945228fda66df21292a784ee83a36bba36a/run.sh\" SessionStart",
             "timeout": 60,
             "additionalContextLimit": 7000,
-            "statusMessage": "SpoolDB: Load project context"
+            "statusMessage": "SpoolDB: Suggest project memory"
           }
         ]
       }
@@ -18,10 +18,10 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh \"${XDG_DATA_HOME:-$HOME/.local/share}/spool/codex-hooks/483dd9d14bd26f93fef5e532b98123629edf26400eeaefdbe2d3d874974b96c3/run.sh\" UserPromptSubmit",
+            "command": "sh \"${XDG_DATA_HOME:-$HOME/.local/share}/spool/codex-hooks/b319e275b591e176c168bcc9498bb945228fda66df21292a784ee83a36bba36a/run.sh\" UserPromptSubmit",
             "timeout": 60,
             "additionalContextLimit": 7000,
-            "statusMessage": "SpoolDB: Retrieve relevant memory"
+            "statusMessage": "SpoolDB: Suggest relevant memory"
           }
         ]
       }
@@ -31,9 +31,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh \"${XDG_DATA_HOME:-$HOME/.local/share}/spool/codex-hooks/483dd9d14bd26f93fef5e532b98123629edf26400eeaefdbe2d3d874974b96c3/run.sh\" Stop",
+            "command": "sh \"${XDG_DATA_HOME:-$HOME/.local/share}/spool/codex-hooks/b319e275b591e176c168bcc9498bb945228fda66df21292a784ee83a36bba36a/run.sh\" Stop",
             "timeout": 60,
-            "statusMessage": "SpoolDB: Save handoff"
+            "statusMessage": "SpoolDB: Finish hook (no action)"
           }
         ]
       }
@@ -43,13 +43,13 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh \"${XDG_DATA_HOME:-$HOME/.local/share}/spool/codex-hooks/483dd9d14bd26f93fef5e532b98123629edf26400eeaefdbe2d3d874974b96c3/run.sh\" Interrupt",
+            "command": "sh \"${XDG_DATA_HOME:-$HOME/.local/share}/spool/codex-hooks/b319e275b591e176c168bcc9498bb945228fda66df21292a784ee83a36bba36a/run.sh\" Interrupt",
             "timeout": 3,
-            "statusMessage": "SpoolDB: Save interrupted checkpoint"
+            "statusMessage": "SpoolDB: Interrupt hook (no action)"
           }
         ]
       }
     ]
   },
-  "description": "SpoolDB shared project memory and handoff automation"
+  "description": "SpoolDB optional project memory guidance"
 }
