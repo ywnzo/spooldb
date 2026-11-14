@@ -82,7 +82,10 @@ export async function startProject(dir,{port=8787,intervalMs=2000,onEvent=()=>{}
     if(manageProjects)manager=new ProjectManager(dir,{...app,state,close});
     relay.localHandler=localApp({discovery:input=>discoveryHandler?discoveryHandler(input):discovery.run(input),workspace:input=>workspace.run(input),invitePending:()=>readInbox(inviteInbox??join(dir,'pending-invite.json'))[0]??null,inviteDismiss:link=>dismissInvite(inviteInbox??join(dir,'pending-invite.json'),link),invitePreview:link=>previewInvite(link,{directory:dir}),inviteJoin:input=>joinInvite({directory:dir,manager,link:input.link,root:input.root,device:input.device,captureConversations:input.captureConversations!==false,connectAgents:input.connectAgents!==false}),teamHost:input=>hostRequest(process.env.SPOOL_TEAM_HOST??join(dirname(dir),'shared-relay'),input),connectAgents:project=>connectCodexMemory({directory:dir,discoveryDirectory:workspaceDirectory,room:project.id,root:project.root}),getAgentState:project=>codexMemoryState({directory:dir,discoveryDirectory:workspaceDirectory,root:project.root}),getOrigin:()=>state.origin,...app,projects:manager,memorySetup:project=>({mcpServers:{spool:{command:process.execPath,args:[fileURLToPath(new URL('./memory-mcp.js',import.meta.url)),dir,'--project',project.id]}}})});
     state.origin=await relay.listen({port});state.url=`${state.origin}/review/#room=${config.room}&branch=working&compare=main`;
-    await publish('main');await capture();
+    await publish('main');
+    // A growing checkout can exceed snapshot limits. Keep saved memory and management
+    // available, report the failure, and let ordinary capture cycles retry unchanged.
+    try{await capture();}catch(error){state.lastError=error.message;onEvent({event:'project.error',message:error.message});}
     if(manageProjects){await new Promise((resolve,reject)=>{control.once('error',reject);control.listen(socketPath,resolve);});ownsSocket=true;chmodSync(socketPath,0o600);}
     control.on('connection',socket=>{
       let data='',handled=false;socket.setTimeout(3605000,()=>socket.destroy());
