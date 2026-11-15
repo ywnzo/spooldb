@@ -46,16 +46,16 @@ test('remote OAuth MCP in workerd: consent, PKCE, context, handoffs, scope isola
  };
  let tokens=await authorize();
  let id=0;const mcp=async(method,params={},access=tokens.access_token,status=200)=>(await request('/mcp',{jsonrpc:'2.0',id:++id,method,params},{authorization:'Bearer '+access},status)).data;
- const initialized=await mcp('initialize',{protocolVersion:'2025-11-25'});assert.equal(initialized.result.serverInfo.name,'spool-project-memory');
+ const initialized=await mcp('initialize',{protocolVersion:'2025-11-25'});assert.equal(initialized.result.serverInfo.name,'spool-project-memory');assert.match(initialized.result.instructions,/SpoolDB is optional/);assert.match(initialized.result.instructions,/reuse those results/);assert.doesNotMatch(initialized.result.instructions,/Retrieve project_context before working/);
  const list=await mcp('tools/list');assert.equal(list.result.tools.length,9);assert.ok(!list.result.tools.some(t=>t.name==='file_read'));assert.equal(list.result.tools.find(t=>t.name==='handoff').securitySchemes[0].type,'oauth2');
  const tool=async(name,args={},access=tokens.access_token,status=200)=>mcp('tools/call',{name,arguments:args},access,status);
  const context=await tool('project_context');assert.match(JSON.stringify(context),/Shipping calculation/);
  const bad=await tool('project_context',{room:other.room});assert.equal(bad.error.code,-32602);
  await tool('task_update',{taskId:'cloud-proof',title:'Cloud continuity',text:'Test shared handoff',status:'in_progress',expectedRevision:0});
  const finding=(await tool('remember',{taskId:'cloud-proof',kind:'finding',title:'Cloud finding',text:'Observed existing shipping finding',files:['app.ts'],commits:['a'.repeat(40)]})).result.structuredContent;assert.ok(finding.id);
- const handoff=(await tool('handoff',{taskId:'cloud-proof',title:'Cloud handoff',text:'Continue shipping fix',nextSteps:['Verify in checkout'],refs:[finding.id]})).result.structuredContent;assert.ok(handoff.id);
+ const handoff=(await tool('handoff',{taskId:'cloud-proof',title:'Cloud handoff',text:'Continue shipping fix',nextSteps:['Verify in checkout'],refs:[finding.id]})).result.structuredContent;assert.ok(handoff.id);assert.equal(handoff.saved,true);assert.equal(handoff.preview.text,'Continue shipping fix');assert.deepEqual(handoff.preview.refs,[finding.id]);
  const stored=(await request('/v1/rooms/'+project.room+'/memory',{command:'get',id:handoff.id},{authorization:'Bearer '+native.token})).data;assert.equal(stored.refs[0],finding.id);assert.match(stored.actorLabel,/Cloud MCP/);
- const duplicate=await tool('handoff',{taskId:'cloud-proof',title:'Cloud handoff',text:'Continue shipping fix',nextSteps:['Verify in checkout'],refs:[finding.id],requestId:'stable'});const again=await tool('handoff',{taskId:'cloud-proof',title:'Cloud handoff',text:'Continue shipping fix',nextSteps:['Verify in checkout'],refs:[finding.id],requestId:'stable'});assert.equal(duplicate.result.structuredContent.id,again.result.structuredContent.id);
+ const duplicate=await tool('handoff',{taskId:'cloud-proof',title:'Cloud handoff',text:'Continue shipping fix',nextSteps:['Verify in checkout'],refs:[finding.id],requestId:'stable'});const again=await tool('handoff',{taskId:'cloud-proof',title:'Cloud handoff',text:'Continue shipping fix',nextSteps:['Verify in checkout'],refs:[finding.id],requestId:'stable'});assert.equal(duplicate.result.structuredContent.id,again.result.structuredContent.id);assert.equal(again.result.structuredContent.saved,true);assert.equal(again.result.structuredContent.preview,undefined);
  const read=await authorize('read','memory:read');await tool('remember',{kind:'finding',title:'No',text:'Forbidden'},read.access_token,403);await tool('project_context',{},read.access_token);
  tokens=await token({grant_type:'refresh_token',client_id:client.client_id,refresh_token:tokens.refresh_token,resource:origin+'/mcp'});await tool('project_context');
 

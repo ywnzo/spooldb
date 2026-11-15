@@ -134,3 +134,11 @@ See [measured results and limitations](../benchmarks/results/README.md). Charact
 ### Current handoff revisions
 
 New handoffs for the same task and author supersede their earlier active handoffs automatically. Earlier versions remain readable by ID and in archived history; normal retrieval shows the current version. Different authors and tasks remain separate. Identical content and Git evidence is a no-op even if its capture timestamp differs. Automatic excerpts never replace an authored handoff. This policy does not rewrite existing history until a new handoff is saved.
+
+## Cloud memory efficiency
+
+Cloud MCP suggests retrieval when prior work is relevant. Reuse sufficient context until the task or repository changes. A successful save includes a bounded content preview and receipt, so a follow-up read is needed only for missing detail or provenance.
+
+Keep task status short, store non-obvious evidence once, and reference that evidence from a handoff only when continuation changes. Routine synchronization and informational replies usually need no shared task or handoff. Cite file paths and full commit IDs when known. Work on another repository belongs in that repository's project.
+
+Identical task updates from the same author and session keep their existing revision. Compact context sends repeated summary text once across categories, retaining each card's provenance and continuation fields. Historical raw-prompt task placeholders stay accessible through explicit history reads and are excluded from ordinary retrieval. Archive unrelated records and supersede obsolete evidence with links instead of deleting history.

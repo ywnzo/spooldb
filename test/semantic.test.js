@@ -122,3 +122,16 @@ test('distinct warming queries are bounded and model inference is serialized acr
 test('semantic matches preserve a complete short diagnosis even when the best chunk is at its end',async t=>{
  const {room,store,write}=fixture(t,fake());const text='The resolver deletes a replacement row because it compares only action names. '+ 'Verified reproduction evidence. '.repeat(17)+' shipping';const saved=write({title:'Diagnosis',text});store.index(room);while(store.semantic.remaining(room))await store.semantic.prepare(room);const r=await store.retrieve(room,{command:'search',query:'shipping',mode:'hybrid'});const note=r.results.find(n=>n.id===saved.id);assert.ok(note);assert.equal(note.text,text);assert.equal(note.truncated,false);
 });
+
+test('identical cross-category summaries are sent once while distinct provenance and actions remain',()=>{
+ const common={text:'Verified the release frontier with focused tests.',taskId:'review',actor:'alice'};
+ const compact=compactMemory({room:'room',tasks:[{...common,id:'task',kind:'task',revision:2,status:'done'}],notes:[{...common,id:'finding',kind:'finding',commits:['a'.repeat(40)]},{...common,id:'handoff',kind:'handoff',refs:['finding'],nextSteps:['Continue migration']},{...common,id:'other-author',kind:'finding',actor:'bob'}]});
+ assert.equal(compact.tasks[0].text,common.text);
+ assert.equal(compact.notes[0].sameTextAs,'task');
+ assert.equal(compact.notes[0].text,'');
+ assert.deepEqual(compact.notes[0].commits,['a'.repeat(40)]);
+ assert.equal(compact.notes[1].sameTextAs,'task');
+ assert.deepEqual(compact.notes[1].refs,['finding']);
+ assert.deepEqual(compact.notes[1].nextSteps,['Continue migration']);
+ assert.equal(compact.notes[2].text,common.text);
+});

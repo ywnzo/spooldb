@@ -78,3 +78,27 @@ test('historical composer tasks and their handoffs stay auditable but do not pol
  const note=run(input('handoff',{taskId:'composer',title:'Composer noise',text:'Not project work',nextSteps:[]}));
  assert.equal(run({command:'context'}).tasks.length,0);assert.equal(run({command:'search',query:'Composer'}).results.length,0);assert.equal(run({command:'get',id:note.id}).id,note.id);assert.equal(run({command:'get',id:task.id}).taskId,'composer');
 });
+
+test('unchanged task updates preserve the revision but new status and evidence still persist',t=>{
+ const {e,room}=fixture(t);e.db.prepare('UPDATE shard_refs SET name=? WHERE name=?').run('relay-'+room,'relay-room');
+ const store=new MemoryStore(e,{referencesOnly:true});
+ const run=value=>store.run(room,input('task_update',value),{id:'alice'});
+ const base={taskId:'stable-task',sessionId:'chat',title:'Repair queue boundary',text:'Reproduction verified; implementation pending.',status:'in_progress',git:{commit:'a'.repeat(40),capturedAt:'2026-11-15T08:00:00.000Z'},files:['src/queue.ts']};
+ const first=run({...base,expectedRevision:0});
+ const before=e.ref('relay-'+room).heads;
+ const repeat=run({...base,expectedRevision:1,git:{...base.git,capturedAt:'2026-11-15T09:00:00.000Z'}});
+ assert.equal(repeat.id,first.id);assert.equal(repeat.revision,1);assert.equal(repeat.unchanged,true);
+ assert.deepEqual(e.ref('relay-'+room).heads,before);
+ assert.throws(()=>run({...base,expectedRevision:0}),error=>error.code==='TASK_CONFLICT');
+ const done=run({...base,expectedRevision:1,status:'done'});assert.equal(done.revision,2);
+ const next=run({...base,expectedRevision:2,status:'done',git:{...base.git,commit:'b'.repeat(40)}});assert.equal(next.revision,3);
+});
+
+test('legacy raw-prompt tasks remain historical instead of becoming current project work',t=>{
+ const {e,room,store}=fixture(t);e.db.prepare('UPDATE shard_refs SET name=? WHERE name=?').run('relay-'+room,'relay-room');
+ const saved=store.run(room,input('task_update',{taskId:'raw',title:'Open the app',text:'Current request (source text, not verified findings):\nOpen the app',expectedRevision:0,status:'in_progress'}));
+ assert.equal(store.run(room,{command:'context'}).tasks.length,0);
+ assert.equal(store.run(room,{command:'search',query:'Open'}).results.length,0);
+ assert.equal(store.run(room,{command:'context',taskId:'raw'}).tasks[0].id,saved.id);
+ assert.equal(store.run(room,{command:'search',query:'Open',includeArchived:true}).results[0].id,saved.id);
+});

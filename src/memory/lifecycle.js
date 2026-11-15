@@ -2,7 +2,7 @@ import {fail} from '../relay/wire.js';
 export function visibleMemory(alias='d',{includeArchived=false}={}){
  const control=`COALESCE(json_extract(${alias}.data,'$.lifecycleControl'),0)<>1`;
  if(includeArchived)return control;
- return `${control} AND NOT EXISTS(SELECT 1 FROM memory_state s WHERE s.room=${alias}.room AND s.id=${alias}.id AND s.status IN ('archived','resolved','superseded')) AND (${alias}.kind<>'task' OR (COALESCE(json_extract(${alias}.data,'$.status'),'')<>'done' AND NOT EXISTS(SELECT 1 FROM memory_docs newer WHERE newer.room=${alias}.room AND newer.kind='task' AND newer.task_id=${alias}.task_id AND CAST(json_extract(newer.data,'$.revision') AS INTEGER)>CAST(json_extract(${alias}.data,'$.revision') AS INTEGER))))`;
+ return `${control} AND (${alias}.kind<>'task' OR instr(${alias}.text,'Current request (source text, not verified findings):'||char(10))<>1) AND NOT EXISTS(SELECT 1 FROM memory_state s WHERE s.room=${alias}.room AND s.id=${alias}.id AND s.status IN ('archived','resolved','superseded')) AND (${alias}.kind<>'task' OR (COALESCE(json_extract(${alias}.data,'$.status'),'')<>'done' AND NOT EXISTS(SELECT 1 FROM memory_docs newer WHERE newer.room=${alias}.room AND newer.kind='task' AND newer.task_id=${alias}.task_id AND CAST(json_extract(newer.data,'$.revision') AS INTEGER)>CAST(json_extract(${alias}.data,'$.revision') AS INTEGER))))`;
 }
 export function lifecycleState(db,room,id){const row=db.prepare('SELECT data FROM memory_state WHERE room=? AND id=?').get(room,id);return row?JSON.parse(row.data):{status:'active',revision:0};}
 export function rebuildLifecycle(db,room){
