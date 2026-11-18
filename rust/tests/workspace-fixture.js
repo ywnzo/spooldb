@@ -82,7 +82,8 @@ try {
 
   const configFile = join(directory,'host.json');
   const settings = JSON.parse(readFileSync(configFile,'utf8'));
-  const controlSocket = join(directory,'control.sock');
+  const controlSocket = join(directory,'ctl');
+  if (process.platform === 'darwin') assert(Buffer.byteLength(controlSocket)<104,'Unix socket path exceeds macOS limit');
   writeFileSync(configFile,JSON.stringify({...settings,publicOrigin,controlSocket}));
   native = Bun.spawn([binary,'team-host','start',directory,'--port=0','--origin='+publicOrigin],{stdout:'pipe',stderr:'inherit'});
   const {value} = await native.stdout.getReader().read();
