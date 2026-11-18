@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh \"${XDG_DATA_HOME:-$HOME/.local/share}/spool/codex-hooks/ef765ae9909040d4cbc3f01b690a9bf464938c1aa081692ab78506e99803e645/run.sh\" SessionStart",
+            "command": "sh \"${XDG_DATA_HOME:-$HOME/.local/share}/spool/codex-hooks/5453928b90b1f2a797334506a3126d3a647c4c11243bfc9e404b5fd50ac5279b/run.sh\" SessionStart",
             "timeout": 60,
             "additionalContextLimit": 7000,
             "statusMessage": "SpoolDB: Suggest project memory"
@@ -18,7 +18,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh \"${XDG_DATA_HOME:-$HOME/.local/share}/spool/codex-hooks/ef765ae9909040d4cbc3f01b690a9bf464938c1aa081692ab78506e99803e645/run.sh\" UserPromptSubmit",
+            "command": "sh \"${XDG_DATA_HOME:-$HOME/.local/share}/spool/codex-hooks/5453928b90b1f2a797334506a3126d3a647c4c11243bfc9e404b5fd50ac5279b/run.sh\" UserPromptSubmit",
             "timeout": 60,
             "additionalContextLimit": 7000,
             "statusMessage": "SpoolDB: Suggest relevant memory"
@@ -31,7 +31,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh \"${XDG_DATA_HOME:-$HOME/.local/share}/spool/codex-hooks/ef765ae9909040d4cbc3f01b690a9bf464938c1aa081692ab78506e99803e645/run.sh\" Stop",
+            "command": "sh \"${XDG_DATA_HOME:-$HOME/.local/share}/spool/codex-hooks/5453928b90b1f2a797334506a3126d3a647c4c11243bfc9e404b5fd50ac5279b/run.sh\" Stop",
             "timeout": 60,
             "statusMessage": "SpoolDB: Finish hook (no action)"
           }
@@ -43,7 +43,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh \"${XDG_DATA_HOME:-$HOME/.local/share}/spool/codex-hooks/ef765ae9909040d4cbc3f01b690a9bf464938c1aa081692ab78506e99803e645/run.sh\" Interrupt",
+            "command": "sh \"${XDG_DATA_HOME:-$HOME/.local/share}/spool/codex-hooks/5453928b90b1f2a797334506a3126d3a647c4c11243bfc9e404b5fd50ac5279b/run.sh\" Interrupt",
             "timeout": 3,
             "statusMessage": "SpoolDB: Interrupt hook (no action)"
           }

@@ -1,6 +1,6 @@
 {
   "name": "spooldb",
-  "version": "0.4.45",
+  "version": "0.4.46",
   "description": "Optional shared project memory for Codex.",
   "license": "MIT",
   "skills": "./skills/",

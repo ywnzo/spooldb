@@ -3,7 +3,11 @@
 set -eu
 umask 077
 plugin_root=$1
-if [ -x "$plugin_root/app/runtime/bun" ] || [ -x "$plugin_root/app/runtime/node" ]; then exit 0; fi
+runtime_available() {
+  [ -x "$1/app/runtime/bun" ] || [ -x "$1/app/runtime/node" ] ||
+  [ -x "$1/app/runtime/spool-native-linux-x64" ] || [ -x "$1/app/runtime/spool-native-darwin-arm64" ]
+}
+if runtime_available "$plugin_root"; then exit 0; fi
 for command in curl tar cmp mktemp; do
   command -v "$command" >/dev/null 2>&1 || { echo "SpoolDB setup needs $command." >&2; exit 1; }
 done
@@ -31,13 +35,13 @@ tar -xzf "$stage/payload.tar.gz" -C "$stage/extracted"
 payload="$stage/extracted/plugins/spooldb"
 cmp "$plugin_root/hooks/hooks.json" "$payload/hooks/hooks.json" >/dev/null || { echo 'SpoolDB payload does not match the reviewed hook definitions.' >&2; exit 1; }
 cmp "$plugin_root/hooks/runtime-profile.json" "$payload/hooks/runtime-profile.json" >/dev/null || { echo 'SpoolDB payload hook fingerprint differs from this plugin.' >&2; exit 1; }
-[ -x "$payload/app/runtime/bun" ] || { echo 'SpoolDB payload has no bundled runtime.' >&2; exit 1; }
+runtime_available "$payload" || { echo 'SpoolDB payload has no bundled runtime.' >&2; exit 1; }
 # mkdir is a portable exclusive lock; retry if another launcher is preparing the payload.
 if mkdir "$plugin_root/.payload-lock" 2>/dev/null; then
  trap 'rmdir "$plugin_root/.payload-lock" 2>/dev/null || :; rm -rf "$stage"' EXIT
  if [ ! -e "$plugin_root/app" ]; then mv "$payload/app" "$plugin_root/app"; fi
 else
  attempts=0
- while [ ! -x "$plugin_root/app/runtime/bun" ] && [ "$attempts" -lt 30 ]; do sleep 1; attempts=$((attempts+1)); done
+ while ! runtime_available "$plugin_root" && [ "$attempts" -lt 30 ]; do sleep 1; attempts=$((attempts+1)); done
 fi
-[ -x "$plugin_root/app/runtime/bun" ] || { echo 'SpoolDB could not finish runtime setup; retry the connection.' >&2; exit 1; }
+runtime_available "$plugin_root" || { echo 'SpoolDB could not finish runtime setup; retry the connection.' >&2; exit 1; }
