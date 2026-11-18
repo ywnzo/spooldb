@@ -31,3 +31,28 @@ test('native bundle changes require review; stable dispatchers and tamper detect
  // Reusing an identity must never overwrite a modified approved dispatcher.
  writeFileSync(join(profile.path,'run.sh'),'modified');assert.throws(()=>installStableHooks(originalInstalledPath,{data:env.XDG_DATA_HOME}));
 });
+
+test('standalone Rust hooks pin executable bytes independently of the companion and UI',{skip:!process.env.SPOOL_TEST_RUST_HOOK},t=>{
+ const base=mkdtempSync(join(tmpdir(),'spool-rust-hook-')),plugin=join(base,'plugin'),repo=join(base,'repo');
+ t.after(()=>rmSync(base,{recursive:true,force:true}));
+ mkdirSync(join(plugin,'app/runtime'),{recursive:true});
+ mkdirSync(join(plugin,'hooks'));
+ mkdirSync(repo);
+ execFileSync('git',['init','-q',repo]);
+ cpSync('plugins/spooldb/hooks/hooks.json',join(plugin,'hooks/hooks.json'));
+ for(const name of ['spool-hook-linux-x64','spool-hook-darwin-arm64'])cpSync(process.env.SPOOL_TEST_RUST_HOOK,join(plugin,'app/runtime',name));
+ const declared=prepareStableHooks(plugin),installed=installStableHooks(plugin,{data:join(base,'data')});
+ const payload=JSON.stringify({cwd:repo,session_id:'native-pinned-hook'});
+ const execute=()=>execFileSync('sh',[join(installed.path,'run.sh'),'SessionStart'],{
+  env:{...process.env,PLUGIN_ROOT:plugin,SPOOL_STATE:join(base,'state')},
+  input:payload,encoding:'utf8',stdio:['pipe','pipe','pipe'],
+ });
+ assert.match(JSON.parse(execute()).hookSpecificOutput.additionalContext,/SpoolDB is optional/);
+ writeFileSync(join(plugin,'app/runtime/spool-native'),'Changed companion binary');
+ assert.equal(hookProfile(plugin).fingerprint,declared.fingerprint);
+ const hook=join(plugin,'app/runtime/spool-hook-linux-x64');
+ const previous=readFileSync(hook);
+ writeFileSync(hook,Buffer.concat([previous,Buffer.from('changed')]));
+ assert.notEqual(hookProfile(plugin).fingerprint,declared.fingerprint);
+ assert.throws(execute,/hook code changed or is incomplete/);
+});

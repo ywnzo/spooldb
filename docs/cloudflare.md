@@ -1,6 +1,6 @@
 # Cloudflare Workers deployment
 
-Cloudflare is an additional relay backend. The self-hosted Node/Bun relay, its CLI, Docker deployment, databases and services remain available. Deploying creates a separate workspace; it does not migrate the existing relay or change clients' project connections.
+Cloudflare runs the Rust relay as WebAssembly in Cloudflare Workers and Durable Objects. Wrangler builds and publishes the Worker. The self-hosted Rust relay uses the same protocol and keeps its own workspace and data. Cloudflare deployment preserves existing Durable Objects and OAuth grants when it targets the same Worker and account.
 
 ## Guided deployment
 
@@ -40,6 +40,20 @@ spool deploy cloudflare --yes --name company-spool \
 Use `--deploy-dir PATH` to store deployment files elsewhere, `--url https://relay.example.com` for a separately configured public origin, and `--no-connect` to avoid offering to save a client connection. `--connect` explicitly enrolls this client after initial setup. Custom domain provisioning is managed through Cloudflare/Wrangler separately; passing `--url` does not create DNS routes.
 
 Deployment receipts are stored under the selected SpoolDB state directory in `deployments/cloudflare/WORKER/`, with mode 0600. They contain a private bootstrap token and may contain the owner invitation; do not publish or commit them. Credentials for Cloudflare itself remain managed by Wrangler. Re-running the same deployment directory preserves the bootstrap capability, namespaces, workspace and data. Only the token's SHA-256 hash is sent in Worker configuration. `/v1/setup` requires the token and cannot mint another owner invitation once an active owner exists. Existing admins invite members through workspace commands.
+
+## Upgrade and roll back an existing relay
+
+Use the existing deployment directory and connect a workspace profile on that relay. If the workspace has projects, keep at least one connected checkout available for a read-only verification. The wizard preserves the Wrangler routes, origin, and bindings, and shows which configuration keys would change. A dry run writes `wrangler.candidate.json` and leaves the active configuration in place.
+
+Before uploading, the wizard records the current Worker version and reads the existing workspace catalog and a project memory record when available. After uploading, it verifies the active version and repeats those reads. Setup can be resumed without uploading again. The prior Worker version remains in the private deployment receipt as `previousVersion`.
+
+If verification fails, use the recorded version ID with Wrangler:
+
+```sh
+wrangler rollback PREVIOUS_VERSION_ID --config PATH_TO_WRANGLER_JSON
+```
+
+Then verify an existing project read and a request from an existing OAuth connection. Rolling back Worker code keeps the Durable Object and OAuth KV namespaces in use. Restore storage separately only when data recovery is required.
 
 ## Storage and authorization
 

@@ -1,6 +1,7 @@
 import {existsSync,lstatSync,readFileSync,readdirSync,writeFileSync,renameSync,rmSync} from 'node:fs';
 import {join,dirname,resolve,basename} from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {execFileSync} from 'node:child_process';
 import {rootRun} from './server-caddy.js';
 import {maintainRelayBackups} from './relay-backups.js';
 const releasePattern=/^((?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*))-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -118,9 +119,26 @@ export function pruneRelayArtifacts(configPath,{run=rootRun,now=Date.now(),dryRu
  }
  return result;
 }
+function retentionBinary(configPath){
+ const config=optional(configPath);
+ if(config?.managedBy!=='SpoolDB'||typeof config.app!=='string'||dirname(resolve(config.app))!==join(dirname(resolve(configPath)),'releases')||!present(config.app)?.isDirectory())return null;
+ const binary=join(config.app,'runtime/spool-native-linux-x64');
+ return regular(binary)?binary:null;
+}
 export function maintainRelayStorage(configPath,options={}){
- const backups=maintainRelayBackups(configPath,options);let artifacts;
- try{artifacts=pruneRelayArtifacts(configPath,{...options,backupPlan:backups});}catch(error){artifacts={errors:[{error:error.message}]};}
+ let backups,artifacts,binary;
+ const mode=options.dryRun?'preview':'prune';
+ try{
+  binary=retentionBinary(configPath);
+  backups=binary?JSON.parse(execFileSync(binary,['relay-backup-retention',configPath,mode],{encoding:'utf8',timeout:120000})):maintainRelayBackups(configPath,options);
+ }catch(error){backups={errors:[{error:error.message}]};}
+ try{
+  if(binary){
+   artifacts=JSON.parse(execFileSync(binary,['relay-artifact-retention',configPath,mode,options.cli??'/usr/local/bin/spool'],{input:JSON.stringify(backups),encoding:'utf8',timeout:120000}));
+   return {...backups,artifacts};
+  }
+  artifacts=pruneRelayArtifacts(configPath,{...options,backupPlan:backups});
+ }catch(error){artifacts={errors:[{error:error.message}]};}
  if(!options.dryRun)try{
   const path=join(dirname(configPath),'relay-updates.json'),state={...(existsSync(path)?read(path):{}),artifactCleanup:{...artifacts,checkedAt:new Date().toISOString()}};
   writeFileSync(path+'.tmp',JSON.stringify(state,null,2)+'\n',{mode:0o600});renameSync(path+'.tmp',path);

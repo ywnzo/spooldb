@@ -2,7 +2,7 @@
 
 Shared project memory for AI coding agents. Preserve conversations, decisions, findings, tasks and handoffs so agents and teammates can pick up where another session stopped.
 
-One relay serves multiple projects and machines. Code stays in Git; memory references files and commits. Codex desktop, terminal and Codex in Zed are supported, with MCP access for other agents.
+One relay serves multiple projects and machines. Code stays in Git, and memory references files and commits. The CLI, desktop companion and both relay backends run in Rust. Codex desktop, terminal and Codex in Zed are supported, with MCP access for other agents.
 
 Ask for context in natural language: self-hosted relays combine local or optional Cloudflare semantic search with exact identifiers and return compact, cited evidence. [How retrieval works](docs/memory.md#semantic-retrieval).
 
@@ -30,7 +30,7 @@ On your computer:
 curl -fsSL https://github.com/ywnzo/spooldb/releases/latest/download/install.sh -o install-spooldb.sh && sh install-spooldb.sh
 ```
 
-Paste the owner invitation when prompted. No Git clone, separate runtime or JSON editing is required. Git is needed for project integration.
+Paste the owner invitation when prompted, then open SpoolDB to finish connecting. A Git checkout is needed for project integration.
 
 Or use **Codex → Plugins → Add marketplace → `ywnzo/spooldb`**, then install **SpoolDB**. Review its hooks and connect using the invitation in chat. The plugin includes the client; [setup details](docs/codex-plugin.md).
 
@@ -52,6 +52,6 @@ The **management UI runs on clients**; the relay serves invitation, download and
 
 [CLI reference](docs/cli.md) · [Server setup](docs/workspaces.md) · [Cloudflare](docs/cloudflare.md) · [Codex plugin](docs/codex-plugin.md) · [MCP and memory](docs/memory.md) · [Architecture and limits](docs/architecture.md)
 
-Early-stage software · MIT license · Linux x86-64/glibc installers; Codex plugin also supports Apple Silicon macOS 13+. Development: `bun install --frozen-lockfile` and `bun run test`.
+Early-stage software · MIT license · Linux x86-64/glibc installers; Codex plugin also supports Apple Silicon macOS 13+. Development: install compatibility-test dependencies with `bun install --frozen-lockfile`, then run `cargo test --locked --manifest-path rust/Cargo.toml`.
 
 Git submodules are supported through commit references. See [submodules](docs/submodules.md). For opt-in daily updates, ask Codex **“Enable automatic SpoolDB updates”** or run `spool update enable`. See [updates](docs/updates.md). Managed VPS relays can opt in with `sudo spool update enable --target relay`; updates include health checks, database rollback and automatic backup, image and release retention.

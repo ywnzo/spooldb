@@ -12,7 +12,7 @@ Only Caddy publishes ports. Memory, certificates and Caddy state live in named v
 
 Manage from the server with `sudo spool server status`, `sudo spool server workspace owner-invite`, and `sudo spool service server restart`. Container logs are available with `sudo docker logs spool-relay` / `sudo docker logs spool-caddy` (substitute `podman` when used). Stop both containers before backing up all three named volumes. Installer reruns rebuild containers while retaining their data; relay upgrades remain manual.
 
-Enter `advanced` instead of a domain to retain the native per-user LAN/custom-proxy setup. That flow asks for workspace name, storage, origin, port and TLS mode, and offers user-service startup through `loginctl enable-linger`. It does not migrate existing native relay data into containers. Source users can run `bun src/server-setup.js` for advanced setup; the automatic container installer needs the self-contained Linux package. Client installation remains `sh spool-linux-x64.run` without `--server`.
+Enter `advanced` instead of a domain to retain the native per-user LAN/custom-proxy setup. That flow asks for workspace name, storage, origin, port and TLS mode, and offers user-service startup through `loginctl enable-linger`. It does not migrate existing native relay data into containers. From a checkout, run `cargo run --manifest-path rust/Cargo.toml -- server setup advanced` for LAN or custom-proxy setup. The automatic container setup uses the self-contained Linux installer. Client installation remains `sh spool-linux-x64.run` without `--server`.
 
 ## Connect clients and create projects
 

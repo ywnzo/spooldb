@@ -1,0 +1,7 @@
+CREATE TABLE IF NOT EXISTS conversation_origins(room TEXT NOT NULL,id TEXT NOT NULL,data TEXT NOT NULL,PRIMARY KEY(room,id));
+CREATE TABLE IF NOT EXISTS memory_state(room TEXT NOT NULL,id TEXT NOT NULL,status TEXT NOT NULL,revision INTEGER NOT NULL,data TEXT NOT NULL,PRIMARY KEY(room,id));
+CREATE TABLE IF NOT EXISTS memory_docs(room TEXT NOT NULL,id TEXT NOT NULL,fingerprint TEXT NOT NULL,kind TEXT NOT NULL,task_id TEXT,title TEXT NOT NULL,text TEXT NOT NULL,data TEXT NOT NULL,seq INTEGER NOT NULL,PRIMARY KEY(room,id));
+CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(room UNINDEXED,id UNINDEXED,title,text,tokenize='unicode61');
+CREATE TABLE IF NOT EXISTS memory_index(room TEXT PRIMARY KEY,heads TEXT NOT NULL,last_seq INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS memory_provenance(room TEXT NOT NULL,event_id TEXT NOT NULL,data TEXT NOT NULL,PRIMARY KEY(room,event_id));
+CREATE TABLE IF NOT EXISTS memory_write_receipts(room TEXT NOT NULL,principal TEXT NOT NULL,request_id TEXT NOT NULL,input TEXT NOT NULL,result TEXT NOT NULL,PRIMARY KEY(room,principal,request_id));

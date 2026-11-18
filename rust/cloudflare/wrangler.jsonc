@@ -1,0 +1,16 @@
+{
+  "name": "spooldb-rust-staging",
+  "main": "entry.js",
+  "compatibility_date": "2026-10-19",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "workers_dev": true,
+  "durable_objects": {
+    "bindings": [
+      {"name": "WORKSPACE", "class_name": "SpoolWorkspace"},
+      {"name": "PROJECTS", "class_name": "SpoolProject"}
+    ]
+  },
+  "migrations": [
+    {"tag": "v1", "new_sqlite_classes": ["SpoolWorkspace", "SpoolProject"]}
+  ]
+}

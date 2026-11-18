@@ -24,21 +24,45 @@ test('real engine runs relay and verified HTTPS, retains memory across installer
   const options={domain:'spool.example.com',bundle,paths,run,checkDNS:async()=>{},firewall:()=>{},checkHTTPS};const first=await configureVPS(options);assert(first.ownerLink);const initial=containerRequest(configPath,{command:'list'},{run});const created=containerRequest(configPath,{command:'create',name:'Persistent project'},{run});assert(created);
   await configureVPS(options);const after=containerRequest(configPath,{command:'list'},{run});assert(JSON.stringify(after).includes('Persistent project'));assert(!JSON.stringify(initial).includes('Persistent project'));
   control=await startRelayControl(configPath,{run,launch:()=>{}});
-  const socketProof=JSON.parse((await promisify(execFile)(engine,['exec','spool-relay','bun','-e',"const {relayAdminRequest}=await import('./src/team/relay-admin.js');let readonly=false;try{require('node:fs').writeFileSync('/run/spool-control/probe','blocked')}catch{readonly=true}console.log(JSON.stringify({uid:process.getuid(),readonly,status:await relayAdminRequest({action:'status'}),dockerSocket:require('node:fs').existsSync('/var/run/docker.sock')}))"],{encoding:'utf8',timeout:15000})).stdout);
-  assert.equal(socketProof.uid,1000);assert.equal(socketProof.readonly,true);assert.equal(socketProof.status.supported,true);assert.equal(socketProof.dockerSocket,false);
+  const probeScript=`readonly=true; docker=false
+if touch /run/spool-control/probe 2>/dev/null; then readonly=false; fi
+if test -e /var/run/docker.sock; then docker=true; fi
+printf '{"uid":%s,"readonly":%s,"dockerSocket":%s}\n' "$(id -u)" "$readonly" "$docker"`;
+  const socketProof=JSON.parse((await promisify(execFile)(engine,['exec','spool-relay','sh','-c',probeScript],{encoding:'utf8',timeout:15000})).stdout);
+  // Keep the in-process control listener responsive while the container waits for its reply.
+  const controlRequest=Bun.spawn([engine,
+   'exec','-i','spool-relay','/app/spool-native','team-host','request','/data'
+  ],{stdin:new Blob([JSON.stringify({command:'relay-admin',action:'status'})]),
+   stdout:'pipe',stderr:'inherit',signal:AbortSignal.timeout(15000)});
+  const reply=await new Response(controlRequest.stdout).text();
+  assert.equal(await controlRequest.exited,0);
+  const maintenance=JSON.parse(reply);
+  assert.equal(socketProof.uid,1000);assert.equal(socketProof.readonly,true);assert.equal(maintenance.supported,true);assert.equal(socketProof.dockerSocket,false);
   // Exercise the same bundle as a newer candidate without downloading a release.
   const installed=JSON.parse(readFileSync(configPath));const packagePath=join(installed.app,'package.json'),pkg=JSON.parse(readFileSync(packagePath));pkg.version='0.0.1';writeFileSync(packagePath,JSON.stringify(pkg));
-  let checks=0;await assert.rejects(applyRelayBundle(configPath,bundle,{run,cli:paths.cli,controlUnits:dir,health:async(...args)=>{if(++checks===2){containerRequest(configPath,{command:'create',name:'Must be rolled back'},{run});throw Error('injected candidate failure');}await checkHTTPS(...args);}}),/Previous relay and memory restored/);
-  assert(JSON.stringify(containerRequest(configPath,{command:'list'},{run})).includes('Persistent project'));assert(!JSON.stringify(containerRequest(configPath,{command:'list'},{run})).includes('Must be rolled back'));
+  let checks=0;await assert.rejects(applyRelayBundle(configPath,bundle,{run,cli:paths.cli,controlUnits:dir,health:async(...args)=>{if(++checks===2){run(engine,['exec','spool-relay','sh','-c','touch /data/spool-rollback-probe']);throw Error('injected candidate failure');}await checkHTTPS(...args);}}),/Previous relay and memory restored/);
+  assert(JSON.stringify(containerRequest(configPath,{command:'list'},{run})).includes('Persistent project'));assert.throws(()=>run(engine,['exec','spool-relay','test','-e','/data/spool-rollback-probe']));
   const expired=join(paths.app,'relay-backups','00000000-0000-4000-8000-000000000001');mkdirSync(expired,{recursive:true});markRelayBackup(expired,{createdAt:'2000-01-01T00:00:00Z'});
   const settings=join(paths.app,'relay-updates.json');writeFileSync(settings,JSON.stringify({...JSON.parse(readFileSync(settings)),artifactRetention:{keep:1,maxAgeDays:30}}));
-  const makeArtifact=()=>{const id=randomUUID(),version='0.0.2',app=join(paths.app,'releases',version+'-'+id),image='localhost/spooldb-relay:'+version+'-'+id;mkdirSync(app);markRelayRelease(app,{image,version,createdAt:'2000-01-01T00:00:00Z'});writeFileSync(join(app,'Containerfile'),'FROM '+installed.image+'\nLABEL dev.spooldb.managed=true dev.spooldb.release='+version+'-'+id+'\n');run(engine,['build','-f',join(app,'Containerfile'),'-t',image,app],{timeout:120000});return {app,image};};
-  const orphan=makeArtifact(),stopped=makeArtifact();run(engine,['create','--name','spool-retention-stopped',stopped.image,'bun','--version']);run(engine,['tag',installed.image,'localhost/spool-retention-unrelated:fixture']);
+  const makeArtifact=()=>{
+   const id=randomUUID(),version='0.0.2',app=join(paths.app,'releases',version+'-'+id);
+   const image='localhost/spooldb-relay:'+version+'-'+id,createdAt='2000-01-01T00:00:00Z';
+   mkdirSync(app);
+   markRelayRelease(app,{image,version,createdAt});
+   writeFileSync(join(app,'Containerfile'),'FROM '+installed.image+'\nLABEL dev.spooldb.managed=true dev.spooldb.release='+version+'-'+id+'\n');
+   const epoch=String(Date.parse(createdAt)/1000);
+   const age=engine.endsWith('/docker')?['--build-arg','SOURCE_DATE_EPOCH='+epoch]:['--timestamp',epoch];
+   run(engine,['build',...age,'-f',join(app,'Containerfile'),'-t',image,app],{timeout:120000});
+   const [info]=JSON.parse(run(engine,['image','inspect',image]));
+   assert.equal(Date.parse(info.Created),Date.parse(createdAt));
+   return {app,image};
+  };
+  const orphan=makeArtifact(),stopped=makeArtifact();run(engine,['create','--name','spool-retention-stopped',stopped.image,'/app/spool-native','--version']);run(engine,['tag',installed.image,'localhost/spool-retention-unrelated:fixture']);
   const updated=await applyRelayBundle(configPath,bundle,{run,cli:paths.cli,controlUnits:dir,health:checkHTTPS});
   assert(!existsSync(expired));assert(existsSync(join(updated.backup,'data','shared.sqlite')));assert(updated.backupCleanup.removed.length>=1);
   assert(JSON.stringify(containerRequest(configPath,{command:'list'},{run})).includes('Persistent project'));
   assert.equal(JSON.parse(readFileSync(configPath)).app===installed.app,false);
-  assert.deepEqual(updated.backupCleanup.artifacts.errors,[]);assert(!existsSync(orphan.app));assert.throws(()=>run(engine,['image','inspect',orphan.image]));assert(existsSync(stopped.app));run(engine,['image','inspect',stopped.image]);run(engine,['image','inspect',installed.image]);assert(existsSync(installed.app));run(engine,['image','inspect','localhost/spool-retention-unrelated:fixture']);
+  assert.deepEqual(updated.backupCleanup.artifacts.errors,[]);assert(!existsSync(orphan.app),'expired unused release should be pruned');assert.throws(()=>run(engine,['image','inspect',orphan.image]));assert(existsSync(stopped.app),'stopped container should protect its release');run(engine,['image','inspect',stopped.image]);run(engine,['image','inspect',installed.image]);assert(existsSync(installed.app));run(engine,['image','inspect','localhost/spool-retention-unrelated:fixture']);
   run(engine,['rm','spool-retention-stopped']);const cleaned=cleanupRelayBackups(configPath,{run});assert.deepEqual(cleaned.artifacts.errors,[]);assert(!existsSync(stopped.app));assert.throws(()=>run(engine,['image','inspect',stopped.image]));assert(existsSync(installed.app));run(engine,['image','inspect',installed.image]);
 
  }finally{await control?.close();for(const name of ['spool-retention-stopped','spool-caddy','spool-relay'])try{rootRun(engine,['rm','-f',name]);}catch{}try{rootRun(engine,['image','rm','localhost/spool-retention-unrelated:fixture']);}catch{}for(const name of ['spool-relay-data','spool-caddy-data','spool-caddy-config'])try{rootRun(engine,['volume','rm',name]);}catch{}try{rootRun(engine,['network','rm','spool-network']);}catch{}rmSync(dir,{recursive:true,force:true});}

@@ -7,10 +7,12 @@ The new storage engine is opt-in. It separates file state and conversation recor
 ```sh
 printf '%s\n' '{"command":"init","branch":"main"}' \
   '{"command":"storage.stats"}' \
-  | bun src/cli.js ./sharded.sqlite --sharded
+  | spool storage ./sharded.sqlite --sharded
 ```
 
-`--sharded` may also be used with `run` and `watch`. Keep that flag on subsequent openings of the same database. Opening it through the legacy engine fails with an explicit layout error. Existing legacy databases stay readable through the original engine; opening one with the sharded engine also fails rather than migrating it. No data is deleted or rewritten by a conversion. There is currently no automatic migration of legacy histories, anchors or bundles.
+The Rust CLI detects the format of an existing database. Use `--legacy` to create a database for a `spool/1` bundle, or `--sharded` for a `spool/2` bundle. Both formats retain their existing histories, anchors and receipts.
+
+Use `spool storage FILE watch ROOT [INTERVAL]` to capture checkout changes, or `spool storage FILE run codex ROOT < prompt.txt` to capture one Codex run. The runner defaults to read-only mode.
 
 Library clients may use the named, typed API:
 

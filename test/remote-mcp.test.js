@@ -10,8 +10,15 @@ const hash=value=>createHash('sha256').update(value).digest('hex'),secret=()=>ra
 const inviteCode=link=>JSON.parse(Buffer.from(new URL(link).pathname.slice(4),'base64url')).code;
 test('remote OAuth MCP in workerd: consent, PKCE, context, handoffs, scope isolation and immediate revocation',async t=>{
  const folder=mkdtempSync(join(tmpdir(),'spool-remote-')),build=join(folder,'bundle'),bootstrap=secret();let mf;
- execFileSync(process.execPath,['node_modules/wrangler/bin/wrangler.js','deploy','--dry-run','--outdir',build],{env:{...process.env,WRANGLER_LOG_PATH:'/tmp/spool-remote-build.log'},stdio:'pipe',timeout:60000});
- let port;const start=()=>new Miniflare({...convertV4MiniflareOptions({...(port?{port}:{}),name:'spool-remote',modules:[{type:'ESModule',path:join(build,'worker.js')},...readdirSync(build).filter(n=>n.endsWith('.wasm')).map(n=>({type:'CompiledWasm',path:join(build,n)}))],modulesRoot:build,compatibilityDate:'2026-10-19',compatibilityFlags:['nodejs_compat','global_fetch_strictly_public'],kvNamespaces:['OAUTH_KV'],durableObjects:{WORKSPACE:{className:'SpoolWorkspace',useSQLite:true},PROJECTS:{className:'SpoolProject',useSQLite:true}},bindings:{BOOTSTRAP_TOKEN_HASH:hash(bootstrap)}}),resourcePersistencePath:folder,isolatedResourcePersistencePath:folder});
+ const alternate=process.env.SPOOL_RUST_WORKER_CONFIG,alternateBuild=join(folder,'rust-bundle');
+ const buildWorker=(directory,config)=>execFileSync(process.execPath,['node_modules/wrangler/bin/wrangler.js','deploy','--dry-run','--outdir',directory,...(config?['--config',config]:[])],{env:{...process.env,WRANGLER_LOG_PATH:join(folder,'wrangler.log')},stdio:'pipe',timeout:60000});
+ buildWorker(build);
+ if(alternate)buildWorker(alternateBuild,alternate);
+ let port,useRust=false;
+ const start=()=>{
+  const directory=useRust?alternateBuild:build;
+  return new Miniflare({...convertV4MiniflareOptions({...(port?{port}:{}),name:'spool-remote',modules:[{type:'ESModule',path:join(directory,useRust?'entry.js':'worker.js')},...readdirSync(directory).filter(n=>n.endsWith('.wasm')).map(n=>({type:'CompiledWasm',path:join(directory,n)}))],modulesRoot:directory,compatibilityDate:'2026-10-19',compatibilityFlags:['nodejs_compat','global_fetch_strictly_public'],kvNamespaces:['OAUTH_KV'],durableObjects:{WORKSPACE:{className:'SpoolWorkspace',useSQLite:true},PROJECTS:{className:'SpoolProject',useSQLite:true}},bindings:{BOOTSTRAP_TOKEN_HASH:hash(bootstrap)}}),resourcePersistencePath:folder,isolatedResourcePersistencePath:folder});
+ };
  mf=start();t.after(async()=>{await mf.dispose();rmSync(folder,{recursive:true,force:true});});let origin=new URL(await mf.ready).origin;port=Number(new URL(origin).port);
  const request=async(path,body,headers={},status=200)=>{const r=await fetch(origin+path,{method:body?'POST':'GET',headers:{'content-type':'application/json',...headers},...(body?{body:typeof body==='string'?body:JSON.stringify(body)}:{}),redirect:'manual'});const text=await r.text();assert.equal(r.status,status,text);return {r,text,data:r.headers.get('content-type')?.includes('json')?JSON.parse(text):null};};
  const unauthorized=await request('/mcp',{jsonrpc:'2.0',id:1,method:'initialize'},{},401);assert.match(unauthorized.r.headers.get('www-authenticate'),/resource_metadata/);
@@ -45,6 +52,12 @@ test('remote OAuth MCP in workerd: consent, PKCE, context, handoffs, scope isola
   const tokens=await token(params);assert.ok(tokens.access_token);return tokens;
  };
  let tokens=await authorize();
+ if(alternate){
+  await mf.dispose();useRust=true;mf=start();assert.equal(new URL(await mf.ready).origin,origin);
+  await request('/_spool/oauth-mcp',{jsonrpc:'2.0',id:1,method:'tools/list'},
+   {'x-spool-oauth-context':JSON.stringify({connection:{kind:'workspace',token:owner.token},scopes:['memory:read'],userId:'forged'})},404);
+ }
+
  let id=0;const mcp=async(method,params={},access=tokens.access_token,status=200)=>(await request('/mcp',{jsonrpc:'2.0',id:++id,method,params},{authorization:'Bearer '+access},status)).data;
  const initialized=await mcp('initialize',{protocolVersion:'2025-11-25'});assert.equal(initialized.result.serverInfo.name,'spool-project-memory');assert.match(initialized.result.instructions,/SpoolDB is optional/);assert.match(initialized.result.instructions,/reuse those results/);assert.doesNotMatch(initialized.result.instructions,/Retrieve project_context before working/);
  const list=await mcp('tools/list');assert.equal(list.result.tools.length,9);assert.ok(!list.result.tools.some(t=>t.name==='file_read'));assert.equal(list.result.tools.find(t=>t.name==='handoff').securitySchemes[0].type,'oauth2');
@@ -88,5 +101,14 @@ test('remote OAuth MCP in workerd: consent, PKCE, context, handoffs, scope isola
  const members=await ws({command:'project-members',room:project.room});const active=members.members.find(m=>m.label==='Cloud MCP · Test cloud client');assert.ok(active);await ws({command:'revoke-project-member',room:project.room,memberId:active.id});await tool('project_context',{},tokens.access_token,401);await token({grant_type:'refresh_token',client_id:client.client_id,refresh_token:tokens.refresh_token,resource:origin+'/mcp'},400);
  await request('/mcp',{jsonrpc:'2.0',id:1,method:'tools/list'},{authorization:'Bearer '+read.access_token,origin:'https://evil.test'},403);
  await mf.dispose();mf=start();assert.equal(new URL(await mf.ready).origin,origin);await tool('project_context',{},read.access_token);await tool('project_context',{project:future.room},readonly.access_token);await tool('project_context',{},tokens.access_token,401);
+ if(alternate){
+  await mf.dispose();useRust=false;mf=start();
+  assert.equal(new URL(await mf.ready).origin,origin);
+  await tool('project_context',{},read.access_token);
+  await tool('project_context',{project:future.room},readonly.access_token);
+  const afterRollback=await token({grant_type:'refresh_token',client_id:client.client_id,
+   refresh_token:read.refresh_token,resource:origin+'/mcp'});
+  await tool('project_context',{},afterRollback.access_token);
+ }
  const persisted=await request('/v1/rooms/'+project.room+'/memory',{command:'get',id:handoff.id},{authorization:'Bearer '+native.token});assert.equal(persisted.data.kind,'handoff');
 });

@@ -1,0 +1,794 @@
+[
+  {
+    "name": "project_list",
+    "description": "List projects this connection can access. Select the project matching the current repository; ask if ambiguous. Pass its ID as project on every memory call. Never infer a target from another chat.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "memory:read"
+        ]
+      }
+    ],
+    "_meta": {
+      "securitySchemes": [
+        {
+          "type": "oauth2",
+          "scopes": [
+            "memory:read"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "project_context",
+    "description": "Retrieve relevant project evidence using a natural-language description of the current task. Local relays combine semantic and exact-word retrieval. Check retrieval.semanticStatus for model readiness, read memory_get only for missing detail or provenance, and check Git reconciliation before trusting code claims. Reuse sufficient context until the task or repository changes.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "project": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 180,
+          "description": "Project ID from project_list (or an unambiguous exact project name). Required for workspace connections. Use the project for the repository currently being worked on."
+        },
+        "taskId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "query": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "includeArchived": {
+          "type": "boolean",
+          "description": "Include archived, resolved and superseded records and completed tasks. Uses keyword retrieval; full sources remain available with memory_get."
+        },
+        "compact": {
+          "type": "boolean",
+          "description": "Defaults to true: budgeted source cards. Read memory_get only for missing detail; false returns the full search envelope."
+        },
+        "maxChars": {
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 24000,
+          "description": "Compact response character budget; default 6000. This is not a model-specific token count."
+        },
+        "mode": {
+          "enum": [
+            "hybrid",
+            "keyword"
+          ],
+          "description": "Default hybrid ranks a bounded candidate set. Keyword mode retains exhaustive lexical pagination."
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "memory:read"
+        ]
+      }
+    ],
+    "_meta": {
+      "securitySchemes": [
+        {
+          "type": "oauth2",
+          "scopes": [
+            "memory:read"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "memory_search",
+    "description": "Describe what you need in natural language; no keyword engineering required. Combines local semantic search with exact identifiers when embeddings are ready. Returns compact source cards, citations, pagination and explicit retrieval status; use memory_get for details.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "project": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 180,
+          "description": "Project ID from project_list (or an unambiguous exact project name). Required for workspace connections. Use the project for the repository currently being worked on."
+        },
+        "query": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "taskId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "kinds": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "conversation",
+              "task",
+              "finding",
+              "decision",
+              "blocker",
+              "handoff"
+            ]
+          },
+          "maxItems": 6
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 30
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "includeArchived": {
+          "type": "boolean",
+          "description": "Include archived, resolved and superseded records and completed tasks. Uses keyword retrieval; full sources remain available with memory_get."
+        },
+        "compact": {
+          "type": "boolean",
+          "description": "Defaults to true: budgeted source cards. Read memory_get only for missing detail; false returns the full search envelope."
+        },
+        "maxChars": {
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 24000,
+          "description": "Compact response character budget; default 6000. This is not a model-specific token count."
+        },
+        "mode": {
+          "enum": [
+            "hybrid",
+            "keyword"
+          ],
+          "description": "Default hybrid ranks a bounded candidate set. Keyword mode retains exhaustive lexical pagination."
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "memory:read"
+        ]
+      }
+    ],
+    "_meta": {
+      "securitySchemes": [
+        {
+          "type": "oauth2",
+          "scopes": [
+            "memory:read"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "memory_get",
+    "description": "Retrieve a cited memory/conversation record, including provenance, Git references and Git references (checkout reconciliation requires a local companion). Text is paginated; follow nextOffset for long records.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "project": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 180,
+          "description": "Project ID from project_list (or an unambiguous exact project name). Required for workspace connections. Use the project for the repository currently being worked on."
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20000
+        },
+        "sourceProject": {
+          "enum": [
+            "current",
+            "parent"
+          ],
+          "description": "Choose parent to read a cited parent result."
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "memory:read"
+        ]
+      }
+    ],
+    "_meta": {
+      "securitySchemes": [
+        {
+          "type": "oauth2",
+          "scopes": [
+            "memory:read"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "memory_update",
+    "description": "Archive, restore, resolve or supersede a cited record without deleting its history. First read memory_get and pass lifecycle.revision. Explain the evidence; do not archive solely because similarity is low.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "project": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 180,
+          "description": "Project ID from project_list (or an unambiguous exact project name). Required for workspace connections. Use the project for the repository currently being worked on."
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "action": {
+          "enum": [
+            "archive",
+            "restore",
+            "resolve",
+            "supersede"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "expectedRevision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "replacementId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "resolveIds": {
+          "type": "array",
+          "maxItems": 30,
+          "items": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        },
+        "requestId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "Stable retry key."
+        }
+      },
+      "required": [
+        "id",
+        "action",
+        "reason",
+        "expectedRevision"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "memory:read",
+          "memory:write"
+        ]
+      }
+    ],
+    "_meta": {
+      "securitySchemes": [
+        {
+          "type": "oauth2",
+          "scopes": [
+            "memory:read",
+            "memory:write"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "task_update",
+    "description": "Create, claim, progress or complete a meaningful shared task when work or a concrete continuation warrants it; skip routine replies and generic session placeholders. Use a specific title, current status and actionable summary. Use the current revision from lifecycle context or the latest successful update; retrieve it if missing or after a conflict. expectedRevision=0 creates it. Stale writes fail rather than replacing another agent’s work.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "project": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 180,
+          "description": "Project ID from project_list (or an unambiguous exact project name). Required for workspace connections. Use the project for the repository currently being worked on."
+        },
+        "taskId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 12000
+        },
+        "status": {
+          "enum": [
+            "open",
+            "in_progress",
+            "blocked",
+            "done"
+          ]
+        },
+        "expectedRevision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "resolveIds": {
+          "type": "array",
+          "maxItems": 30,
+          "items": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        },
+        "supersedes": {
+          "type": "array",
+          "maxItems": 30,
+          "items": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "description": "IDs superseded by this evidence; history is preserved."
+        },
+        "resolves": {
+          "type": "array",
+          "maxItems": 30,
+          "items": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "description": "IDs resolved by this verified evidence."
+        },
+        "files": {
+          "type": "array",
+          "maxItems": 30,
+          "items": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "description": "Project-relative paths; shared memory stores Git references, not files."
+        },
+        "commits": {
+          "type": "array",
+          "maxItems": 30,
+          "items": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "description": "Relevant full Git commit IDs."
+        },
+        "refs": {
+          "type": "array",
+          "maxItems": 30,
+          "items": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "description": "Source IDs from this project."
+        },
+        "requestId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "Stable retry key."
+        }
+      },
+      "required": [
+        "taskId",
+        "title",
+        "text",
+        "status",
+        "expectedRevision"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "memory:read",
+          "memory:write"
+        ]
+      }
+    ],
+    "_meta": {
+      "securitySchemes": [
+        {
+          "type": "oauth2",
+          "scopes": [
+            "memory:read",
+            "memory:write"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "remember",
+    "description": "Save a verified useful finding, decision or blocker with evidence. Reuse existing records; omit routine progress.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "project": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 180,
+          "description": "Project ID from project_list (or an unambiguous exact project name). Required for workspace connections. Use the project for the repository currently being worked on."
+        },
+        "taskId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "kind": {
+          "enum": [
+            "finding",
+            "decision",
+            "blocker"
+          ]
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 12000
+        },
+        "supersedes": {
+          "type": "array",
+          "maxItems": 30,
+          "items": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "description": "IDs superseded by this evidence; history is preserved."
+        },
+        "resolves": {
+          "type": "array",
+          "maxItems": 30,
+          "items": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "description": "IDs resolved by this verified evidence."
+        },
+        "files": {
+          "type": "array",
+          "maxItems": 30,
+          "items": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "description": "Project-relative paths; shared memory stores Git references, not files."
+        },
+        "commits": {
+          "type": "array",
+          "maxItems": 30,
+          "items": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "description": "Relevant full Git commit IDs."
+        },
+        "refs": {
+          "type": "array",
+          "maxItems": 30,
+          "items": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "description": "Source IDs from this project."
+        },
+        "requestId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "Stable retry key."
+        }
+      },
+      "required": [
+        "kind",
+        "title",
+        "text"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "memory:read",
+          "memory:write"
+        ]
+      }
+    ],
+    "_meta": {
+      "securitySchemes": [
+        {
+          "type": "oauth2",
+          "scopes": [
+            "memory:read",
+            "memory:write"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "handoff",
+    "description": "Update the current task handoff only when results, verification, next steps or blockers materially change. Same-task, same-author saves supersede the prior active handoff while preserving history; identical evidence is a no-op. Keep the replacement self-contained. Skip routine replies and unchanged status. This does not mark the task done. Keep title, summary, next steps and blockers within 2,000 characters combined (summary at most 1,500; title 120; at most 3 next steps and 3 blockers, 160 characters each). Aim for a short status, essential validation and the next action. Save detailed evidence/runbooks as separate findings or decisions and cite their IDs in refs. Do not repeat the conversation or split one recap across multiple handoffs.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "project": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 180,
+          "description": "Project ID from project_list (or an unambiguous exact project name). Required for workspace connections. Use the project for the repository currently being worked on."
+        },
+        "taskId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1500
+        },
+        "nextSteps": {
+          "type": "array",
+          "maxItems": 3,
+          "items": {
+            "type": "string",
+            "maxLength": 160
+          }
+        },
+        "blockers": {
+          "type": "array",
+          "maxItems": 3,
+          "items": {
+            "type": "string",
+            "maxLength": 160
+          }
+        },
+        "supersedes": {
+          "type": "array",
+          "maxItems": 30,
+          "items": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "description": "IDs superseded by this evidence; history is preserved."
+        },
+        "resolves": {
+          "type": "array",
+          "maxItems": 30,
+          "items": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "description": "IDs resolved by this verified evidence."
+        },
+        "files": {
+          "type": "array",
+          "maxItems": 30,
+          "items": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "description": "Project-relative paths; shared memory stores Git references, not files."
+        },
+        "commits": {
+          "type": "array",
+          "maxItems": 30,
+          "items": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "description": "Relevant full Git commit IDs."
+        },
+        "refs": {
+          "type": "array",
+          "maxItems": 30,
+          "items": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "description": "Source IDs from this project."
+        },
+        "requestId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "Stable retry key."
+        }
+      },
+      "required": [
+        "taskId",
+        "title",
+        "text",
+        "nextSteps"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "memory:read",
+          "memory:write"
+        ]
+      }
+    ],
+    "_meta": {
+      "securitySchemes": [
+        {
+          "type": "oauth2",
+          "scopes": [
+            "memory:read",
+            "memory:write"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "delete_conversations",
+    "description": "Preview removal of shared conversations for one project. Requires project admin access. After explicit user authorization, pass confirm:true and the preview deletionToken. Other memory and local chats stay. Optional sessionId limits deletion to one captured conversation.",
+    "inputSchema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "project"
+      ],
+      "properties": {
+        "project": {
+          "type": "string"
+        },
+        "sessionId": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "confirm": {
+          "type": "boolean"
+        },
+        "deletionToken": {
+          "type": "string"
+        },
+        "requestId": {
+          "type": "string"
+        }
+      }
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": true
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "memory:read",
+          "memory:write"
+        ]
+      }
+    ],
+    "_meta": {
+      "securitySchemes": [
+        {
+          "type": "oauth2",
+          "scopes": [
+            "memory:read",
+            "memory:write"
+          ]
+        }
+      ]
+    }
+  }
+]

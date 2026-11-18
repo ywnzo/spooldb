@@ -4,6 +4,7 @@ import {tmpdir} from 'node:os';
 import {resolve,join} from 'node:path';
 import {createInterface} from 'node:readline';
 import assert from 'node:assert/strict';
+import {discoveryRequest} from '../src/discovery-request.js';
 const plugin=resolve(process.argv[2]??'work/plugin-marketplace/plugins/spooldb');
 const temporary=mkdtempSync(join(tmpdir(),'spool-native-smoke-')),state=join(temporary,'state'),root=join(temporary,'repo');mkdirSync(root);execFileSync('git',['init','-q',root]);
 const env={...process.env,PLUGIN_ROOT:plugin,SPOOL_STATE:state,XDG_DATA_HOME:join(temporary,'data'),XDG_CONFIG_HOME:join(temporary,'config'),XDG_STATE_HOME:join(temporary,'xdg-state')};
@@ -19,10 +20,21 @@ try{
  const tools=await request('tools/list',{});assert.ok(tools.tools.some(tool=>tool.name==='spool_setup'));
  const status=await request('tools/call',{name:'spool_setup',arguments:{action:'status'}});assert.ok(!status.isError);assert.equal(status.structuredContent.status,'pending');
  assert.equal(existsSync(join(state,'p/project.json')),false);
+ const target=process.platform+'-'+process.arch;
+ if(existsSync(join(plugin,'app/runtime','spool-native-'+target))){
+  const service=JSON.parse(readFileSync(join(state,'service.json'),'utf8'));
+  assert.equal(service.backend,'rust');
+  const response=await fetch(service.origin+'/healthz',{signal:AbortSignal.timeout(5000)});
+  assert.deepEqual(await response.json(),{ok:true,protocol:'spool-relay/1'});
+  const discovery=await discoveryRequest(state,{command:'list'});
+  assert.deepEqual(discovery.entries,[]);
+  assert.equal(discovery.companion.protocol,'spool-companion/1');
+  assert.equal(discovery.origin,service.origin);
+ }
  const hooks=JSON.parse(readFileSync(join(plugin,'hooks/runtime-profile.json')));
  const dispatcher=join(env.XDG_DATA_HOME,'spool/codex-hooks',hooks.fingerprint,'run.sh');
  const hook=JSON.parse(execFileSync('sh',[dispatcher,'SessionStart'],{cwd:root,env,input:JSON.stringify({cwd:root,session_id:'native-smoke'}),encoding:'utf8',timeout:30000}));
- assert.ok(!/unavailable/i.test(hook.systemMessage??''));
+ assert.match(hook.hookSpecificOutput?.additionalContext??'',/SpoolDB is optional/);
  console.log(JSON.stringify({platform:process.platform+'-'+process.arch,mcp:'ready',hook:'ready',setup:'pending',tools:tools.tools.length}));
 }finally{
  clearTimeout(timeout);child.stdin.end();child.kill();

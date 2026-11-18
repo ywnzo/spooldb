@@ -24,3 +24,56 @@ test('real backup script excludes rebuildable model weights and restores memory 
  try{volumeAction({engine:'engine',image:'image'},backup,'snapshot',{run});expect(fs.existsSync(join(backup,'data/models'))).toBe(false);expect(readFileSync(join(backup,'data/memory'),'utf8')).toBe('before');expect(JSON.parse(readFileSync(join(backup,'owners.json'))).some(([path])=>path.startsWith('/models'))).toBe(false);
  writeFileSync(join(data,'memory'),'after');writeFileSync(join(data,'models/weights'),'current cache');volumeAction({engine:'engine',image:'image'},backup,'restore',{run});expect(readFileSync(join(data,'memory'),'utf8')).toBe('before');expect(readFileSync(join(data,'models/weights'),'utf8')).toBe('current cache');}finally{rmSync(root,{recursive:true,force:true});}
 });
+
+test('legacy upgrade starts and checks the Rust relay through the candidate configuration',async()=>{
+ const f=fixture(),calls=[];
+ try{
+  mkdirSync(join(f.bundle,'rust'));
+  const files={};
+  for(const name of ['Cargo.toml','Cargo.lock']){
+   const path='rust/'+name;
+   writeFileSync(join(f.bundle,path),name);
+   files[path]=new Bun.CryptoHasher('sha256').update(name).digest('hex');
+  }
+  writeFileSync(join(f.bundle,'manifest.json'),JSON.stringify({version:'0.4.13',files}));
+  const run=(_,args)=>{
+   calls.push(args);
+   if(args[0]==='exec')return args.includes('-i')?'{}':JSON.stringify({version:'0.4.13',updating:true});
+   return '';
+  };
+  await applyRelayBundle(f.config,f.bundle,{requireRoot:false,run,health:async()=>{},cli:f.cli});
+  const updated=JSON.parse(readFileSync(f.config));
+  expect(updated.relayBackend).toBe('rust');
+  expect(readFileSync(join(updated.app,'Containerfile'),'utf8')).toContain('cargo build --release --locked');
+  const create=calls.find(args=>args[0]==='create');
+  expect(create).toContain('/app/spool-native');
+  expect(calls).toContainEqual(['exec','-i','spool-relay','/app/spool-native','team-host','request','/data']);
+  expect(calls.find(args=>args[0]==='run')).toContain('old-image');
+ }finally{
+  rmSync(f.root,{recursive:true,force:true});
+ }
+});
+
+test('published relay bundles build the image from the prebuilt Rust binary',async()=>{
+ const f=fixture();
+ try{
+  const binary='runtime/spool-relay-linux-x64';
+  mkdirSync(join(f.bundle,'runtime'));
+  writeFileSync(join(f.bundle,binary),'fixture');
+  const {createHash}=await import('node:crypto');
+  writeFileSync(join(f.bundle,'manifest.json'),JSON.stringify({
+   version:'0.4.13',files:{[binary]:createHash('sha256').update('fixture').digest('hex')},
+  }));
+  let containerfile;
+  const run=(command,args)=>{
+   if(args[0]==='build')containerfile=readFileSync(args[args.indexOf('-f')+1],'utf8');
+   if(args[0]==='exec') return args.includes('-i')?'{}':JSON.stringify({version:'0.4.13',updating:true});
+   return '';
+  };
+  const result=await applyRelayBundle(f.config,f.bundle,{requireRoot:false,run,health:async()=>{},cli:f.cli});
+  expect(result.updated).toBe(true);
+  expect(JSON.parse(readFileSync(f.config)).relayBackend).toBe('rust');
+  expect(containerfile).toContain('COPY runtime/spool-relay-linux-x64 ./spool-native');
+  expect(containerfile).not.toContain('cargo build');
+ }finally{rmSync(f.root,{recursive:true,force:true});}
+});

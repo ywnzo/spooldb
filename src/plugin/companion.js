@@ -31,3 +31,31 @@ export async function ensureCompanion(state,{timeout=20000,request=discoveryRequ
   throw Error('SpoolDB companion did not start; check its private plugin-companion.log');
  }catch(error){if(transition?.rollback)try{transition.rollback();}catch{}release();throw error;}finally{if(own)rmSync(lock,{force:true});}
 }
+
+export async function ensureNativeCompanion(state,binary,{timeout=20000}={}){
+ mkdirSync(state,{recursive:true,mode:0o700});
+ const receipt=join(state,'service.json');
+ const ready=async()=>{
+  try{
+   const {origin,pid}=JSON.parse(readFileSync(receipt));
+   if(!/^http:\/\/127\.0\.0\.1:\d{1,5}$/.test(origin)||!isAlive(pid))return false;
+   const response=await fetch(origin+'/healthz',{signal:AbortSignal.timeout(700),redirect:'error'});
+   const status=await response.json();
+   return response.ok&&status.ok===true&&status.protocol==='spool-relay/1';
+  }catch{return false;}
+ };
+ if(await ready())return;
+ const log=openSync(join(state,'plugin-companion.log'),'a',0o600);
+ try{
+  const child=spawn(binary,['companion','start'],{
+   detached:true,stdio:['ignore',log,log],env:{...process.env,SPOOL_STATE:state},
+  });
+  child.on('error',()=>{});child.unref();
+ }finally{closeSync(log);}
+ const deadline=Date.now()+timeout;
+ while(Date.now()<deadline){
+  if(await ready())return;
+  await delay(100);
+ }
+ throw Error('SpoolDB companion did not start. See plugin-companion.log in its state directory.');
+}
