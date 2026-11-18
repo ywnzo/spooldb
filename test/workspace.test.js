@@ -2,7 +2,7 @@ import {runHook} from '../src/codex-hooks.js';
 import {filterLegacyPlaceholders} from '../src/team/client.js';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtempSync,mkdirSync,writeFileSync,rmSync} from 'node:fs';
+import {mkdtempSync,mkdirSync,readFileSync,symlinkSync,writeFileSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {execFileSync} from 'node:child_process';
@@ -155,4 +155,72 @@ test('private lifecycle checkpoints can promote and finish shared tasks without 
  const response=await fetch(host.origin+'/v1/rooms/'+project.room+'/memory',{method:'POST',headers:{authorization:'Bearer '+connection.token,'content-type':'application/json'},body:JSON.stringify({command:'task_update',taskId:'session-task',expectedRevision:2,status:'in_progress',title:'Colleague update',text:'Concurrent update',requestId:'external'})});assert.equal(response.status,200);
  await assert.rejects(()=>write({expectedRevision:local.revision,status:'done',text:'Stale private completion',requestId:'conflicting'}),/Task changed/);
  host.relay.memory.index(project.room);const text=host.relay.engine.db.prepare('SELECT text FROM memory_docs WHERE room=?').all(project.room).map(r=>r.text).join('\n');assert.ok(!text.includes('PRIVATE-PROMOTION'));assert.equal(host.relay.memory.run(project.room,{command:'context',taskId:'session-task'}).tasks[0].title,'Colleague update');
+});
+
+test('advanced server setup provisions the Rust service and supports local administration',{skip:!process.env.SPOOL_TEST_RUST_HOST},async t=>{
+ const {configureServer,nativeHostCommand}=await import('../src/server-setup.js');
+ const base=mkdtempSync(join(tmpdir(),'spool-native-setup-'));
+ t.after(()=>rmSync(base,{recursive:true,force:true}));
+ const app=join(base,'app'),paths={data:join(base,'data'),config:join(base,'config'),state:join(base,'state')};
+ mkdirSync(join(app,'runtime'),{recursive:true});
+ symlinkSync(process.env.SPOOL_TEST_RUST_HOST,join(app,'runtime/spool-native-linux-x64'));
+ const result=await configureServer({state:join(base,'server'),app,workspaceName:'Native workspace',
+  publicOrigin:'https://relay.example.test',paths,activate:false});
+ assert.match(result.ownerLink,/^spool:\/\/workspace\/v1\//);
+ assert.equal(JSON.parse(readFileSync(join(result.state,'server.json'),'utf8')).backend,'rust');
+ assert.match(readFileSync(result.unit,'utf8'),/spool-native-linux-x64" "team-host" "start"/);
+ const request=input=>nativeHostCommand(result.state,input,app);
+ const {project}=request({command:'create',name:'Native project'});
+ assert.deepEqual(request({command:'list'}).projects,[{...project,members:[]}]);
+ assert.match(request({command:'create-invite',room:project.room,label:'Test writer'}).browserLink,/^https:\/\/relay\.example\.test\/join#/);
+ assert.equal(request({command:'workspace-init',name:'Retry'}).alreadyConfigured,true);
+});
+
+test('advanced server setup upgrades a private TLS relay while keeping its certificate and invitations',{skip:!process.env.SPOOL_TEST_RUST_HOST},async t=>{
+ const {configureServer,nativeHostCommand}=await import('../src/server-setup.js');
+ const {spawn}=await import('node:child_process');
+ const {once}=await import('node:events');
+ const {createInterface}=await import('node:readline');
+ const base=mkdtempSync(join(tmpdir(),'spool-native-tls-'));
+ t.after(()=>rmSync(base,{recursive:true,force:true}));
+ const app=join(base,'app'),state=join(base,'server'),paths={data:join(base,'data'),config:join(base,'config'),state:join(base,'state')};
+ mkdirSync(join(app,'runtime'),{recursive:true});
+ const binary=process.env.SPOOL_TEST_RUST_HOST;
+ symlinkSync(binary,join(app,'runtime/spool-native-linux-x64'));
+ const old=await startTeamHost(state,{port:0,tls:true,embeddings:null});
+ let previous,origin=old.origin;
+ try{previous=old.command({command:'workspace-init',name:'Private workspace'});}
+ finally{await old.close();}
+ const port=Number(new URL(origin).port);
+ const pinned=readFileSync(join(state,'relay.crt'),'utf8');
+ const configured=await configureServer({state,app,workspaceName:'Private workspace',publicOrigin:origin,port,paths,tls:true,activate:false});
+ assert.equal(configured.alreadyConfigured,true);
+ assert.equal(readFileSync(join(state,'relay.crt'),'utf8'),pinned);
+ const issued=nativeHostCommand(state,{command:'workspace-owner-invite'},app);
+ assert.equal(parseWorkspaceLink(previous.link).ca,pinned);
+ assert.equal(parseWorkspaceLink(issued.link).ca,pinned);
+ const relay=spawn(binary,['team-host','start',state,'--port='+port],{stdio:['ignore','pipe','inherit']});
+ const exited=once(relay,'exit');
+ try{
+  const lines=createInterface({input:relay.stdout});
+  try{
+   const [line]=await Promise.race([once(lines,'line'),exited.then(()=>{throw Error('Private Rust relay exited early');})]);
+   assert.equal(line,'127.0.0.1:'+port);
+  }finally{lines.close();}
+  const oldInvite=await workspaceRequest(parseWorkspaceLink(previous.link),'preview');
+  assert.equal(oldInvite.workspace.name,'Private workspace');
+  const output=JSON.parse(execFileSync(binary,['workspace-invite'],{input:issued.link,encoding:'utf8',timeout:10000}));
+  assert.equal(output.workspace.name,'Private workspace');
+  await assert.rejects(fetch(origin+'/healthz',{signal:AbortSignal.timeout(2000)}));
+  const {localCertificate}=await import('../src/team/tls.js');
+  const other=join(base,'unrelated-pin');mkdirSync(other,{mode:0o700});
+  const mismatched={...parseWorkspaceLink(issued.link),ca:localCertificate(other).ca};
+  const input='spool://workspace/v1/'+Buffer.from(JSON.stringify(mismatched)).toString('base64url');
+  const denied=Bun.spawnSync([binary,'workspace-invite'],{stdin:Buffer.from(input)});
+  assert.notEqual(denied.exitCode,0);
+  assert.equal(denied.stdout.length,0);
+ }finally{
+  relay.kill();
+  await exited;
+ }
 });

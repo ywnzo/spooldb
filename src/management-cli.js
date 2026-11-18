@@ -8,7 +8,7 @@ import {execFileSync} from 'node:child_process';
 import {randomUUID} from 'node:crypto';
 import {desktopPaths,defaultState} from './desktop/paths.js';
 import {WorkspaceClient} from './team/workspace-client.js';
-import {hostRequest} from './team/host.js';
+import {nativeHostCommand} from './server-setup.js';
 import {containerRequest} from './server-vps.js';
 import {enableDiscovery} from './discovery-install.js';
 import {projectRequest} from './project.js';
@@ -20,7 +20,7 @@ Usage: spool COMMAND [--state DIR] [--json]
                                               Daily opt-in updates; run without a subcommand to update now
   plugin install                              Install the self-contained Codex plugin
   init                                        Connect the current Git project interactively
-  deploy cloudflare [--dry-run | --resume] [--name NAME] [--account-id ID]
+  deploy cloudflare [--dry-run | --resume] [--name NAME] [--account-id ID] [--backend rust|bun] [--workers-ai]
   discovery enable | list
   discovery propose|preview|approve|ignore FOLDER [--room ROOM | --create] [--name NAME] [--workspace NAME]
   status                                      Local capture status
@@ -58,21 +58,25 @@ Local project operations use the running companion, starting an installed compan
 Use --server-state DIR for server-local administration; Unix socket ownership is required.
 Invites are prompted for, read from a file or stdin; avoid putting them in shell history.
 The server exposes an API, not a hosted administration dashboard. The local UI and CLI use that API.`;
-export function parseManagementArgs(args){const options={},words=[];const flags=new Set(['json','invite-stdin','allow-create','no-create','no-capture','no-agents','help','text-stdin','yes','dry-run','resume','connect','no-connect']);for(let i=0;i<args.length;i++){const value=args[i];if(value.startsWith('--')){const [key,inline]=value.slice(2).split(/=(.*)/s,2);if(['file','ref','next-step','blocker','resolve-id'].includes(key)){const next=inline??args[++i];if(!next||next.startsWith('--'))throw new Error('Missing value for --'+key);(options[key]??=[]).push(next);}else if(flags.has(key)){if(inline!==undefined)throw new Error('Unexpected value for --'+key);options[key]=true;}else{if(!['state','server-state','invite-file','device','label','role','request-id','project','root','workspace','task','local-url','title','text-file','kind','revision','status','offset','limit','room','name','account-id','workspace-name','deploy-dir','url','target','mode'].includes(key))throw new Error('Unknown option --'+key);const next=inline??args[++i];if(!next||next.startsWith('--'))throw new Error('Missing value for --'+key);options[key]=next;}}else words.push(value);}return {options,words};}
+export function parseManagementArgs(args){const options={},words=[];const flags=new Set(['json','invite-stdin','allow-create','no-create','no-capture','no-agents','help','text-stdin','yes','dry-run','resume','connect','no-connect','workers-ai','no-workers-ai']);for(let i=0;i<args.length;i++){const value=args[i];if(value.startsWith('--')){const [key,inline]=value.slice(2).split(/=(.*)/s,2);if(['file','ref','next-step','blocker','resolve-id'].includes(key)){const next=inline??args[++i];if(!next||next.startsWith('--'))throw new Error('Missing value for --'+key);(options[key]??=[]).push(next);}else if(flags.has(key)){if(inline!==undefined)throw new Error('Unexpected value for --'+key);options[key]=true;}else{if(!['state','server-state','invite-file','device','label','role','request-id','project','root','workspace','task','local-url','title','text-file','kind','revision','status','offset','limit','room','name','account-id','workspace-name','deploy-dir','url','target','mode','backend'].includes(key))throw new Error('Unknown option --'+key);const next=inline??args[++i];if(!next||next.startsWith('--'))throw new Error('Missing value for --'+key);options[key]=next;}}else words.push(value);}return {options,words};}
 async function invite(options,io){if(options['invite-file'])return readFileSync(resolve(options['invite-file']),'utf8').trim();if(options['invite-stdin'])return readFileSync(0,'utf8').trim();if(!io.input.isTTY)throw new Error('Supply --invite-file FILE or --invite-stdin');const rl=createInterface({input:io.input,output:io.output});try{return (await rl.question('Paste the private invitation link: ')).trim();}finally{rl.close();}}
 function localOrigin(value){const url=new URL(value);if(url.protocol!=='http:'||!['127.0.0.1','localhost','[::1]'].includes(url.hostname)||url.username||url.password||url.pathname!=='/'||url.search||url.hash)throw new Error('The companion URL must be loopback HTTP');return url.origin;}
 export async function localCommand(state,path,input,options={}){
+ const servicePath=join(state,'service.json');
+ const primaryConfig=existsSync(join(state,'project.json'))?join(state,'project.json'):join(state,'p/project.json');
+ const readService=()=>JSON.parse(readFileSync(servicePath));
+ const isSetup=service=>service.backend==='rust'?!existsSync(primaryConfig):service.mode==='setup';
  let origin=options['local-url'],setup=false;
- if(!origin&&existsSync(join(state,'service.json'))){const service=JSON.parse(readFileSync(join(state,'service.json')));origin=service.origin;setup=service.mode==='setup';}
+ if(!origin&&existsSync(servicePath)){const service=readService();origin=service.origin;setup=isSetup(service);}
  if(!origin&&existsSync(join(state,'review.json')))origin=new URL(JSON.parse(readFileSync(join(state,'review.json'))).url).origin;
  if(!origin&&path==='status')return {running:false,configured:existsSync(join(state,'workspace.json'))};
- if(!origin){origin=(await launch({root:state,noOpen:true})).origin;setup=JSON.parse(readFileSync(join(state,'service.json'))).mode==='setup';}
- origin=localOrigin(origin);try{const health=await fetch(origin+'/healthz',{signal:AbortSignal.timeout(2000),redirect:'error'});if(!health.ok)throw new Error('Companion is unavailable');}catch{if(path==='status')return {running:false,origin};if(options['local-url']||!existsSync(join(state,'service.json'))||existsSync(join(state,'project.json')))throw new Error('The companion is not running. Use spool service client start');origin=(await launch({root:state,noOpen:true})).origin;setup=JSON.parse(readFileSync(join(state,'service.json'))).mode==='setup';}
+ if(!origin){origin=(await launch({root:state,noOpen:true})).origin;setup=isSetup(readService());}
+ origin=localOrigin(origin);try{const health=await fetch(origin+'/healthz',{signal:AbortSignal.timeout(2000),redirect:'error'});if(!health.ok)throw new Error('Companion is unavailable');}catch{if(path==='status')return {running:false,origin};if(options['local-url']||!existsSync(servicePath)||existsSync(join(state,'project.json')))throw new Error('The companion is not running. Use spool service client start');origin=(await launch({root:state,noOpen:true})).origin;setup=isSetup(readService());}
  const preferences=join(state,'cli.json'),selected=options.project??(existsSync(preferences)?JSON.parse(readFileSync(preferences)).project:null);
  origin=localOrigin(origin);
  if(setup&&path==='status')return {setup:true,origin,notice:'Waiting for a project. Connect a workspace and join a project, or use project add.'};if(setup&&path==='projects')return {projects:[]};if(setup&&path==='projects/add')path='join';if(setup&&path==='invites/join')path='join';
  if(setup&&!['workspace','join','discovery'].includes(path))throw new Error('Connect a workspace and join a project first');
- const prefix=setup?'api':'local',session=await fetch(origin+'/'+prefix+'/session',{headers:{'sec-fetch-site':'same-origin'},signal:AbortSignal.timeout(10000),redirect:'error'}),cookie=session.headers.get('set-cookie')?.split(';')[0],auth=await session.json();if(!session.ok||!cookie)throw new Error('Cannot authenticate with the local companion');const configPath=existsSync(join(state,'project.json'))?join(state,'project.json'):join(state,'p/project.json');if(!setup&&existsSync(configPath)&&auth.project?.id!==JSON.parse(readFileSync(configPath)).room)throw new Error('Companion belongs to a different state directory');
+ const prefix=setup?'api':'local',session=await fetch(origin+'/'+prefix+'/session',{headers:{'sec-fetch-site':'same-origin'},signal:AbortSignal.timeout(10000),redirect:'error'}),cookie=session.headers.get('set-cookie')?.split(';')[0],auth=await session.json();if(!session.ok||!cookie)throw new Error('Cannot authenticate with the local companion');if(!setup&&existsSync(primaryConfig)&&auth.project?.id!==JSON.parse(readFileSync(primaryConfig)).room)throw new Error('Companion belongs to a different state directory');
  const response=await fetch(origin+'/'+prefix+'/'+path,{method:input?'POST':'GET',headers:{origin,'sec-fetch-site':'same-origin',cookie,'x-spool-csrf':auth.csrf,...(selected?{'x-spool-project':selected}:{}),...(input?{'content-type':'application/json'}:{})},...(input?{body:JSON.stringify(input)}:{}),signal:AbortSignal.timeout(60000),redirect:'error'});const result=await response.json();if(!response.ok)throw new Error(typeof result.error==='string'?result.error:result.error?.message??'Companion request failed');if(path==='projects/select'){writeFileSync(preferences+'.tmp',JSON.stringify({project:result.id})+'\n',{mode:0o600});renameSync(preferences+'.tmp',preferences);}return result;
 }
 export function resolveProjectName(projects,selector){
@@ -215,7 +219,7 @@ export async function runManagement(args,{input=process.stdin,output=process.std
   if(action==='project'&&rest[0]==='create')request={command:'create',name:need(rest[1],'Specify a project name')};
   if(action==='project'&&rest[0]==='invite')request={command:'create-invite',room:need(rest[1],'Specify a room ID'),label:options.label??'Teammate'};
   if(action==='project'&&rest[0]==='revoke')request={command:'revoke',room:need(rest[1],'Specify a room ID'),memberId:need(rest[2],'Specify a member ID')};
-  if(request){print(await (process.env.SPOOL_CONTAINER_CONFIG?containerRequest(process.env.SPOOL_CONTAINER_CONFIG,request):hostRequest(serverState,request)));return;}
+  if(request){print(await (process.env.SPOOL_CONTAINER_CONFIG?containerRequest(process.env.SPOOL_CONTAINER_CONFIG,request):nativeHostCommand(serverState,request)));return;}
  }
  if(group==='service'){const unit={client:'spool.service',server:'spool-shared.service'}[action],operation=rest[0];if(!unit||!['start','stop','restart','status','logs'].includes(operation))throw new Error('Use service client|server start|stop|restart|status|logs');try{const result=execFileSync(operation==='logs'?'journalctl':'systemctl',operation==='logs'?[...(action==='server'&&process.env.SPOOL_SYSTEM_SERVICE==='1'?[]:['--user']),'-u',unit,'-n','100','--no-pager']:[...(action==='server'&&process.env.SPOOL_SYSTEM_SERVICE==='1'?[]:['--user']),operation,unit,'--no-pager'],{encoding:'utf8',timeout:15000});if(result)print(result.trim());}catch(error){if(error.stdout)print(error.stdout.trim());throw new Error('Service command failed; check the service output');}return;}
  throw new Error('Unknown management command. Run spool --help');

@@ -7,7 +7,7 @@ import {tmpdir} from 'node:os';
 import {createHash,randomUUID} from 'node:crypto';
 import {releaseInfo,newerVersion} from './update.js';
 import {rootRun,waitForHTTPS} from './server-caddy.js';
-import {containerCommands,containerRequest} from './server-vps.js';
+import {containerCommands,containerRequest,relayBackend,relayContainerfile,renderVPSCLI} from './server-vps.js';
 import {verifyBundle} from './desktop/install.js';
 const marker='# Managed by SpoolDB relay updater';
 const read=path=>existsSync(path)?JSON.parse(readFileSync(path,'utf8')):{};
@@ -38,6 +38,11 @@ export async function updateRelay(configPath,{fetcher=fetch,run=rootRun,requireR
 }
 // All helper containers are short lived. Neither application container receives the engine socket.
 export function volumeAction(config,backup,action,{run=rootRun}={}){
+ if(config.relayBackend==='rust'){
+  run(config.engine,['run','--rm','--user','0','-v','spool-relay-data:/data','-v',backup+':/backup:Z',config.image,
+   '/app/spool-native','relay-volume',action,'/data','/backup'],{timeout:300000});
+  return;
+ }
  const script=`const fs=require('node:fs');const action=${JSON.stringify(action)};if(action==='snapshot'){const owners=[];function walk(p){if(p==='/data/models')return;const s=fs.lstatSync(p);if(s.isSocket())return;owners.push([p.slice(5),s.uid,s.gid]);if(s.isDirectory())for(const n of fs.readdirSync(p))walk(p+'/'+n);}walk('/data');fs.writeFileSync('/backup/owners.json',JSON.stringify(owners));fs.cpSync('/data','/backup/data',{recursive:true,filter:p=>p!=='/data/models'&&!fs.lstatSync(p).isSocket()});fs.writeFileSync('/data/.spool-update-gate','1');}else if(action==='restore'){for(const p of fs.readdirSync('/data'))if(p!=='models')fs.rmSync('/data/'+p,{recursive:true,force:true});fs.cpSync('/backup/data','/data',{recursive:true});for(const [p,u,g] of JSON.parse(fs.readFileSync('/backup/owners.json')))fs.lchownSync('/data'+p,u,g);}else fs.rmSync('/data/.spool-update-gate',{force:true});`;
  run(config.engine,['run','--rm','--user','0','-v','spool-relay-data:/data','-v',backup+':/backup:Z',config.image,'bun','-e',script],{timeout:300000});
 }
@@ -45,18 +50,20 @@ export async function applyRelayBundle(configPath,bundle,{run=rootRun,health=wai
  if(requireRoot&&process.getuid?.()!==0)throw Error('Relay updates require root');const old=read(configPath),manifest=verifyBundle(bundle),current=read(join(old.app,'package.json')).version;if(old.managedBy!=='SpoolDB'||!newerVersion(manifest.version,current))throw Error('Expected a newer release for a managed relay');
  const root=dirname(configPath),id=randomUUID(),app=join(root,'releases',manifest.version+'-'+id),backup=join(root,'relay-backups',id),previous='spool-relay-previous-'+id;
  cpSync(bundle,app,{recursive:true});mkdirSync(backup,{recursive:true,mode:0o700});markRelayBackup(backup,{previous:old});
- const config={...old,app,...(hostControl?{hostControl:true}:{}),image:'localhost/spooldb-relay:'+manifest.version+'-'+id};
+ const config={...old,app,...(hostControl?{hostControl:true}:{}),relayBackend:relayBackend(manifest),image:'localhost/spooldb-relay:'+manifest.version+'-'+id};
  markRelayRelease(app,{image:config.image,version:manifest.version});
- writeFileSync(join(app,'Containerfile'),`FROM docker.io/oven/bun:1.4.4\nWORKDIR /app\nCOPY src ./src\nCOPY schemas ./schemas\nCOPY package.json ./\nCOPY node_modules ./node_modules\nRUN chmod -R a+rX /app\nUSER bun\n`);
+ writeFileSync(join(app,'Containerfile'),relayContainerfile(config.relayBackend,{prebuilt:Boolean(manifest.files['runtime/spool-relay-linux-x64'])}));
  run(old.engine,['build','--label','dev.spooldb.managed=true','--label','dev.spooldb.release='+app.split('/').at(-1),'-f',join(app,'Containerfile'),'-t',config.image,app],{stdio:'inherit',timeout:600000});
  if(hostControl)prepareRelayControl(configPath,{requireRoot});
  // Validate the old endpoint before beginning downtime.
  await health(old.domain,old.probe);const savedCLI=readFileSync(cli);save(join(root,'relay-update-journal.json'),{old,backup,previous,cli,savedCLI:savedCLI.toString(),phase:'prepared'});let stopped=false,snapshot=false,renamed=false,created=false;
  try{run(old.engine,['stop','-t','30','spool-relay']);stopped=true;volumeAction(old,backup,'snapshot',{run});snapshot=true;save(join(root,'relay-update-journal.json'),{old,backup,previous,cli,savedCLI:savedCLI.toString(),phase:'snapshot'});
  run(old.engine,['rename','spool-relay',previous]);renamed=true;run(old.engine,containerCommands(config)[0]);created=true;run(old.engine,['start','spool-relay']);
- await health(config.domain,config.probe);const response=JSON.parse(run(old.engine,['exec','spool-relay','bun','-e',"const r=await fetch('http://127.0.0.1:8878/healthz');console.log(await r.text())"]));if(response.version!==manifest.version||response.updating!==true)throw Error('Candidate version or maintenance gate mismatch');
- containerRequest(configPath,{command:'list'},{run});
- save(configPath,config);writeFileSync(cli,savedCLI.toString().replaceAll(old.app,app),{mode:0o755});save(join(root,'relay-update-journal.json'),{old,config,backup,previous,cli,savedCLI:savedCLI.toString(),phase:'committed'});volumeAction(config,backup,'commit',{run});
+ await health(config.domain,config.probe);const probe=config.relayBackend==='rust'?['/app/spool-native','relay-health','http://127.0.0.1:8878']:
+  ['bun','-e',"const r=await fetch('http://127.0.0.1:8878/healthz');console.log(await r.text())"];
+ const response=JSON.parse(run(old.engine,['exec','spool-relay',...probe]));if(response.version!==manifest.version||response.updating!==true)throw Error('Candidate version or maintenance gate mismatch');
+ containerRequest(configPath,{command:'list'},{run,candidate:config});
+ save(configPath,config);writeFileSync(cli,manifest.files['runtime/spool-native-linux-x64']?renderVPSCLI(app,configPath,{native:true}):savedCLI.toString().replaceAll(old.app,app),{mode:0o755});save(join(root,'relay-update-journal.json'),{old,config,backup,previous,cli,savedCLI:savedCLI.toString(),phase:'committed'});volumeAction(config,backup,'commit',{run});
  if(hostControl)installRelayControl(configPath,{run,units:controlUnits,requireRoot});
  save(join(root,'last-relay-update.json'),{version:manifest.version,previous:old,backup,completedAt:new Date().toISOString()});rmSync(join(root,'relay-update-journal.json'),{force:true});try{run(old.engine,['rm',previous]);}catch{}const backupCleanup=maintainRelayStorage(configPath,{run});return {updated:true,version:manifest.version,backup,backupCleanup};
  }catch(error){if(read(join(root,'relay-update-journal.json')).phase==='committed')throw Error('Update committed; finish recovery with sudo spool update recover: '+error.message);try{if(created)run(old.engine,['rm','-f','spool-relay']);if(snapshot)volumeAction(old,backup,'restore',{run});if(renamed)run(old.engine,['rename',previous,'spool-relay']);save(configPath,old);writeFileSync(cli,savedCLI,{mode:0o755});if(stopped)run(old.engine,['start','spool-relay']);await health(old.domain,old.probe);rmSync(join(root,'relay-update-journal.json'),{force:true});maintainRelayStorage(configPath,{run});error.message+=' Previous relay and memory restored.';}catch(rollback){error.message+=' ROLLBACK FAILED: '+rollback.message+'; backup: '+backup;}throw error;}

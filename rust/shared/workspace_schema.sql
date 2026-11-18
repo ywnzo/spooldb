@@ -1,0 +1,14 @@
+CREATE TABLE IF NOT EXISTS deployment_meta(key TEXT PRIMARY KEY,value TEXT);
+CREATE TABLE IF NOT EXISTS team_projects(room TEXT PRIMARY KEY,name TEXT,creator TEXT,request_id TEXT,UNIQUE(creator,request_id));
+CREATE TABLE IF NOT EXISTS team_members(id TEXT,room TEXT,label TEXT,role TEXT,token_hash TEXT,revoked INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(id,room));
+CREATE TABLE IF NOT EXISTS team_invites(hash TEXT PRIMARY KEY,room TEXT,label TEXT,role TEXT,expires INTEGER,claim_hash TEXT,member_id TEXT,revoked INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS team_host_meta(key TEXT PRIMARY KEY);
+CREATE TABLE IF NOT EXISTS project_sharing(room TEXT PRIMARY KEY,revision INTEGER NOT NULL,data TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS workspace_sharing(id INTEGER PRIMARY KEY,revision INTEGER NOT NULL,data TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS workspace_repositories(repository_key TEXT PRIMARY KEY,room TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS workspace_repository_links(repository_key TEXT NOT NULL,room TEXT NOT NULL,PRIMARY KEY(repository_key,room));
+CREATE TABLE IF NOT EXISTS workspace_project_parents(child_room TEXT PRIMARY KEY,parent_room TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS workspace_settings(id TEXT PRIMARY KEY,name TEXT);
+CREATE TABLE IF NOT EXISTS workspace_members(id TEXT PRIMARY KEY,label TEXT,role TEXT,can_create INTEGER,token_hash TEXT UNIQUE,revoked INTEGER DEFAULT 0);
+CREATE TABLE IF NOT EXISTS workspace_grants(member TEXT,room TEXT,role TEXT,PRIMARY KEY(member,room));
+CREATE TABLE IF NOT EXISTS workspace_invites(hash TEXT PRIMARY KEY,label TEXT,role TEXT,can_create INTEGER,expires INTEGER,claim_hash TEXT,member TEXT,revoked INTEGER DEFAULT 0);

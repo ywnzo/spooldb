@@ -1,0 +1,28 @@
+[package]
+name = "spool-native"
+version = "0.1.0"
+edition = "2024"
+default-run = "spool-native"
+
+[dependencies]
+rusqlite = { version = "0.43", features = ["bundled"] }
+rustix = { version = "1.1", features = ["fs", "process"] }
+serde_json = { version = "1", features = ["raw_value"] }
+serde = { version = "1", features = ["derive"] }
+flate2 = "1"
+sha2 = "0.10"
+hmac = "0.12"
+chrono = { version = "0.4", default-features = false, features = ["std"] }
+getrandom = "0.4"
+automerge = { version = "0.12", features = ["utf16-indexing"] }
+base64 = "0.22"
+jsonschema = { version = "0.46", default-features = false }
+axum = "0.8"
+tokio = { version = "1", features = ["io-util", "macros", "net", "process", "rt-multi-thread", "signal", "sync", "time"] }
+tokio-rustls = { version = "0.26.4", default-features = false, features = ["ring", "tls12"] }
+ureq = { version = "3.5", default-features = false, features = ["rustls", "native-tls"] }
+url = "2.5"
+unicode-normalization-alignments = "0.1"
+ort = { version = "=2.0.0-rc.9", default-features = false, features = ["load-dynamic"] }
+ort-sys = { version = "=2.0.0-rc.9", default-features = false }
+tokenizers = { version = "0.22.2", default-features = false, features = ["fancy-regex"] }

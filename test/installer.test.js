@@ -38,3 +38,27 @@ test('a failed upgrade restores the previous application and service without cha
  await assert.rejects(()=>installApp({bundle,paths,activate:false,onProgress:message=>{if(message.startsWith('Registering'))throw Error('simulated registration failure');}}),/simulated registration failure/);
  assert.equal(readFileSync(join(installed.app,'payload'),'utf8'),'old');assert.equal(readFileSync(installed.unit,'utf8'),unit);assert.equal(readFileSync(join(installed.state,'project-memory'),'utf8'),'preserve');assert.equal(JSON.parse(readFileSync(join(paths.data,'spool/installation.json'))).version,'1.0.0');
 });
+
+test('native desktop bundle registers the Rust companion against the existing state path',async t=>{
+ const base=mkdtempSync(join(tmpdir(),'spool-install-native-'));
+ t.after(()=>rmSync(base,{recursive:true,force:true}));
+ const bundle=join(base,'bundle'),runtime='runtime/spool-native-linux-x64';
+ const paths={data:join(base,'data'),config:join(base,'config'),state:join(base,'private state')};
+ mkdirSync(join(bundle,'runtime'),{recursive:true});
+ const binary=`#!/bin/sh
+printf '%s|%s\\n' "$SPOOL_STATE" "$*"
+`;
+ writeFileSync(join(bundle,runtime),binary,{mode:0o755});
+ const files={[runtime]:createHash('sha256').update(binary).digest('hex')};
+ writeFileSync(join(bundle,'manifest.json'),JSON.stringify({version:'test',files}));
+ const installed=await installApp({bundle,paths,activate:false});
+ const unit=readFileSync(installed.unit,'utf8');
+ assert.ok(unit.includes('ExecStart='+JSON.stringify(join(installed.app,runtime))+' "companion" "start"'));
+ assert.ok(unit.includes('Environment='+JSON.stringify('SPOOL_STATE='+installed.state)));
+ assert.equal(execFileSync(installed.cli,['init','--help'],{encoding:'utf8'}).trim(),installed.state+'|init --help');
+ assert.equal(execFileSync(installed.cli,['memory','search','handoff'],{encoding:'utf8'}).trim(),installed.state+'|memory search handoff');
+ assert.equal(execFileSync(installed.cli,['workspace','projects'],{encoding:'utf8'}).trim(),installed.state+'|workspace projects');
+ assert.equal(execFileSync(installed.cli,['project','list'],{encoding:'utf8'}).trim(),installed.state+'|project list');
+ assert.equal(execFileSync(installed.cli,['db with spaces.sqlite'],{encoding:'utf8'}).trim(),installed.state+'|storage db with spaces.sqlite --legacy');
+ assert.equal(execFileSync(installed.cli,['db.sqlite','--sharded'],{encoding:'utf8'}).trim(),installed.state+'|storage db.sqlite --sharded');
+});

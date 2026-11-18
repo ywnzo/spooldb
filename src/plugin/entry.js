@@ -4,7 +4,7 @@ import {existsSync} from 'node:fs';
 import {join} from 'node:path';
 import {spawn} from 'node:child_process';
 import {pluginState} from './state.js';
-import {ensureCompanion} from './companion.js';
+import {ensureCompanion,ensureNativeCompanion} from './companion.js';
 process.umask(0o077);
 const [mode,...args]=process.argv.slice(2),state=pluginState(),app=fileURLToPath(new URL('../',import.meta.url));
 try{
@@ -16,10 +16,15 @@ try{
  }else{
   const pluginRoot=fileURLToPath(new URL('../../../',import.meta.url));if(mode==='mcp'&&existsSync(join(pluginRoot,'.codex-plugin/plugin.json')))installStableHooks(pluginRoot);
   try{const {refreshUpdater}=await import('../update.js');refreshUpdater(state,fileURLToPath(new URL('../../',import.meta.url)));}catch(error){console.error('SpoolDB updater refresh failed: '+error.message);}
-  const companion=await ensureCompanion(state,{timeout:20000});
+  const native=join(app,'../runtime',`spool-native-${process.platform}-${process.arch}`);
+  const useNative=mode==='mcp'&&existsSync(native);
+  if(useNative)await ensureNativeCompanion(state,native);
+  const companion=useNative?{release:()=>{}}:await ensureCompanion(state,{timeout:20000});
   const release=()=>companion.release();process.once('exit',release);
   if(mode==='mcp'){
-   const child=spawn(process.execPath,[join(app,'memory-mcp.js'),state,'--discover','--plugin'],{stdio:'inherit',env:{...process.env,SPOOL_PLUGIN_ROOT:fileURLToPath(new URL('../../../',import.meta.url))}});
+   const child=spawn(useNative?native:process.execPath,useNative?['project-mcp']:[join(app,'memory-mcp.js'),state,'--discover','--plugin'],{
+    stdio:'inherit',env:{...process.env,SPOOL_STATE:state,SPOOL_PLUGIN_ROOT:pluginRoot},
+   });
    for(const signal of ['SIGTERM','SIGINT'])process.on(signal,()=>child.kill(signal));child.on('error',error=>{console.error(error.message);release();process.exitCode=1;});child.on('exit',code=>{release();process.exitCode=code??1;});
   }else if(mode==='status'){
    const {pluginSetup}=await import('./setup.js');console.log(JSON.stringify(await pluginSetup(state,{action:'status'})));release();

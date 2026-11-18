@@ -25,8 +25,9 @@ export async function releaseInfo({fetcher=fetch}={}){
 }
 async function boundedBody(response,maximum){const parts=[];let size=0;for await(const part of response.body){size+=part.length;if(size>maximum)throw Error('Update download exceeds size limit');parts.push(part);}return Buffer.concat(parts);}
 function atomicCopy(source,target){const temporary=target+'.new-'+randomUUID();try{cpSync(source,temporary,{dereference:true});renameSync(temporary,target);}finally{rmSync(temporary,{force:true});}}
+const schedulerRuntime=app=>join(app,'runtime',process.platform==='darwin'?'spool-native-darwin-arm64':'spool-native-linux-x64');
 export function refreshUpdater(state,app){
- for(const target of ['plugin','client']){const config=updateStatus(state,target);if(!config.mode||config.mode==='off'||!config.paths)continue;const base=join(config.paths.data,'spool/updater');mkdirSync(base,{recursive:true,mode:0o700});atomicCopy(join(app,'src/update.js'),join(base,'update.js'));atomicCopy(nativeRuntime(app),join(base,'bun'));}
+ for(const target of ['plugin','client']){const config=updateStatus(state,target);if(!config.mode||config.mode==='off'||!config.paths)continue;const base=join(config.paths.data,'spool/updater');mkdirSync(base,{recursive:true,mode:0o700});atomicCopy(join(app,'src/update.js'),join(base,'update.js'));atomicCopy(nativeRuntime(app),join(base,'bun'));const native=schedulerRuntime(app);if(existsSync(native))atomicCopy(native,join(base,'spool-native'));}
 }
 export function installedVersion(config,{run=runDefault}={}){
  if(config.target==='plugin'){
@@ -70,16 +71,19 @@ export function configureUpdates({state,mode,target='plugin',app,paths=defaultPa
  }
  if(target==='client')installedVersion(settings,{run});
  mkdirSync(base,{recursive:true,mode:0o700});const source=fileURLToPath(import.meta.url);if(resolve(source)!==resolve(script))atomicCopy(source,script);const executable=nativeRuntime(app);if(resolve(executable)!==resolve(runtime))atomicCopy(executable,runtime);
+ const native=schedulerRuntime(app),scheduler=join(base,'spool-native');
+ if(existsSync(native)&&resolve(native)!==resolve(scheduler))atomicCopy(native,scheduler);
+ const launch=existsSync(native)?[scheduler,'update-scheduled',configPath]:[runtime,script,'--scheduled',configPath];
  const license=[join(app,'runtime/LICENSE'),join(app,'third-party/BUN-LICENSE.txt')].find(existsSync);if(license)cpSync(license,join(base,'LICENSE'));
  save(configPath,settings);
  if(platform==='linux'){
   mkdirSync(dirname(unit),{recursive:true});const quote=value=>JSON.stringify(value.replaceAll('%','%%').replaceAll('$','$$'));
-  writeFileSync(unit,marker+'\n[Unit]\nDescription=SpoolDB update check\n[Service]\nType=oneshot\nTimeoutStartSec=10min\nUMask=0077\nExecStart='+[runtime,script,'--scheduled',configPath].map(quote).join(' ')+'\n');
+  writeFileSync(unit,marker+'\n[Unit]\nDescription=SpoolDB update check\n[Service]\nType=oneshot\nTimeoutStartSec=10min\nUMask=0077\nExecStart='+launch.map(quote).join(' ')+'\n');
   writeFileSync(timer,marker+'\n[Unit]\nDescription=SpoolDB automatic updates\n[Timer]\nOnBootSec=5m\nOnCalendar=hourly\nRandomizedDelaySec=5m\nPersistent=true\n[Install]\nWantedBy=timers.target\n');
   if(activate){run('systemctl',['--user','daemon-reload']);run('systemctl',['--user','enable','--now','spool-update-'+target+'.timer']);}
  }else{
   const xml=value=>value.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');mkdirSync(dirname(agent),{recursive:true});
-  writeFileSync(agent,'<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><dict><!-- '+marker+' --><key>Label</key><string>dev.spooldb.update.'+target+'</string><key>ProgramArguments</key><array>'+[runtime,script,'--scheduled',configPath].map(value=>'<string>'+xml(value)+'</string>').join('')+'</array><key>StartInterval</key><integer>3600</integer><key>RunAtLoad</key><true/></dict></plist>');
+  writeFileSync(agent,'<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><dict><!-- '+marker+' --><key>Label</key><string>dev.spooldb.update.'+target+'</string><key>ProgramArguments</key><array>'+launch.map(value=>'<string>'+xml(value)+'</string>').join('')+'</array><key>StartInterval</key><integer>3600</integer><key>RunAtLoad</key><true/></dict></plist>');
   if(activate){try{run('launchctl',['bootout','gui/'+process.getuid(),agent]);}catch{}run('launchctl',['bootstrap','gui/'+process.getuid(),agent]);}
  }
  return {...settings,message:'Updates are checked daily. Automatic plugin updates use Codex and never approve changed hooks. The scheduler retries hourly if an agent session is active.'};

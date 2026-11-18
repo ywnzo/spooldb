@@ -1,0 +1,20 @@
+[package]
+name = "spool-cloudflare"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["raw_value"] }
+sha2 = "0.10"
+hmac = "0.12"
+futures-util = "0.3"
+worker = "0.9"
+wasm-bindgen = "0.2"
+automerge = { version = "0.12", features = ["utf16-indexing", "wasm"] }
+flate2 = "1"
+base64 = "0.22"
+getrandom = { version = "0.4", features = ["wasm_js"] }

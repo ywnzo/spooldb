@@ -29,9 +29,23 @@ runtime="$root/__SPOOL_HOOK_RUNTIME__"
 if [ "$(uname -sm)" = 'Darwin arm64' ] && [ -x "$root/app/runtime/bun-darwin-arm64" ]; then runtime="$root/app/runtime/bun-darwin-arm64"; fi
 exec "$runtime" "$root/app/src/plugin/hook-entry.js" "$@"
 `;
+const nativeRuntime='app/runtime/spool-hook-linux-x64';
+const nativeMacRuntime='app/runtime/spool-hook-darwin-arm64';
+const nativeDispatcher=dispatcherTemplate
+ .replace("__SPOOL_HOOK_RUNTIME__",nativeRuntime)
+ .replaceAll("app/runtime/bun-darwin-arm64",nativeMacRuntime)
+ .replace('exec "$runtime" "$root/app/src/plugin/hook-entry.js" "$@"','exec "$runtime" "$@"');
+function nativeProfile(plugin){
+ const files=[nativeRuntime,nativeMacRuntime].sort().map(name=>({name,hash:sha(readFileSync(join(plugin,name)))}));
+ const manifest=files.map(file=>file.hash+'  '+file.name+'\n').join('');
+ const dispatcher=nativeDispatcher,runtime=nativeRuntime;
+ return {fingerprint:sha(JSON.stringify({protocol:'spool-hooks/1',dispatcher,runtime,manifest})),runtime,manifest,dispatcher,files};
+}
 const imports=/(?:\b(?:import|export)\s+(?:(?:[^'";]+?)\s+from\s*)?|\bimport\s*\(\s*)['"]([^'"]+)['"]/g;
 export function hookProfile(plugin){
- plugin=resolve(plugin);const source=join(plugin,'app/src'),queue=[join(source,'plugin/hook-entry.js')],seen=new Map();
+ plugin=resolve(plugin);
+ if([nativeRuntime,nativeMacRuntime].every(name=>existsSync(join(plugin,name))))return nativeProfile(plugin);
+ const source=join(plugin,'app/src'),queue=[join(source,'plugin/hook-entry.js')],seen=new Map();
  while(queue.length){const path=queue.pop();if(seen.has(path))continue;const name=relative(plugin,path);if(!name.startsWith('app/src/')||name.includes('..'))throw Error('Hook dependencies must stay inside app/src');const code=readFileSync(path,'utf8');seen.set(path,{name,hash:sha(code)});
   for(const match of code.matchAll(imports)){const specifier=match[1];if(specifier.startsWith('node:'))continue;if(!specifier.startsWith('.'))throw Error('Hook runtime must use local modules or Node builtins: '+specifier);const dependency=resolve(dirname(path),specifier);if(!dependency.endsWith('.js'))throw Error('Hook module must be JavaScript');queue.push(dependency);}
  }
@@ -41,6 +55,12 @@ export function hookProfile(plugin){
 export function prepareStableHooks(plugin){
  const profile=hookProfile(plugin),path=join(plugin,'hooks/hooks.json'),hooks=JSON.parse(readFileSync(path));
  for(const [event,groups]of Object.entries(hooks.hooks))for(const group of groups)for(const handler of group.hooks){handler.command='sh "${XDG_DATA_HOME:-$HOME/.local/share}/spool/codex-hooks/'+profile.fingerprint+'/run.sh" '+event;}
+ if(profile.runtime===nativeRuntime){
+  const source=join(plugin,'hooks','native-dispatch');
+  mkdirSync(source,{recursive:true});
+  writeFileSync(join(source,'run.sh'),profile.dispatcher);
+  writeFileSync(join(source,'files.sha256'),profile.manifest);
+ }
  writeFileSync(path,JSON.stringify(hooks,null,2)+'\n');writeFileSync(join(plugin,'hooks/runtime-profile.json'),JSON.stringify({protocol:'spool-hooks/1',fingerprint:profile.fingerprint,runtime:profile.runtime},null,2)+'\n');return profile;
 }
 export function installStableHooks(plugin,{data=desktopPaths().data}={}){

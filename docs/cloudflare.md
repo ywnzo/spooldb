@@ -1,6 +1,6 @@
 # Cloudflare Workers deployment
 
-Cloudflare is an additional relay backend. The self-hosted Node/Bun relay, its CLI, Docker deployment, databases and services remain available. Deploying creates a separate workspace; it does not migrate the existing relay or change clients' project connections.
+Cloudflare runs the Rust relay as WebAssembly in Cloudflare Workers and Durable Objects. Wrangler builds and publishes the Worker. The self-hosted Rust relay uses the same protocol and keeps its own workspace and data. Cloudflare deployment preserves existing Durable Objects and OAuth grants when it targets the same Worker and account.
 
 ## Guided deployment
 

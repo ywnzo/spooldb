@@ -4,21 +4,23 @@ import {fileURLToPath} from 'node:url';
 import {randomBytes,createHash} from 'node:crypto';
 import {spawn} from 'node:child_process';
 import {createInterface} from 'node:readline/promises';
+import {prepareRustWorker} from './rust-worker.js';
 import {WorkspaceClient} from '../team/workspace-client.js';
 import {parseWorkspaceLink,workspaceLink} from '../team/workspace.js';
 const root=fileURLToPath(new URL('../../',import.meta.url));
 export const WRANGLER_VERSION='4.152.0';
 const save=(path,data)=>{mkdirSync(dirname(path),{recursive:true,mode:0o700});writeFileSync(path+'.tmp',JSON.stringify(data,null,2)+'\n',{mode:0o600});renameSync(path+'.tmp',path);chmodSync(path,0o600);};
-export function cloudflareConfig({name,accountId,bootstrapHash,downloadsDirectory,oauthNamespaceId}){
+export function cloudflareConfig({name,accountId,bootstrapHash,downloadsDirectory,oauthNamespaceId,backend='rust',workersAi=false,embeddingModel}){
  if(!/^[a-z][a-z0-9-]{1,61}[a-z0-9]$/.test(name))throw new Error('Worker name must be 3–63 lowercase letters, numbers or hyphens');
  if(accountId&&!/^[a-f0-9]{32}$/.test(accountId))throw new Error('Invalid Cloudflare account ID');
- return {name,...(downloadsDirectory?{assets:{directory:downloadsDirectory,binding:'DOWNLOADS',run_worker_first:true}}:{}),main:join(root,'src/cloudflare/worker.js'),compatibility_date:'2026-10-19',compatibility_flags:['nodejs_compat','global_fetch_strictly_public'],...(oauthNamespaceId?{kv_namespaces:[{binding:'OAUTH_KV',id:oauthNamespaceId}]}:{}),workers_dev:true,...(accountId?{account_id:accountId}:{}),alias:{'node:sqlite':join(root,'src/cloudflare/no-node-sqlite.js')},durable_objects:{bindings:[{name:'WORKSPACE',class_name:'SpoolWorkspace'},{name:'PROJECTS',class_name:'SpoolProject'}]},migrations:[{tag:'v1',new_sqlite_classes:['SpoolWorkspace','SpoolProject']}],vars:{BOOTSTRAP_TOKEN_HASH:bootstrapHash},limits:{cpu_ms:30000},observability:{enabled:true}};
+ if(!['rust','bun'].includes(backend))throw new Error('Choose the rust or bun Cloudflare backend');
+ return {name,...(workersAi?{ai:{binding:'AI'}}:{}),...(downloadsDirectory?{assets:{directory:downloadsDirectory,binding:'DOWNLOADS',run_worker_first:true}}:{}),main:join(root,backend==='rust'?'rust/cloudflare/entry.js':'src/cloudflare/worker.js'),compatibility_date:'2026-10-19',compatibility_flags:['nodejs_compat','global_fetch_strictly_public'],...(oauthNamespaceId?{kv_namespaces:[{binding:'OAUTH_KV',id:oauthNamespaceId}]}:{}),workers_dev:true,...(accountId?{account_id:accountId}:{}),alias:{'node:sqlite':join(root,'src/cloudflare/no-node-sqlite.js')},durable_objects:{bindings:[{name:'WORKSPACE',class_name:'SpoolWorkspace'},{name:'PROJECTS',class_name:'SpoolProject'}]},migrations:[{tag:'v1',new_sqlite_classes:['SpoolWorkspace','SpoolProject']}],vars:{BOOTSTRAP_TOKEN_HASH:bootstrapHash,...(workersAi&&embeddingModel?{EMBEDDING_MODEL:embeddingModel}:{})},limits:{cpu_ms:30000},observability:{enabled:true}};
 }
 function wrangler(){const cli=join(root,'node_modules/wrangler/bin/wrangler.js');if(existsSync(cli))return {command:process.execPath,prefix:[cli]};return process.versions.bun?{command:process.execPath,prefix:['x','--bun','wrangler@'+WRANGLER_VERSION]}:{command:'bun',prefix:['x','--bun','wrangler@'+WRANGLER_VERSION]};}
 export function runWrangler(args,{output=process.stdout,interactive=false,quiet=false,logPath}={}){
  const {command,prefix}=wrangler();return new Promise((resolvePromise,reject)=>{const child=spawn(command,[...prefix,...args],{cwd:root,env:{...process.env,WRANGLER_SEND_METRICS:'false',...(logPath?{WRANGLER_LOG_PATH:logPath}:{})},stdio:interactive?'inherit':['ignore','pipe','pipe']});let text='',bytes=0;if(!interactive)for(const pipe of [child.stdout,child.stderr])pipe.on('data',chunk=>{if(pipe===child.stdout)text+=chunk;bytes+=chunk.length;if(bytes>2_000_000){child.kill();reject(new Error('Wrangler output exceeds limit'));}if(!quiet)output.write(chunk);});child.on('error',reject);child.on('close',status=>status===0?resolvePromise(text):reject(new Error('Wrangler failed (exit '+status+'). Check the output above; your deployment files are retained.')));});
 }
-export async function deployCloudflare({state,options={},input=process.stdin,output=process.stdout,run=runWrangler,fetcher=fetch,connect}={}){
+export async function deployCloudflare({state,options={},input=process.stdin,output=process.stdout,run=runWrangler,fetcher=fetch,connect,prepare=prepareRustWorker}={}){
  if(!options['dry-run']&&!options.resume&&!input.isTTY&&(!options.yes||!options.name||!options['account-id']))throw new Error('Use an interactive terminal, or --yes with --name and --account-id for deployment');
  const rl=input.isTTY?createInterface({input,output}):null;const ask=async(label,value='')=>rl?(await rl.question(label+(value?' ['+value+']':'')+': ')).trim()||value:value;
  try{
@@ -29,6 +31,9 @@ export async function deployCloudflare({state,options={},input=process.stdin,out
  const folder=resolve(options['deploy-dir']??join(state,'deployments/cloudflare',name)),receiptPath=join(folder,'deployment.json');let receipt=existsSync(receiptPath)?JSON.parse(readFileSync(receiptPath)):{};
  if(receipt.name&&receipt.name!==name)throw new Error('Deployment directory belongs to another Worker');
  if(options.resume){if(options.url){const url=new URL(options.url);if(url.protocol!=='https:'||url.username||url.password||url.search||url.hash||url.pathname!=='/')throw new Error('Supply the deployed HTTPS origin with --url');receipt={...receipt,origin:url.origin};if(receipt.ownerLink)receipt.ownerLink=workspaceLink({...parseWorkspaceLink(receipt.ownerLink),url:url.origin});}if(!receipt.origin||!receipt.bootstrapToken||!receipt.workspaceName)throw new Error('No published deployment receipt found for this Worker. Use --name or --deploy-dir to select it.');output.write('Resuming setup for '+receipt.origin+' (no upload or publish).\n');return await finishCloudflareDeployment({receipt,receiptPath,state,options,output,ask,rl,fetcher,connect});}
+ const backend=options.backend??'rust';
+ cloudflareConfig({name,backend});
+ if(backend==='rust')await prepare(root,{output});
  mkdirSync(folder,{recursive:true,mode:0o700});
  let accountId=options['account-id']??receipt.accountId;
  if(!options['dry-run']){
@@ -42,9 +47,14 @@ export async function deployCloudflare({state,options={},input=process.stdin,out
  }
  const workspaceName=options['workspace-name']??receipt.workspaceName??await ask('Workspace name','Company workspace');if(!workspaceName.trim()||workspaceName.length>160)throw new Error('Enter a workspace name (1–160 characters)');
  if(receipt.accountId&&accountId&&receipt.accountId!==accountId)throw new Error('This deployment belongs to another account; use a new deployment directory');
- const bootstrap=receipt.bootstrapToken??randomBytes(32).toString('base64url'),config=cloudflareConfig({name,accountId,oauthNamespaceId:receipt.oauthNamespaceId,bootstrapHash:createHash('sha256').update(bootstrap).digest('hex'),downloadsDirectory:existsSync(join(root,'work/download-assets/manifest.json'))?join(root,'work/download-assets'):undefined});
+ if(options['workers-ai']&&options['no-workers-ai'])throw Error('Choose either --workers-ai or --no-workers-ai');
+ const configPath=join(folder,'wrangler.json');
+ const previousConfig=existsSync(configPath)?JSON.parse(readFileSync(configPath,'utf8')):{};
+ const workersAi=!options['no-workers-ai']&&(options['workers-ai']||receipt.workersAi===true||previousConfig.ai?.binding==='AI');
+ const embeddingModel=typeof previousConfig.vars?.EMBEDDING_MODEL==='string'?previousConfig.vars.EMBEDDING_MODEL:undefined;
+ const bootstrap=receipt.bootstrapToken??randomBytes(32).toString('base64url'),config=cloudflareConfig({name,backend,workersAi,embeddingModel,accountId,oauthNamespaceId:receipt.oauthNamespaceId,bootstrapHash:createHash('sha256').update(bootstrap).digest('hex'),downloadsDirectory:existsSync(join(root,'work/download-assets/manifest.json'))?join(root,'work/download-assets'):undefined});
  if(!options['dry-run']&&!accountId)throw new Error('Cloudflare account ID required');
- const configPath=join(folder,'wrangler.json');save(configPath,config);receipt={...receipt,name,accountId,workspaceName,bootstrapToken:bootstrap,configPath};save(receiptPath,receipt);
+ save(configPath,config);receipt={...receipt,name,backend,workersAi,accountId,workspaceName,bootstrapToken:bootstrap,configPath};save(receiptPath,receipt);
  output.write(`\nWorker: ${name}\nAccount: ${accountId??'not selected (build only)'}\nWorkspace: ${workspaceName}\nDeployment files: ${folder}\n`);
  // Always prepare a reviewable build before the final publish confirmation.
  await run(['deploy','--config',configPath,'--dry-run','--outdir',join(folder,'bundle')],{output,logPath:join(folder,'wrangler.log')});

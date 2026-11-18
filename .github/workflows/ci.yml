@@ -30,3 +30,47 @@ jobs:
       - run: bun test --timeout 30000 test/adapters.test.js test/plugin-bootstrap.test.js test/production-dependencies.test.js test/submodules.test.js test/update.test.js
       - run: bun run build:plugin
       - run: bun scripts/verify-plugin-bundle.js
+  rust-native:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-15]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: '1.4.4'
+      - run: rustup toolchain install 1.96.0 --profile minimal --component clippy
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev libssl-dev
+      - run: bun install --frozen-lockfile
+      - run: cargo +1.96.0 clippy --locked --manifest-path rust/Cargo.toml --all-targets -- -D warnings
+      - run: cargo +1.96.0 test --locked --manifest-path rust/Cargo.toml
+      - if: runner.os == 'Linux'
+        run: SPOOL_TEST_RUST_HOST="$PWD/rust/target/debug/spool-native" bun test --test-name-pattern 'advanced server setup' test/workspace.test.js
+  rust-cloudflare:
+    runs-on: ubuntu-latest
+    env:
+      RUSTUP_TOOLCHAIN: 1.96.0
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: '1.4.4'
+      - run: rustup toolchain install 1.96.0 --profile minimal --target wasm32-unknown-unknown
+      - run: bun install --frozen-lockfile
+      - run: sudo apt-get update && sudo apt-get install -y libssl-dev
+      - run: cargo install worker-build --version '=0.9.0' --locked
+      - run: bun scripts/build-rust-worker.js
+      - name: Verify native deployment dry run
+        run: |
+          cargo build --locked --manifest-path rust/Cargo.toml --bin spool-native
+          rust/target/debug/spool-native deploy cloudflare --dry-run --name spooldb-ci --deploy-dir "$RUNNER_TEMP/spooldb-cloudflare-dry-run" --json
+      - run: bun rust/tests/cloudflare-fixture.js rust/cloudflare/build/index.js
+      - run: bun test --timeout 60000 test/remote-mcp.test.js
+        env:
+          SPOOL_RUST_WORKER_CONFIG: rust/cloudflare/wrangler.jsonc

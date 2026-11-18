@@ -2,6 +2,7 @@ name: Release installers
 on:
   push:
     tags: ['v*']
+    branches: ['codex/rust-release-review']
 permissions:
   contents: read
 jobs:
@@ -15,7 +16,10 @@ jobs:
         with:
           bun-version: '1.4.4'
       - run: bun scripts/verify-release-version.js
+        env:
+          SPOOL_RELEASE_REVIEW: ${{ github.ref_type == 'branch' }}
   containers:
+    needs: [rust-hooks]
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -28,13 +32,23 @@ jobs:
         with:
           bun-version: '1.4.4'
       - run: bun install --frozen-lockfile
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: spool-hook-linux-x64
+          path: hook-artifacts/linux
       - run: bun run build:installer
+        env:
+          SPOOL_CLIENT_LINUX_X64: hook-artifacts/linux/spool-native
+          SPOOL_RELAY_LINUX_X64: hook-artifacts/linux/spool-native
       - name: Install Podman when needed
         if: matrix.engine == 'podman'
         run: command -v podman || (sudo apt-get update && sudo apt-get install -y podman)
+      - name: Verify the Rust relay and Caddy with legacy data
+        run: sudo env SPOOL_TEST_CONTAINER_ENGINE=/usr/bin/${{ matrix.engine }} "$(command -v bun)" rust/tests/container-relay-fixture.js work/linux-package/SpoolDB/runtime/spool-relay-linux-x64
       - name: Verify real containers and persistent memory
         run: sudo env SPOOL_TEST_CONTAINER_ENGINE=/usr/bin/${{ matrix.engine }} "$(command -v bun)" test --timeout 600000 test/server-container-runtime.test.js
   apple-silicon:
+    needs: [rust-hooks]
     runs-on: macos-15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -46,10 +60,49 @@ jobs:
       - run: test "$(uname -m)" = arm64
       - run: bun install --frozen-lockfile
       - run: bun test --timeout 30000 test/adapters.test.js test/plugin-bootstrap.test.js test/production-dependencies.test.js test/submodules.test.js test/update.test.js
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: spool-hook-*
+          path: hook-artifacts
       - run: bun run build:plugin
+        env:
+          SPOOL_HOOK_LINUX_X64: hook-artifacts/spool-hook-linux-x64/spool-hook
+          SPOOL_HOOK_DARWIN_ARM64: hook-artifacts/spool-hook-darwin-arm64/spool-hook
+          SPOOL_CLIENT_LINUX_X64: hook-artifacts/spool-hook-linux-x64/spool-native
+          SPOOL_CLIENT_DARWIN_ARM64: hook-artifacts/spool-hook-darwin-arm64/spool-native
       - run: bun scripts/verify-plugin-bundle.js
+  rust-hooks:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            target: linux-x64
+          - os: macos-15
+            target: darwin-arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: '1.4.4'
+      - run: rustup toolchain install 1.96.0 --profile minimal
+      - if: matrix.target == 'linux-x64'
+        run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev libssl-dev
+      - run: bun install --frozen-lockfile
+      - run: cargo +1.96.0 build --locked --release --manifest-path rust/Cargo.toml --bin spool-hook --bin spool-native
+      - run: SPOOL_TEST_RUST_HOOK="$PWD/rust/target/release/spool-hook" bun test --test-name-pattern 'standalone Rust hooks' test/stable-hooks.test.js
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: spool-hook-${{ matrix.target }}
+          path: |
+            rust/target/release/spool-hook
+            rust/target/release/spool-native
+          if-no-files-found: error
+          retention-days: 1
   release:
-    needs: [version, apple-silicon, containers]
+    needs: [version, apple-silicon, containers, rust-hooks]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -66,9 +119,33 @@ jobs:
         run: bun run benchmark:quality --check
         env:
           SPOOL_MODEL_CACHE: ${{ runner.temp }}/spool-models
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: spool-hook-*
+          path: hook-artifacts
       - run: bun scripts/build-codex-plugin.js
+        env:
+          SPOOL_HOOK_LINUX_X64: hook-artifacts/spool-hook-linux-x64/spool-hook
+          SPOOL_HOOK_DARWIN_ARM64: hook-artifacts/spool-hook-darwin-arm64/spool-hook
+          SPOOL_CLIENT_LINUX_X64: hook-artifacts/spool-hook-linux-x64/spool-native
+          SPOOL_CLIENT_DARWIN_ARM64: hook-artifacts/spool-hook-darwin-arm64/spool-native
+      - run: bun scripts/verify-plugin-bundle.js
       - run: bun scripts/build-codex-marketplace.js
+      - run: rustup toolchain install 1.96.0 --profile minimal --target wasm32-unknown-unknown
+      - run: cargo +1.96.0 install worker-build --version '=0.9.0' --locked
+      - run: bun scripts/build-rust-worker.js
+        env:
+          RUSTUP_TOOLCHAIN: 1.96.0
+      - run: bun rust/tests/cloudflare-fixture.js rust/cloudflare/build/index.js
+      - run: bun test --timeout 60000 test/remote-mcp.test.js
+        env:
+          SPOOL_RUST_WORKER_CONFIG: rust/cloudflare/wrangler.jsonc
       - run: bun scripts/build-linux-installer.js
+        env:
+          SPOOL_CLIENT_LINUX_X64: hook-artifacts/spool-hook-linux-x64/spool-native
+          SPOOL_RELAY_LINUX_X64: hook-artifacts/spool-hook-linux-x64/spool-native
+          SPOOL_NATIVE_PLUGIN_SOURCE: work/plugin-marketplace
+      - run: installers/spool-linux-x64.run --verify-only
       - name: Prepare downloads
         run: |
           cp scripts/install.sh installers/install.sh
@@ -80,7 +157,7 @@ jobs:
           name: spool-release
           include-hidden-files: true
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 7
           path: |
             installers/spool-linux-x64.run
             installers/spooldb-codex.tar.gz
@@ -89,6 +166,7 @@ jobs:
             work/codex-marketplace
             docs/releases/*.md
   publish:
+    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
     needs: release
     runs-on: ubuntu-latest
     permissions:
