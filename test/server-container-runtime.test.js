@@ -29,7 +29,12 @@ if touch /run/spool-control/probe 2>/dev/null; then readonly=false; fi
 if test -e /var/run/docker.sock; then docker=true; fi
 printf '{"uid":%s,"readonly":%s,"dockerSocket":%s}\n' "$(id -u)" "$readonly" "$docker"`;
   const socketProof=JSON.parse((await promisify(execFile)(engine,['exec','spool-relay','sh','-c',probeScript],{encoding:'utf8',timeout:15000})).stdout);
-  const maintenance=containerRequest(configPath,{command:'relay-admin',action:'status'},{run});
+  // Keep the in-process control listener responsive while the container waits for its reply.
+  const controlRequest=promisify(execFile)(engine,[
+   'exec','-i','spool-relay','/app/spool-native','team-host','request','/data'
+  ],{encoding:'utf8',timeout:15000});
+  controlRequest.child.stdin.end(JSON.stringify({command:'relay-admin',action:'status'}));
+  const maintenance=JSON.parse((await controlRequest).stdout);
   assert.equal(socketProof.uid,1000);assert.equal(socketProof.readonly,true);assert.equal(maintenance.supported,true);assert.equal(socketProof.dockerSocket,false);
   // Exercise the same bundle as a newer candidate without downloading a release.
   const installed=JSON.parse(readFileSync(configPath));const packagePath=join(installed.app,'package.json'),pkg=JSON.parse(readFileSync(packagePath));pkg.version='0.0.1';writeFileSync(packagePath,JSON.stringify(pkg));
