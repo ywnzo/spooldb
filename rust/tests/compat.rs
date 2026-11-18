@@ -1,7 +1,7 @@
 use serde_json::Value;
 use std::{
     fs,
-    path::Path,
+    path::{Path, PathBuf},
     process::Command,
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -531,7 +531,13 @@ fn existing_self_hosted_workspaces_keep_membership_and_invites() {
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_nanos();
-    let work = std::env::temp_dir().join(format!("sw-{}-{stamp}", std::process::id()));
+    // macOS uses a long per-user TMPDIR that leaves too little room for companion sockets.
+    let temporary = if cfg!(target_os = "macos") {
+        PathBuf::from("/tmp")
+    } else {
+        std::env::temp_dir()
+    };
+    let work = temporary.join(format!("sw-{}-{stamp}", std::process::id()));
     fs::create_dir(&work).unwrap();
     let output = Command::new("bun")
         .arg(root.join("tests/workspace-fixture.js"))
