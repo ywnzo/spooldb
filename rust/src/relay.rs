@@ -1057,8 +1057,7 @@ pub fn host_control(path: &std::path::Path, request: &Value) -> Result<Value> {
 #[cfg(unix)]
 fn control_request(path: &std::path::Path, request: &Value) -> HttpResult<Value> {
     use std::{
-        io::{ErrorKind, Read, Write},
-        net::Shutdown,
+        io::{BufRead, BufReader, ErrorKind, Read, Write},
         os::unix::net::UnixStream,
     };
     let failed = || {
@@ -1085,13 +1084,12 @@ fn control_request(path: &std::path::Path, request: &Value) -> HttpResult<Value>
     stream.set_write_timeout(timeout).map_err(|_| failed())?;
     serde_json::to_writer(&mut stream, request).map_err(|_| failed())?;
     stream.write_all(b"\n").map_err(|_| failed())?;
-    stream.shutdown(Shutdown::Write).map_err(|_| failed())?;
     let mut response = Vec::new();
-    stream
+    BufReader::new(stream)
         .take(200_001)
-        .read_to_end(&mut response)
+        .read_until(b'\n', &mut response)
         .map_err(|_| failed())?;
-    if response.len() > 200_000 {
+    if response.len() > 200_000 || response.last() != Some(&b'\n') {
         return Err(failed());
     }
     let value: Value = serde_json::from_slice(&response).map_err(|_| failed())?;

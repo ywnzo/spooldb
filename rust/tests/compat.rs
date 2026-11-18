@@ -536,7 +536,7 @@ fn existing_self_hosted_workspaces_keep_membership_and_invites() {
     let output = Command::new("bun")
         .arg(root.join("tests/workspace-fixture.js"))
         .arg(env!("CARGO_BIN_EXE_spool-native"))
-        .arg(&work)
+        .arg(fs::canonicalize(&work).unwrap())
         .output()
         .unwrap();
     fs::remove_dir_all(work).unwrap();
@@ -559,7 +559,7 @@ fn storage_cli_reads_and_updates_both_existing_database_formats() {
     let output = Command::new("bun")
         .arg(root.join("tests/storage-fixture.js"))
         .arg(env!("CARGO_BIN_EXE_spool-native"))
-        .arg(&work)
+        .arg(fs::canonicalize(&work).unwrap())
         .output()
         .unwrap();
     fs::remove_dir_all(work).unwrap();
