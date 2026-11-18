@@ -187,10 +187,7 @@ pub fn shape(card: Card, query: &str) -> serde_json::Result<Value> {
 }
 
 pub fn retrieval(input: &Value) -> Result<Option<Value>, SearchError> {
-    if !input["query"]
-        .as_str()
-        .is_some_and(|q| !q.trim().is_empty())
-    {
+    if input["query"].as_str().is_none_or(|q| q.trim().is_empty()) {
         return Ok(None);
     }
     if let Some(mode) = input.get("mode")

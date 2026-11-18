@@ -64,7 +64,7 @@ pub fn valid_event(value: &Value) -> bool {
     if value.get("status").is_some() && !status
         || value.get("revision").is_some_and(|item| !revision(item))
         || kind == Some("task")
-            && (!value["taskId"].as_str().is_some_and(|id| !id.is_empty())
+            && (value["taskId"].as_str().is_none_or(str::is_empty)
                 || !revision(&value["revision"])
                 || !status)
     {

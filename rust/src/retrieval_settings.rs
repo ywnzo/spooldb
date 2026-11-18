@@ -198,7 +198,7 @@ fn update_limits(db: &Connection, input: &Value) -> Result<()> {
     if value.as_object().is_none_or(|v| v.len() != 3)
         || ["dailyRequests", "dailyCharacters", "projectDailyCharacters"]
             .iter()
-            .any(|key| !value[*key].as_u64().is_some_and(|v| v <= 1_000_000_000))
+            .any(|key| value[*key].as_u64().is_none_or(|v| v > 1_000_000_000))
     {
         return Err(bad(
             "USAGE_LIMITS",

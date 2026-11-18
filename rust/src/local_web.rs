@@ -682,11 +682,11 @@ async fn route(State(state): State<Arc<LocalWeb>>, request: Request) -> Response
         );
     }
     let input = if parts.method == Method::POST {
-        if !parts
+        if parts
             .headers
             .get(header::CONTENT_TYPE)
             .and_then(|value| value.to_str().ok())
-            .is_some_and(|value| value.split(';').next() == Some("application/json"))
+            .is_none_or(|value| value.split(';').next() != Some("application/json"))
         {
             return failure(StatusCode::UNSUPPORTED_MEDIA_TYPE, "Use JSON");
         }
