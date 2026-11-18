@@ -268,6 +268,8 @@ fn transaction(
         probe(&next)?;
         journal["phase"] = json!("committed");
         private_files::save_atomic(&journal_path, &journal)?;
+        // Recovery must see a durable commit before the candidate can accept a write.
+        fs::File::open(root)?.sync_all()?;
         recover(&journal)
     })();
     match result {

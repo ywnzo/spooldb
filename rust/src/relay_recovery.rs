@@ -385,7 +385,11 @@ mod tests {
                     assert_eq!(target, &prior);
                     Ok(())
                 },
-                |_| panic!("Rollback must keep the existing control service"),
+                |target| {
+                    assert_eq!(target, &prior);
+                    assert_eq!(regular_json(&config)?.as_ref(), Some(&prior));
+                    Ok(())
+                },
             )?;
             let operations = operations.into_inner();
             assert_eq!(outcome["recovered"], true);

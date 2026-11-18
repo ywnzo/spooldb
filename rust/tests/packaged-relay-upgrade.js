@@ -14,6 +14,7 @@ assert(['/usr/bin/docker', '/usr/bin/podman'].includes(engine));
 assert.equal(process.getuid(), 0);
 const [legacyBundle, installer] = process.argv.slice(2).map(path => resolve(path));
 assert.equal(JSON.parse(readFileSync(join(legacyBundle, 'package.json'))).version, '0.4.45');
+const candidateVersion = JSON.parse(readFileSync('package.json', 'utf8')).version;
 
 const root = mkdtempSync(join(tmpdir(), 'spool-packaged-upgrade-'));
 const paths = { app: join(root, 'app'), cli: '/usr/local/bin/spool', unit: join(root, 'unit') };
@@ -128,7 +129,7 @@ fi
   assert.equal(upgrade(false), 0);
   assert.equal(JSON.parse(readFileSync(configPath)).relayBackend, 'rust');
   assert.match(readFileSync(paths.cli, 'utf8'), /runtime\/spool-native-linux-x64/);
-  assert.equal((await api('/healthz')).body.version, '0.4.46');
+  assert.equal((await api('/healthz')).body.version, candidateVersion);
   assert.equal((await api('/v1/workspace/action', auth, { command: 'list' })).body.workspace.id, workspace.body.workspace.id);
   assert.equal((await memory(record)).body.text, 'This record predates the Rust upgrade.');
   assert.equal(containerRequest(configPath, { command: 'list' }).projects[0].room, project.room);

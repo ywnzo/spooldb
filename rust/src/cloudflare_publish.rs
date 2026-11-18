@@ -128,39 +128,45 @@ fn single_version(text: &str) -> Result<Option<String>> {
     Ok(Some(id.to_owned()))
 }
 
-struct MemoryProbe {
-    client: crate::relay_client::Client,
-}
-
-impl MemoryProbe {
-    fn prepare(origin: &str) -> Result<Option<Self>> {
-        for root in crate::project_binding::registered_roots()? {
-            let Some(grant) = crate::project_binding::resolve(&root)
-                .ok()
-                .and_then(|binding| binding.grant)
-            else {
-                continue;
-            };
-            if grant.url != origin {
-                continue;
-            }
-            let probe = Self {
-                client: crate::relay_client::Client::new(grant)?,
-            };
-            probe.verify()?;
-            return Ok(Some(probe));
+fn probe_project(origin: &str, previous: Option<&Value>) -> Result<Option<Value>> {
+    for root in crate::project_binding::registered_roots()? {
+        let Some(grant) = crate::project_binding::resolve(&root)
+            .ok()
+            .and_then(|binding| binding.grant)
+        else {
+            continue;
+        };
+        if grant.url != origin || previous.is_some_and(|probe| probe["room"] != grant.room) {
+            continue;
         }
-        Ok(None)
+        let room = grant.room.clone();
+        let client = crate::relay_client::Client::new(grant)?;
+        let result = if let Some(previous) = previous {
+            previous.clone()
+        } else {
+            let recent = client.request(
+                "memory",
+                Some(&json!({
+                    "command":"search","query":"","mode":"keyword","limit":1
+                })),
+            )?;
+            json!({"room":room,"record":recent["results"][0]["id"]})
+        };
+        let request = if let Some(id) = result["record"].as_str() {
+            json!({"command":"get","id":id,"limit":1})
+        } else {
+            json!({"command":"context","compact":true})
+        };
+        let read = client.request("memory", Some(&request))?;
+        if result["record"].is_string() && read["id"] != result["record"] {
+            return Err("The existing project record did not survive the upgrade".into());
+        }
+        return Ok(Some(result));
     }
-
-    fn verify(&self) -> Result<()> {
-        self.client
-            .request("memory", Some(&json!({"command":"context","compact":true})))?;
-        Ok(())
-    }
+    Ok(None)
 }
 
-fn verify_workspace(origin: &str) -> Result<Value> {
+pub(crate) fn verify_workspace(origin: &str) -> Result<Value> {
     let workspace = workspace_client::action(origin, &json!({"command":"list"}))
         .map_err(|_| "Connect an existing workspace profile to this relay before upgrading it.")?;
     let mut projects = workspace["projects"]
@@ -174,6 +180,47 @@ fn verify_workspace(origin: &str) -> Result<Value> {
         .as_str()
         .ok_or("Missing workspace identity")?;
     Ok(json!({"id":id,"projects":projects}))
+}
+
+pub(crate) fn verify_upgrade(origin: &str, baseline: &Value) -> Result<()> {
+    if baseline.is_null() {
+        return Ok(());
+    }
+    let catalog = verify_workspace(origin)?;
+    let previous = baseline["projects"]
+        .as_array()
+        .ok_or("Invalid verification baseline")?;
+    let current = catalog["projects"]
+        .as_array()
+        .ok_or("Missing workspace project catalog")?;
+    if catalog["id"] != baseline["id"] || previous.iter().any(|id| !current.contains(id)) {
+        return Err("The upgraded Worker did not retain the existing workspace catalog".into());
+    }
+    if let Some(probe) = baseline.get("probe").filter(|probe| probe.is_object())
+        && probe_project(origin, Some(probe))?.is_none()
+    {
+        return Err("The existing project connection is unavailable for a post-deploy read".into());
+    }
+    Ok(())
+}
+
+pub(crate) fn promote_candidate(folder: &Path, receipt: &Value) -> Result<()> {
+    let candidate = folder.join("wrangler.candidate.json");
+    let marker = &receipt["releaseMarker"];
+    if marker.is_string()
+        && project_paths::optional_json::<Value>(&candidate)?
+            .is_some_and(|config| config["vars"]["SPOOL_RELEASE_MARKER"] == *marker)
+    {
+        fs::rename(&candidate, folder.join("wrangler.json"))?;
+    }
+    let attempt = folder.join("deployment.candidate.json");
+    if marker.is_string()
+        && project_paths::optional_json::<Value>(&attempt)?
+            .is_some_and(|config| config["releaseMarker"] == *marker)
+    {
+        fs::remove_file(attempt)?;
+    }
+    Ok(())
 }
 
 fn config(root: &Path, name: &str, receipt: &Value, prior: &Value) -> Result<Value> {
@@ -234,16 +281,16 @@ fn config(root: &Path, name: &str, receipt: &Value, prior: &Value) -> Result<Val
         config.as_object_mut().unwrap().remove("ai");
     }
     let downloads = root.join("work/download-assets");
-    if downloads.join("manifest.json").is_file() {
+    if let Some(path) = config["assets"]["directory"].as_str() {
+        if Path::new(path).is_absolute() && !Path::new(path).is_dir() {
+            return Err(
+                "The saved download asset directory is missing. Restore it before deploying."
+                    .into(),
+            );
+        }
+    } else if downloads.join("manifest.json").is_file() {
         config["assets"] =
             json!({"directory":downloads,"binding":"DOWNLOADS","run_worker_first":true});
-    } else if let Some(path) = config["assets"]["directory"].as_str()
-        && Path::new(path).is_absolute()
-        && !Path::new(path).is_dir()
-    {
-        return Err(
-            "The saved download asset directory is missing. Restore it before deploying.".into(),
-        );
     }
     Ok(config)
 }
@@ -568,8 +615,8 @@ pub fn run(options: Publish<'_>) -> Result<()> {
         let origin = options.common.url.or_else(|| receipt["origin"].as_str())
             .ok_or("Existing Worker requires its saved deployment receipt or --url for authenticated verification")?;
         let origin = cloudflare_deploy::https_origin(origin)?;
-        let catalog = verify_workspace(&origin)?;
-        let probe = MemoryProbe::prepare(&origin)?;
+        let mut catalog = verify_workspace(&origin)?;
+        let probe = probe_project(&origin, None)?;
         if probe.is_none()
             && catalog["projects"]
                 .as_array()
@@ -577,7 +624,8 @@ pub fn run(options: Publish<'_>) -> Result<()> {
         {
             return Err("Connect a repository to an existing project on this relay before upgrading so its memory can be verified.".into());
         }
-        Some((origin, catalog, probe))
+        catalog["probe"] = json!(probe);
+        Some(catalog)
     } else {
         None
     };
@@ -587,6 +635,7 @@ pub fn run(options: Publish<'_>) -> Result<()> {
         );
     }
     receipt["previousVersion"] = json!(previous);
+    receipt["verificationBaseline"] = json!(baseline);
     receipt["configPath"] = json!(config_path);
     if receipt["oauthNamespaceId"].is_null() {
         let title = format!("{name}-oauth");
@@ -647,35 +696,33 @@ pub fn run(options: Publish<'_>) -> Result<()> {
         receipt["ownerLink"] = json!(workspace_client::retarget_invitation(link, &origin)?);
     }
     receipt["origin"] = json!(origin);
-    let current = single_version(&invoke(&deployment_list, false)?)?
-        .ok_or("Published Worker has no active version")?;
-    if previous.as_deref() == Some(current.as_str()) {
-        return Err("Wrangler still reports the previous version as active".into());
-    }
-    receipt["deployedVersion"] = json!(current);
     receipt["deployedAt"] =
         json!(chrono::DateTime::<chrono::Utc>::from(std::time::SystemTime::now()).to_rfc3339());
     private_files::save_atomic(&path, &receipt)?;
-    let verify = || -> Result<()> {
-        if let Some((prior_origin, catalog, probe)) = baseline {
-            let actual = verify_workspace(&prior_origin)?;
-            if actual["id"] != catalog["id"]
-                || catalog["projects"]
-                    .as_array()
-                    .unwrap()
-                    .iter()
-                    .any(|id| !actual["projects"].as_array().unwrap().contains(id))
-            {
-                return Err(
-                    "The upgraded Worker did not retain the existing workspace catalog".into(),
-                );
-            }
-            if let Some(probe) = probe {
-                probe.verify()?;
-            }
+    let current = published.lines().find_map(|line| {
+        line.trim().strip_prefix("Current Version ID:").map(str::trim)
+    }).filter(|id| crate::relay_retention::uuid(id))
+        .ok_or("Wrangler did not report the uploaded Worker version. Inspect deployment history before resuming.")?;
+    let mut active = false;
+    for attempt in 0..4 {
+        if single_version(&invoke(&deployment_list, false)?)?.as_deref() == Some(current) {
+            active = true;
+            break;
         }
-        Ok(())
-    };
+        if attempt < 3 {
+            std::thread::sleep(std::time::Duration::from_millis(500 << attempt));
+        }
+    }
+    if !active {
+        return Err("The uploaded Worker version is not active. Inspect deployment history before resuming.".into());
+    }
+    if previous.as_deref() == Some(current) {
+        return Err("Wrangler still reports the previous version as active".into());
+    }
+    receipt["deployedVersion"] = json!(current);
+    private_files::save_atomic(&path, &receipt)?;
+    let verification = receipt["verificationBaseline"].clone();
+    let verify = || verify_upgrade(&origin, &verification);
     if let Err(error) = cloudflare_deploy::finish(
         &path,
         &mut receipt,
@@ -693,9 +740,7 @@ pub fn run(options: Publish<'_>) -> Result<()> {
         }
         return Err(error);
     }
-    fs::rename(candidate_path, config_path)?;
-    fs::remove_file(attempt_path)?;
-    Ok(())
+    promote_candidate(&folder, &receipt)
 }
 
 #[cfg(test)]
@@ -711,6 +756,12 @@ mod tests {
         let previous = config(root, "spool-app", &receipt, &Value::Null)?;
         let mut previous = previous;
         previous["routes"] = json!([{"pattern":"relay.example.org","custom_domain":true}]);
+        previous["assets"] =
+            json!({"directory":"./assets","binding":"DOWNLOADS","run_worker_first":true});
+        previous["kv_namespaces"]
+            .as_array_mut()
+            .unwrap()
+            .push(json!({"binding":"ADDITIONAL","id":"additional-namespace"}));
         previous["vars"]["PUBLIC_ORIGIN"] = json!("https://relay.example.org");
         previous["vars"]["EMBEDDING_MODEL"] = json!("existing-model");
         let configured = config(root, "spool-app", &receipt, &previous)?;
@@ -728,8 +779,20 @@ mod tests {
             previous["vars"]["PUBLIC_ORIGIN"]
         );
         assert_eq!(configured["routes"], previous["routes"]);
+        assert_eq!(configured["assets"], previous["assets"]);
+        assert!(
+            configured["kv_namespaces"]
+                .as_array()
+                .unwrap()
+                .contains(&previous["kv_namespaces"][1])
+        );
         assert_eq!(
-            configured["kv_namespaces"][0]["id"],
+            configured["kv_namespaces"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|item| item["binding"] == "OAUTH_KV")
+                .unwrap()["id"],
             receipt["oauthNamespaceId"]
         );
         assert_eq!(

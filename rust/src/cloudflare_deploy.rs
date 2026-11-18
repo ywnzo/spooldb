@@ -144,6 +144,7 @@ pub fn resume(options: Resume<'_>) -> Result<()> {
     let (_, mut receipt, origin) = self::receipt(&options)?;
     private_files::save_atomic(&path, &receipt)?;
     eprintln!("Resuming setup for {origin} (no upload or publish).");
+    let baseline = receipt["verificationBaseline"].clone();
     finish(
         &path,
         &mut receipt,
@@ -151,7 +152,11 @@ pub fn resume(options: Resume<'_>) -> Result<()> {
         options.connect,
         options.json,
         request,
-        || Ok(()),
+        || crate::cloudflare_publish::verify_upgrade(&origin, &baseline),
+    )?;
+    crate::cloudflare_publish::promote_candidate(
+        path.parent().ok_or("Missing deployment directory")?,
+        &receipt,
     )
 }
 
@@ -296,17 +301,23 @@ mod tests {
             let workspace = json!({"id":"existing-ws","name":"Existing team"});
             let mut receipt = json!({"name":"existing","origin":origin,"bootstrapToken":"local-fixture",
                 "accountId":"same-account","workspaceName":"Existing team","oauthNamespaceId":"same-oauth"});
+            receipt["releaseMarker"] = json!("new-version");
             let requests = RefCell::new(Vec::new());
+            let verified = std::cell::Cell::new(false);
             let transport = |address: &str, route: &str, bootstrap: Option<(&str, &str)>| {
                 assert_eq!(address, origin);
                 requests.borrow_mut().push(route.to_owned());
                 match route {
                     "/healthz" => Ok((
                         200,
-                        Some(json!({"ok":true,"protocol":"spool-relay/1","backend":"cloudflare"})),
+                        Some(
+                            json!({"ok":true,"protocol":"spool-relay/1","backend":"cloudflare",
+                            "releaseMarker":if requests.borrow().len() == 1 {"previous-version"} else {"new-version"}}),
+                        ),
                         String::new(),
                     )),
                     "/v1/setup" => {
+                        assert!(verified.get());
                         assert_eq!(bootstrap, Some(("local-fixture", "Existing team")));
                         Ok((200, Some(json!({"workspace":workspace})), String::new()))
                     }
@@ -320,12 +331,16 @@ mod tests {
                 Some(false),
                 false,
                 transport,
-                || Ok(()),
+                || {
+                    assert_eq!(*requests.borrow(), ["/healthz", "/healthz"]);
+                    verified.set(true);
+                    Ok(())
+                },
             )?;
             let saved = project_paths::optional_json::<Value>(&path)?.unwrap();
             assert_eq!(saved["workspace"], workspace);
             assert_eq!(saved["oauthNamespaceId"], "same-oauth");
-            assert_eq!(requests.into_inner(), ["/healthz", "/v1/setup"]);
+            assert_eq!(requests.into_inner(), ["/healthz", "/healthz", "/v1/setup"]);
             Ok(())
         })();
         std::fs::remove_dir_all(dir)?;
