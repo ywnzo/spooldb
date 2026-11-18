@@ -476,13 +476,6 @@ pub fn install(config: &Path, settings: &Value) -> Result<()> {
             .ok_or("Missing installed relay application")?,
     );
     let program = app.join("runtime/spool-native-linux-x64");
-    if !metadata(&program)?.is_some_and(|file| file.is_file()) {
-        // Older releases used the legacy service and remain valid rollback targets.
-        if settings["relayBackend"] == "rust" {
-            return Err("The installed relay control binary is missing".into());
-        }
-        return Ok(());
-    }
     let unit = Path::new("/etc/systemd/system/spool-relay-control.service");
     if let Some(file) = metadata(unit)?
         && (!file.is_file() || file.len() > 32_768 || !fs::read_to_string(unit)?.contains(MARKER))
@@ -490,10 +483,22 @@ pub fn install(config: &Path, settings: &Value) -> Result<()> {
         return Err("Unmanaged relay control service".into());
     }
     let quote = |path: &Path| json!(path.to_string_lossy().replace('%', "%%").replace('$', "$$"));
-    let program = quote(&program);
+    let program = if settings["relayBackend"] != "rust" {
+        let bun = app.join("runtime/bun");
+        let script = app.join("src/relay-control-service.js");
+        if ![&bun, &script].into_iter().all(|path| path.is_file()) {
+            return Err("The previous relay control program is missing".into());
+        }
+        format!("{} {}", quote(&bun), quote(&script))
+    } else {
+        if !metadata(&program)?.is_some_and(|file| file.is_file()) {
+            return Err("The installed relay control binary is missing".into());
+        }
+        format!("{} relay-control", quote(&program))
+    };
     let config_arg = quote(config);
     let text = format!(
-        "{MARKER}\n[Unit]\nDescription=SpoolDB owner maintenance control\nAfter=network-online.target spool-shared.service\nWants=network-online.target\n[Service]\nType=simple\nExecStart={program} relay-control {config_arg}\nRestart=on-failure\nRestartSec=3\nKillMode=process\nUMask=0077\n[Install]\nWantedBy=multi-user.target\n"
+        "{MARKER}\n[Unit]\nDescription=SpoolDB owner maintenance control\nAfter=network-online.target spool-shared.service\nWants=network-online.target\n[Service]\nType=simple\nExecStart={program} {config_arg}\nRestart=on-failure\nRestartSec=3\nKillMode=process\nUMask=0077\n[Install]\nWantedBy=multi-user.target\n"
     );
     let pending = unit.with_file_name(format!(
         ".spool-control-{}.tmp",
@@ -512,7 +517,7 @@ pub fn install(config: &Path, settings: &Value) -> Result<()> {
     for args in [
         vec!["daemon-reload"],
         vec!["enable", "spool-relay-control.service"],
-        vec!["--no-block", "restart", "spool-relay-control.service"],
+        vec!["restart", "spool-relay-control.service"],
     ] {
         if !Command::new("systemctl")
             .args(args)

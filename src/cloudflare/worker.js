@@ -25,7 +25,7 @@ const secret=(provided,expected)=>typeof expected==='string'&&/^[a-f0-9]{64}$/.t
 export default authenticatedRelay({async fetch(req,env){try{
  const path=new URL(req.url).pathname;
  const publicResponse=await publicDownloads(req,env);if(publicResponse)return publicResponse;
- if(path==='/healthz')return req.method==='GET'?json({ok:true,backend:'cloudflare',sourceSharing:'git-references-only'}):json({error:{code:'METHOD',message:'Use GET'}},405);
+ if(path==='/healthz')return req.method==='GET'?json({ok:true,backend:'cloudflare',sourceSharing:'git-references-only',releaseMarker:env.SPOOL_RELEASE_MARKER??null}):json({error:{code:'METHOD',message:'Use GET'}},405);
  // Only the workspace authenticates external requests. Project objects are never routed directly.
  return await env.WORKSPACE.get(env.WORKSPACE.idFromName('workspace')).fetch(req);
  }catch(error){return fault(error);}}});

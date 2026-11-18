@@ -101,5 +101,14 @@ test('remote OAuth MCP in workerd: consent, PKCE, context, handoffs, scope isola
  const members=await ws({command:'project-members',room:project.room});const active=members.members.find(m=>m.label==='Cloud MCP · Test cloud client');assert.ok(active);await ws({command:'revoke-project-member',room:project.room,memberId:active.id});await tool('project_context',{},tokens.access_token,401);await token({grant_type:'refresh_token',client_id:client.client_id,refresh_token:tokens.refresh_token,resource:origin+'/mcp'},400);
  await request('/mcp',{jsonrpc:'2.0',id:1,method:'tools/list'},{authorization:'Bearer '+read.access_token,origin:'https://evil.test'},403);
  await mf.dispose();mf=start();assert.equal(new URL(await mf.ready).origin,origin);await tool('project_context',{},read.access_token);await tool('project_context',{project:future.room},readonly.access_token);await tool('project_context',{},tokens.access_token,401);
+ if(alternate){
+  await mf.dispose();useRust=false;mf=start();
+  assert.equal(new URL(await mf.ready).origin,origin);
+  await tool('project_context',{},read.access_token);
+  await tool('project_context',{project:future.room},readonly.access_token);
+  const afterRollback=await token({grant_type:'refresh_token',client_id:client.client_id,
+   refresh_token:read.refresh_token,resource:origin+'/mcp'});
+  await tool('project_context',{},afterRollback.access_token);
+ }
  const persisted=await request('/v1/rooms/'+project.room+'/memory',{command:'get',id:handoff.id},{authorization:'Bearer '+native.token});assert.equal(persisted.data.kind,'handoff');
 });

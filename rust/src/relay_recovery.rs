@@ -77,7 +77,15 @@ pub(crate) fn probe(settings: &Value) -> Result<()> {
     {
         return Err("Invalid relay TLS domain".into());
     }
+    use ureq::tls::{RootCerts, TlsConfig, TlsProvider};
     let client: ureq::Agent = ureq::Agent::config_builder()
+        .proxy(None)
+        .tls_config(
+            TlsConfig::builder()
+                .provider(TlsProvider::NativeTls)
+                .root_certs(RootCerts::PlatformVerifier)
+                .build(),
+        )
         .max_redirects(0)
         .timeout_global(Some(Duration::from_secs(5)))
         .build()
@@ -249,8 +257,6 @@ pub(crate) fn recover_steps(
             .ok_or("Missing release version")?;
         release_download::version(version)?;
         volume(next, backup, "commit", &execute)?;
-        health(next)?;
-        refresh_control(next)?;
         let now =
             DateTime::<Utc>::from(SystemTime::now()).to_rfc3339_opts(SecondsFormat::Millis, true);
         private_files::save_atomic(
@@ -306,6 +312,7 @@ pub(crate) fn recover_steps(
     }
     private_files::save_atomic(config, old)?;
     restore_cli(expected_cli, script)?;
+    refresh_control(old)?;
     let mut restored = entry.clone();
     restored["phase"] = json!("rolled-back");
     private_files::save_atomic(&root.join("relay-update-journal.json"), &restored)?;

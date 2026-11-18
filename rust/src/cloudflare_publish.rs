@@ -41,6 +41,15 @@ fn root() -> Result<PathBuf> {
         )
 }
 
+#[derive(Debug)]
+struct MissingWorker;
+impl std::fmt::Display for MissingWorker {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        fmt.write_str("The Cloudflare Worker does not exist")
+    }
+}
+impl std::error::Error for MissingWorker {}
+
 fn wrangler(
     root: &Path,
     folder: &Path,
@@ -82,6 +91,11 @@ fn wrangler(
         eprint!("{}", String::from_utf8_lossy(&output.stderr));
     }
     if !output.status.success() {
+        if args.starts_with(&["deployments", "list"])
+            && String::from_utf8_lossy(&output.stderr).contains("[code: 10007]")
+        {
+            return Err(MissingWorker.into());
+        }
         return Err(format!(
             "Wrangler failed ({}). Deployment files and logs are retained.",
             output.status
@@ -91,22 +105,114 @@ fn wrangler(
     Ok(text)
 }
 
+fn single_version(text: &str) -> Result<Option<String>> {
+    let deployments: Vec<Value> = serde_json::from_str(text)?;
+    let Some(deployment) = deployments.last() else {
+        return Ok(None);
+    };
+    let versions = deployment["versions"]
+        .as_array()
+        .ok_or("Invalid Wrangler deployment list")?;
+    let [version] = versions.as_slice() else {
+        return Err(
+            "Existing Worker uses split traffic. Restore a single version before upgrading.".into(),
+        );
+    };
+    let id = version["version_id"]
+        .as_str()
+        .filter(|id| crate::relay_retention::uuid(id))
+        .ok_or("Invalid Worker version ID")?;
+    if version["percentage"].as_f64() != Some(100.0) {
+        return Err("Expected one Worker version receiving all traffic".into());
+    }
+    Ok(Some(id.to_owned()))
+}
+
+struct MemoryProbe {
+    client: crate::relay_client::Client,
+}
+
+impl MemoryProbe {
+    fn prepare(origin: &str) -> Result<Option<Self>> {
+        for root in crate::project_binding::registered_roots()? {
+            let Some(grant) = crate::project_binding::resolve(&root)
+                .ok()
+                .and_then(|binding| binding.grant)
+            else {
+                continue;
+            };
+            if grant.url != origin {
+                continue;
+            }
+            let probe = Self {
+                client: crate::relay_client::Client::new(grant)?,
+            };
+            probe.verify()?;
+            return Ok(Some(probe));
+        }
+        Ok(None)
+    }
+
+    fn verify(&self) -> Result<()> {
+        self.client
+            .request("memory", Some(&json!({"command":"context","compact":true})))?;
+        Ok(())
+    }
+}
+
+fn verify_workspace(origin: &str) -> Result<Value> {
+    let workspace = workspace_client::action(origin, &json!({"command":"list"}))
+        .map_err(|_| "Connect an existing workspace profile to this relay before upgrading it.")?;
+    let mut projects = workspace["projects"]
+        .as_array()
+        .ok_or("Workspace response is missing its project catalog")?
+        .iter()
+        .filter_map(|p| p["room"].as_str())
+        .collect::<Vec<_>>();
+    projects.sort_unstable();
+    let id = workspace["workspace"]["id"]
+        .as_str()
+        .ok_or("Missing workspace identity")?;
+    Ok(json!({"id":id,"projects":projects}))
+}
+
 fn config(root: &Path, name: &str, receipt: &Value, prior: &Value) -> Result<Value> {
     let backend = receipt["backend"].as_str().unwrap_or("rust");
     let token = receipt["bootstrapToken"]
         .as_str()
         .ok_or("Missing setup credential")?;
-    let mut config = json!({
-        "name":name,
-        "main":root.join(if backend=="rust"{"rust/cloudflare/entry.js"}else{"src/cloudflare/worker.js"}),
-        "compatibility_date":"2026-10-19","compatibility_flags":["nodejs_compat","global_fetch_strictly_public"],
-        "workers_dev":true,"alias":{"node:sqlite":root.join("src/cloudflare/no-node-sqlite.js")},
-        "durable_objects":{"bindings":[{"name":"WORKSPACE","class_name":"SpoolWorkspace"},
-            {"name":"PROJECTS","class_name":"SpoolProject"}]},
-        "migrations":[{"tag":"v1","new_sqlite_classes":["SpoolWorkspace","SpoolProject"]}],
-        "vars":{"BOOTSTRAP_TOKEN_HASH":format!("{:x}",Sha256::digest(token))},
-        "limits":{"cpu_ms":30000},"observability":{"enabled":true}
-    });
+    let mut config = if prior.is_object() {
+        prior.clone()
+    } else {
+        json!({
+            "compatibility_date":"2026-10-19",
+            "compatibility_flags":["nodejs_compat","global_fetch_strictly_public"],
+            "workers_dev":true,
+            "durable_objects":{"bindings":[{"name":"WORKSPACE","class_name":"SpoolWorkspace"},
+                {"name":"PROJECTS","class_name":"SpoolProject"}]},
+            "migrations":[{"tag":"v1","new_sqlite_classes":["SpoolWorkspace","SpoolProject"]}],
+            "limits":{"cpu_ms":30000},"observability":{"enabled":true}
+        })
+    };
+    config["name"] = json!(name);
+    config["main"] = json!(root.join(if backend == "rust" {
+        "rust/cloudflare/entry.js"
+    } else {
+        "src/cloudflare/worker.js"
+    }));
+    config["alias"]["node:sqlite"] = json!(root.join("src/cloudflare/no-node-sqlite.js"));
+    let bootstrap = json!(format!("{:x}", Sha256::digest(token)));
+    if prior["vars"]["BOOTSTRAP_TOKEN_HASH"].as_str().is_some()
+        && prior["vars"]["BOOTSTRAP_TOKEN_HASH"] != bootstrap
+    {
+        return Err(
+            "Saved bootstrap credential does not match the existing Worker configuration".into(),
+        );
+    }
+    config["vars"]["BOOTSTRAP_TOKEN_HASH"] = bootstrap;
+    if let Some(marker) = receipt["releaseMarker"].as_str() {
+        config["vars"]["SPOOL_RELEASE_MARKER"] = json!(marker);
+    }
     if let Some(account) = receipt["accountId"].as_str() {
         config["account_id"] = json!(account);
     }
@@ -114,18 +220,30 @@ fn config(root: &Path, name: &str, receipt: &Value, prior: &Value) -> Result<Val
         if !account_valid(namespace) {
             return Err("Invalid saved OAuth KV namespace".into());
         }
-        config["kv_namespaces"] = json!([{"binding":"OAUTH_KV","id":namespace}]);
+        let mut bindings = config["kv_namespaces"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+        bindings.retain(|binding| binding["binding"] != "OAUTH_KV");
+        bindings.push(json!({"binding":"OAUTH_KV","id":namespace}));
+        config["kv_namespaces"] = json!(bindings);
     }
     if receipt["workersAi"] == true {
         config["ai"] = json!({"binding":"AI"});
-        if let Some(model) = prior["vars"]["EMBEDDING_MODEL"].as_str() {
-            config["vars"]["EMBEDDING_MODEL"] = json!(model);
-        }
+    } else {
+        config.as_object_mut().unwrap().remove("ai");
     }
     let downloads = root.join("work/download-assets");
     if downloads.join("manifest.json").is_file() {
         config["assets"] =
             json!({"directory":downloads,"binding":"DOWNLOADS","run_worker_first":true});
+    } else if let Some(path) = config["assets"]["directory"].as_str()
+        && Path::new(path).is_absolute()
+        && !Path::new(path).is_dir()
+    {
+        return Err(
+            "The saved download asset directory is missing. Restore it before deploying.".into(),
+        );
     }
     Ok(config)
 }
@@ -271,6 +389,8 @@ pub fn run(options: Publish<'_>) -> Result<()> {
         .map_err(|_| "Another Cloudflare deployment is running for this Worker")?;
     let path = folder.join("deployment.json");
     let config_path = folder.join("wrangler.json");
+    let candidate_path = folder.join("wrangler.candidate.json");
+    let attempt_path = folder.join("deployment.candidate.json");
     let mut receipt = project_paths::optional_json::<Value>(&path)?.unwrap_or_else(|| json!({}));
     if !receipt.is_object() || receipt["name"].as_str().is_some_and(|prior| prior != name) {
         return Err("Deployment directory belongs to another Worker".into());
@@ -378,10 +498,33 @@ pub fn run(options: Publish<'_>) -> Result<()> {
             .ai
             .unwrap_or(receipt["workersAi"] == true || prior["ai"]["binding"] == "AI")
     );
-    receipt["configPath"] = json!(config_path);
-    private_files::save_atomic(&path, &receipt)?;
-    private_files::save_atomic(&config_path, &config(&root, &name, &receipt, &prior)?)?;
-    let config_arg = config_path
+    if let Some(id) = prior["kv_namespaces"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .find(|binding| binding["binding"] == "OAUTH_KV")
+        .and_then(|binding| binding["id"].as_str())
+    {
+        if receipt["oauthNamespaceId"]
+            .as_str()
+            .is_some_and(|saved| saved != id)
+        {
+            return Err("Saved OAuth namespace and Wrangler configuration disagree".into());
+        }
+        receipt["oauthNamespaceId"] = json!(id);
+    }
+    receipt["releaseMarker"] = json!(private_files::random_id()?);
+    let prepared = config(&root, &name, &receipt, &prior)?;
+    let changed = prepared
+        .as_object()
+        .unwrap()
+        .iter()
+        .filter(|(key, value)| prior.get(key.as_str()) != Some(*value))
+        .map(|(key, _)| key.as_str())
+        .collect::<Vec<_>>();
+    eprintln!("Candidate configuration changes: {}", changed.join(", "));
+    private_files::save_atomic(&candidate_path, &prepared)?;
+    let config_arg = candidate_path
         .to_str()
         .ok_or("Invalid Wrangler configuration path")?;
     let out = folder.join("bundle");
@@ -408,13 +551,43 @@ pub fn run(options: Publish<'_>) -> Result<()> {
         if options.common.json {
             println!(
                 "{}",
-                json!({"prepared":true,"deployed":false,"configPath":config_path})
+                json!({"prepared":true,"deployed":false,"configPath":candidate_path})
             );
         } else {
             eprintln!("Build verified. No Worker was published.");
         }
         return Ok(());
     }
+    let deployment_list = ["deployments", "list", "--json", "--config", config_arg];
+    let previous = match invoke(&deployment_list, false) {
+        Ok(list) => single_version(&list)?,
+        Err(error) if error.is::<MissingWorker>() => None,
+        Err(error) => return Err(error),
+    };
+    let baseline = if previous.is_some() {
+        let origin = options.common.url.or_else(|| receipt["origin"].as_str())
+            .ok_or("Existing Worker requires its saved deployment receipt or --url for authenticated verification")?;
+        let origin = cloudflare_deploy::https_origin(origin)?;
+        let catalog = verify_workspace(&origin)?;
+        let probe = MemoryProbe::prepare(&origin)?;
+        if probe.is_none()
+            && catalog["projects"]
+                .as_array()
+                .is_some_and(|rooms| !rooms.is_empty())
+        {
+            return Err("Connect a repository to an existing project on this relay before upgrading so its memory can be verified.".into());
+        }
+        Some((origin, catalog, probe))
+    } else {
+        None
+    };
+    if receipt["origin"].is_string() && previous.is_none() {
+        return Err(
+            "The saved Worker could not be found. Verify the account and Worker name.".into(),
+        );
+    }
+    receipt["previousVersion"] = json!(previous);
+    receipt["configPath"] = json!(config_path);
     if receipt["oauthNamespaceId"].is_null() {
         let title = format!("{name}-oauth");
         let lookup = || -> Result<Option<String>> {
@@ -448,9 +621,9 @@ pub fn run(options: Publish<'_>) -> Result<()> {
             return Err("Invalid OAuth namespace ID".into());
         }
         receipt["oauthNamespaceId"] = json!(namespace);
-        private_files::save_atomic(&path, &receipt)?;
-        private_files::save_atomic(&config_path, &config(&root, &name, &receipt, &prior)?)?;
+        private_files::save_atomic(&candidate_path, &config(&root, &name, &receipt, &prior)?)?;
     }
+    private_files::save_atomic(&attempt_path, &receipt)?;
     let published = invoke(&["deploy", "--config", config_arg], true)?;
     let discovered = published.split_ascii_whitespace().find(|value| {
         url::Url::parse(value).is_ok_and(|url| {
@@ -474,17 +647,55 @@ pub fn run(options: Publish<'_>) -> Result<()> {
         receipt["ownerLink"] = json!(workspace_client::retarget_invitation(link, &origin)?);
     }
     receipt["origin"] = json!(origin);
+    let current = single_version(&invoke(&deployment_list, false)?)?
+        .ok_or("Published Worker has no active version")?;
+    if previous.as_deref() == Some(current.as_str()) {
+        return Err("Wrangler still reports the previous version as active".into());
+    }
+    receipt["deployedVersion"] = json!(current);
     receipt["deployedAt"] =
         json!(chrono::DateTime::<chrono::Utc>::from(std::time::SystemTime::now()).to_rfc3339());
     private_files::save_atomic(&path, &receipt)?;
-    cloudflare_deploy::finish(
+    let verify = || -> Result<()> {
+        if let Some((prior_origin, catalog, probe)) = baseline {
+            let actual = verify_workspace(&prior_origin)?;
+            if actual["id"] != catalog["id"]
+                || catalog["projects"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|id| !actual["projects"].as_array().unwrap().contains(id))
+            {
+                return Err(
+                    "The upgraded Worker did not retain the existing workspace catalog".into(),
+                );
+            }
+            if let Some(probe) = probe {
+                probe.verify()?;
+            }
+        }
+        Ok(())
+    };
+    if let Err(error) = cloudflare_deploy::finish(
         &path,
         &mut receipt,
         &origin,
         options.common.connect,
         options.common.json,
         cloudflare_deploy::request,
-    )
+        verify,
+    ) {
+        if let Some(previous) = previous {
+            eprintln!(
+                "Verification failed. Inspect the deployed Worker, then restore the previous version with: wrangler rollback {previous} --config {}",
+                config_path.display()
+            );
+        }
+        return Err(error);
+    }
+    fs::rename(candidate_path, config_path)?;
+    fs::remove_file(attempt_path)?;
+    Ok(())
 }
 
 #[cfg(test)]
@@ -497,7 +708,11 @@ mod tests {
         let receipt = json!({"backend":"rust","accountId":"0123456789abcdef0123456789abcdef",
             "bootstrapToken":"local-fixture","oauthNamespaceId":"fedcba9876543210fedcba9876543210",
             "workersAi":true});
-        let previous = json!({"vars":{"EMBEDDING_MODEL":"existing-model"}});
+        let previous = config(root, "spool-app", &receipt, &Value::Null)?;
+        let mut previous = previous;
+        previous["routes"] = json!([{"pattern":"relay.example.org","custom_domain":true}]);
+        previous["vars"]["PUBLIC_ORIGIN"] = json!("https://relay.example.org");
+        previous["vars"]["EMBEDDING_MODEL"] = json!("existing-model");
         let configured = config(root, "spool-app", &receipt, &previous)?;
         assert_eq!(
             configured["main"],
@@ -508,6 +723,11 @@ mod tests {
             json!(["SpoolWorkspace", "SpoolProject"])
         );
         assert_eq!(configured["vars"]["EMBEDDING_MODEL"], "existing-model");
+        assert_eq!(
+            configured["vars"]["PUBLIC_ORIGIN"],
+            previous["vars"]["PUBLIC_ORIGIN"]
+        );
+        assert_eq!(configured["routes"], previous["routes"]);
         assert_eq!(
             configured["kv_namespaces"][0]["id"],
             receipt["oauthNamespaceId"]

@@ -78,7 +78,8 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
             return if req.method() == Method::Get {
                 reply(
                     200,
-                    json!({"ok":true,"backend":"cloudflare","sourceSharing":"git-references-only"}),
+                    json!({"ok":true,"backend":"cloudflare","sourceSharing":"git-references-only",
+                        "releaseMarker":env.var("SPOOL_RELEASE_MARKER").ok().map(|value| value.to_string())}),
                 )
             } else {
                 fault(405, "METHOD", "Use GET")

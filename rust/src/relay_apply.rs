@@ -264,6 +264,8 @@ fn transaction(
         }
         private_files::save_atomic(config, &next)?;
         recovery::restore_cli(&cli, &wrapper(app, config)?)?;
+        control(&next)?;
+        probe(&next)?;
         journal["phase"] = json!("committed");
         private_files::save_atomic(&journal_path, &journal)?;
         recover(&journal)
@@ -386,13 +388,13 @@ mod tests {
 
     #[test]
     fn candidate_writes_roll_back_and_verified_updates_release_the_gate() -> Result<()> {
-        for reject in [true, false] {
+        for reject in ["health", "controller", "final health", ""] {
             exercise_update(reject)?;
         }
         Ok(())
     }
 
-    fn exercise_update(reject: bool) -> Result<()> {
+    fn exercise_update(reject: &str) -> Result<()> {
         use std::cell::RefCell;
         let root =
             std::env::temp_dir().join(format!("spool-update-test-{}", private_files::random_id()?));
@@ -443,21 +445,37 @@ mod tests {
                 }
                 Ok(String::new())
             };
+            let checks = std::cell::Cell::new(0);
             let probe = |current: &Value| -> Result<()> {
-                if reject && current == &next {
+                if current != &next {
+                    return Ok(());
+                }
+                checks.set(checks.get() + 1);
+                assert!(data.join(".spool-update-gate").is_file());
+                if (reject == "health" && checks.get() == 1)
+                    || (reject == "final health" && checks.get() == 2)
+                {
                     fs::write(data.join("shared.sqlite"), "candidate data")?;
                     return Err("Injected candidate health failure".into());
                 }
                 Ok(())
             };
-            let outcome = transaction(&config, journal, &run, &probe, &|_| Ok(()));
+            let outcome = transaction(&config, journal, &run, &probe, &|current| {
+                if current == &next {
+                    assert!(data.join(".spool-update-gate").is_file());
+                    if reject == "controller" {
+                        return Err("Injected controller failure".into());
+                    }
+                }
+                Ok(())
+            });
             assert!(!root.join("relay-update-journal.json").exists());
             assert!(!data.join(".spool-update-gate").exists());
             assert_eq!(
                 fs::read_to_string(data.join("shared.sqlite"))?,
                 "existing memory"
             );
-            if reject {
+            if !reject.is_empty() {
                 assert!(
                     outcome
                         .unwrap_err()

@@ -51,6 +51,19 @@ jobs:
         run: sudo env SPOOL_TEST_CONTAINER_ENGINE=/usr/bin/${{ matrix.engine }} "$(command -v bun)" rust/tests/container-relay-fixture.js work/linux-package/SpoolDB/runtime/spool-relay-linux-x64
       - name: Verify real containers and persistent memory
         run: sudo env SPOOL_TEST_CONTAINER_ENGINE=/usr/bin/${{ matrix.engine }} "$(command -v bun)" test --timeout 600000 test/server-container-runtime.test.js
+      - name: Download and verify the released v0.4.45 installer
+        run: |
+          mkdir -p work/legacy-relay
+          cd work/legacy-relay
+          base=https://github.com/ywnzo/spooldb/releases/download/v0.4.45
+          curl --fail --silent --show-error --location --retry 3 "$base/SHA256SUMS" -o SHA256SUMS
+          curl --fail --silent --show-error --location --retry 3 "$base/spool-linux-x64.run" -o spool-linux-x64.run
+          sha256sum --check --ignore-missing SHA256SUMS
+          payload=$(awk '/^__SPOOL_PAYLOAD__$/{print NR+1;exit}' spool-linux-x64.run)
+          test -n "$payload"
+          tail -n +"$payload" spool-linux-x64.run | tar -xz
+      - name: Verify the packaged Rust updater and rollback from v0.4.45
+        run: sudo env GITHUB_ACTIONS=true SPOOL_TEST_CONTAINER_ENGINE=/usr/bin/${{ matrix.engine }} "$(command -v bun)" rust/tests/packaged-relay-upgrade.js work/legacy-relay/SpoolDB installers/spool-linux-x64.run
   apple-silicon:
     needs: [rust-hooks]
     runs-on: macos-15

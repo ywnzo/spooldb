@@ -151,6 +151,7 @@ pub fn resume(options: Resume<'_>) -> Result<()> {
         options.connect,
         options.json,
         request,
+        || Ok(()),
     )
 }
 
@@ -161,6 +162,7 @@ pub(crate) fn finish(
     connect: Option<bool>,
     json_output: bool,
     transport: impl Fn(&str, &str, Option<(&str, &str)>) -> Result<(u16, Option<Value>, String)>,
+    verify: impl FnOnce() -> Result<()>,
 ) -> Result<()> {
     let mut healthy = false;
     for attempt in 0..4 {
@@ -169,13 +171,17 @@ pub(crate) fn finish(
             Ok((200, Some(body), _))
                 if body["protocol"] == "spool-relay/1"
                     && body["backend"] == "cloudflare"
-                    && body["ok"] == true =>
+                    && body["ok"] == true
+                    && receipt["releaseMarker"]
+                        .as_str()
+                        .is_none_or(|marker| body["releaseMarker"] == marker) =>
             {
                 healthy = true;
                 break;
             }
             Ok((status, _, diagnostic)) => {
-                if attempt == 3 || !matches!(status, 404 | 429 | 500 | 502 | 503 | 504 | 520..=527)
+                if attempt == 3
+                    || !matches!(status, 200 | 404 | 429 | 500 | 502 | 503 | 504 | 520..=527)
                 {
                     return Err(format!("Worker health check returned {diagnostic}. Deployment retained. Retry with --resume after checking routing.").into());
                 }
@@ -194,6 +200,7 @@ pub(crate) fn finish(
     if !healthy {
         return Err("Worker health check failed; deployment retained".into());
     }
+    verify()?;
     if !(receipt["workspace"].is_object() && receipt["ownerLink"].is_string()) {
         let token = receipt["bootstrapToken"]
             .as_str()
@@ -306,7 +313,15 @@ mod tests {
                     _ => panic!("Unexpected route"),
                 }
             };
-            finish(&path, &mut receipt, origin, Some(false), false, transport)?;
+            finish(
+                &path,
+                &mut receipt,
+                origin,
+                Some(false),
+                false,
+                transport,
+                || Ok(()),
+            )?;
             let saved = project_paths::optional_json::<Value>(&path)?.unwrap();
             assert_eq!(saved["workspace"], workspace);
             assert_eq!(saved["oauthNamespaceId"], "same-oauth");
