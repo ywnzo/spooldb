@@ -90,7 +90,7 @@ function upgrade(failController) {
 
 try {
   appendFileSync('/etc/hosts', '\n127.0.0.1 ' + domain + '\n');
-  // Only systemd is substituted. All containers, TLS requests, SQLite writes and installer code run normally.
+  // Inject the first candidate restart failure, then run the real controller on rollback and retry.
   writeFileSync(join(root, 'systemctl'), `#!/bin/sh
 if [ "$1" = restart ] && [ "$SPOOL_TEST_FAIL_CONTROLLER" = 1 ] && [ ! -e "${controllerFailure}" ]; then
  if ${engine} exec spool-relay /app/spool-native relay-health http://127.0.0.1:8878 | grep -q '"updating":true'; then
@@ -98,6 +98,7 @@ if [ "$1" = restart ] && [ "$SPOOL_TEST_FAIL_CONTROLLER" = 1 ] && [ ! -e "${cont
  fi
  exit 1
 fi
+exec /usr/bin/systemctl "$@"
 `, { mode: 0o700 });
   const installed = await configureVPS({ domain, bundle: legacyBundle, paths, run,
     checkDNS: async () => {}, firewall: () => {}, checkHTTPS: healthy });
@@ -133,6 +134,9 @@ fi
   assert.equal((await api('/v1/workspace/action', auth, { command: 'list' })).body.workspace.id, workspace.body.workspace.id);
   assert.equal((await memory(record)).body.text, 'This record predates the Rust upgrade.');
   assert.equal(containerRequest(configPath, { command: 'list' }).projects[0].room, project.room);
+  const maintenance = await api('/v1/workspace/action', auth, { command: 'relay-admin', action: 'status' });
+  assert.equal(maintenance.status, 200);
+  assert.equal(maintenance.body.supported, true);
 } finally {
   const containers = call('container', 'ls', '--all', '--format', '{{.Names}}').split('\n');
   for (const name of containers) {
@@ -142,6 +146,7 @@ fi
   }
   for (const name of volumes) { try { call('volume', 'rm', name); } catch {} }
   try { call('network', 'rm', 'spool-network'); } catch {}
+  try { rootRun('/usr/bin/systemctl', ['disable', '--now', 'spool-relay-control.service']); } catch {}
   writeFileSync('/etc/hosts', hosts);
   rmSync(controlUnit, { force: true });
   rmSync(paths.cli, { force: true });

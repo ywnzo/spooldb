@@ -498,7 +498,7 @@ pub fn install(config: &Path, settings: &Value) -> Result<()> {
     };
     let config_arg = quote(config);
     let text = format!(
-        "{MARKER}\n[Unit]\nDescription=SpoolDB owner maintenance control\nAfter=network-online.target spool-shared.service\nWants=network-online.target\n[Service]\nType=simple\nExecStart={program} {config_arg}\nRestart=on-failure\nRestartSec=3\nKillMode=process\nUMask=0077\n[Install]\nWantedBy=multi-user.target\n"
+        "{MARKER}\n[Unit]\nDescription=SpoolDB owner maintenance control\nAfter=network-online.target spool-shared.service\nWants=network-online.target\n[Service]\nType=exec\nExecStart={program} {config_arg}\nRestart=on-failure\nRestartSec=3\nKillMode=process\nUMask=0077\n[Install]\nWantedBy=multi-user.target\n"
     );
     let pending = unit.with_file_name(format!(
         ".spool-control-{}.tmp",
@@ -528,7 +528,16 @@ pub fn install(config: &Path, settings: &Value) -> Result<()> {
             return Err("Could not activate the relay control service".into());
         }
     }
-    Ok(())
+    let socket = root.join("control/agent.sock");
+    for _ in 0..20 {
+        if crate::relay::host_control(&socket, &json!({"action":"status"}))
+            .is_ok_and(|status| status["supported"] == true)
+        {
+            return Ok(());
+        }
+        std::thread::sleep(Duration::from_millis(250));
+    }
+    Err("The relay control service did not become ready".into())
 }
 
 #[cfg(test)]
