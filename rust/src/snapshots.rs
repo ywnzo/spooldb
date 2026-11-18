@@ -13,6 +13,7 @@ use std::{
     fs::{self, File},
     io::{Read, Write},
     os::fd::AsFd,
+    os::unix::fs::PermissionsExt,
     path::{Path, PathBuf},
 };
 use unicode_normalization_alignments::UnicodeNormalization;
@@ -87,7 +88,7 @@ fn validate(plan: &Plan) -> Result<()> {
     Ok(())
 }
 
-fn write_exclusive(parent: &impl AsFd, name: &str, bytes: &[u8], mode: Mode) -> Result<()> {
+fn write_exclusive(parent: &impl AsFd, name: &str, bytes: &[u8], mode: u32) -> Result<()> {
     let fd = fd_fs::openat(
         parent,
         name,
@@ -96,7 +97,7 @@ fn write_exclusive(parent: &impl AsFd, name: &str, bytes: &[u8], mode: Mode) -> 
     )?;
     let mut file = File::from(fd);
     file.write_all(bytes)?;
-    fd_fs::fchmod(&file, mode)?;
+    file.set_permissions(fs::Permissions::from_mode(mode))?;
     file.sync_all()?;
     Ok(())
 }
@@ -176,7 +177,7 @@ fn create(db: &mut Connection, legacy: bool, request: &Value) -> Result<Value> {
         &output,
         MARKER,
         &serde_json::to_vec(&json!({"id":id,"room":plan.room,"heads":plan.heads}))?,
-        PRIVATE_FILE,
+        0o600,
     )?;
     fd_fs::fsync(&output)?;
     fd_fs::fsync(&parent)?;
@@ -269,12 +270,7 @@ fn recover(db: &mut Connection, id: &str) -> Result<Value> {
             } else {
                 file.entry.text.as_bytes().to_vec()
             };
-            write_exclusive(
-                &directory,
-                &temp,
-                &bytes,
-                Mode::from_bits_truncate(file.entry.mode),
-            )?;
+            write_exclusive(&directory, &temp, &bytes, file.entry.mode)?;
             fd_fs::linkat(
                 &directory,
                 temp.as_str(),

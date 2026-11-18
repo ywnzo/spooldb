@@ -3,6 +3,9 @@ on:
   push:
     tags: ['v*']
     branches: ['codex/rust-release-review']
+concurrency:
+  group: spool-release-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref_type == 'branch' }}
 permissions:
   contents: read
 jobs:
@@ -22,6 +25,7 @@ jobs:
     needs: [rust-hooks]
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         engine: [docker, podman]
     steps:
